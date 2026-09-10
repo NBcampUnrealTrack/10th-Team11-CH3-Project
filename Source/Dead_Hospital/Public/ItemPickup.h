@@ -32,4 +32,26 @@ protected:
 	// 이 pickup이 어떤 아이템인지 저장
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FItemData ItemData;
+
+	// 현재 상호작용 범위 안에 들어온 엑터
+	UPROPERTY()
+	AActor* InteractingActor;
+
+	UFUNCTION()
+	void OnSphereBeginOverlap(
+		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex,
+		bool bFromSweep,
+		const FHitResult& SweepResult
+	);
+
+	UFUNCTION()
+	void OnSphereEndOverlap(
+		UPrimitiveComponent* OverlappedComponent,
+		AActor* OtherActor,
+		UPrimitiveComponent* OtherComp,
+		int32 OtherBodyIndex
+	);
 };
