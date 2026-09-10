@@ -18,6 +18,9 @@ class DEAD_HOSPITAL_API AItemPickup : public AActor
 public:		
 	AItemPickup();
 
+	UFUNCTION(BlueprintCallable, Category = "Item")
+	void Interact(AActor* PlayerActor);
+
 protected:
 	virtual void BeginPlay() override;
 	

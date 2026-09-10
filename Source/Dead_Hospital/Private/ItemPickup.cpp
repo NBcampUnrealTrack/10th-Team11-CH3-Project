@@ -1,6 +1,8 @@
 #include "ItemPickup.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "InventoryComponent.h"
+
 
 AItemPickup::AItemPickup(){
 
@@ -65,6 +67,29 @@ void AItemPickup::OnSphereEndOverlap(
 	if (OtherActor == InteractingActor) {
 		InteractingActor = nullptr;
 
-		UE_LOG(LogTemp, Warning, TEXT("Exited item interaction range"))
+		UE_LOG(LogTemp, Warning, TEXT("Exited item interaction range"));
+	}
+}
+
+void AItemPickup::Interact(AActor* PlayerActor) {
+	
+	//전달받은 플레이어가 없으면 종료
+	if (!PlayerActor) {
+		return;
+	}
+
+	// 플레이어에서 InventoryComponent가 있는지 찾기
+	UInventoryComponent* Inventory = PlayerActor->FindComponentByClass<UInventoryComponent>();
+
+	// 인벤토리가 있으면
+	if (Inventory) {
+
+		// 인벤토리에 추가
+		if (Inventory->AddItem(ItemData)) {
+			UE_LOG(LogTemp, Warning, TEXT("Item picked up: %s"), *ItemData.ItemID.ToString());
+
+			//획득한 아이템을 월드에서 제거
+			Destroy();
+		}
 	}
 }
