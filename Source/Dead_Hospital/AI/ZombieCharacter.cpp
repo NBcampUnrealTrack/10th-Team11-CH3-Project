@@ -3,12 +3,15 @@
 #include "Components/SphereComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/DamageEvents.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 AZombieCharacter::AZombieCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
+	//이 좀비가 스폰될 때 어떤 AI컨트롤러를 자동으로 빙의시킬지, 그 설계도(클래스 정보)를 지정해두는 것. 어떤 클래스를 쓸지만 정해두는 역할
 	AIControllerClass = AZombieAIController::StaticClass();
+	//월드에 위치하거나 스폰됐을 때 자동으로 AI 컨트롤러가 빙의된다.
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 
 	MaxHealth = 100.0f;
@@ -37,6 +40,8 @@ AZombieCharacter::AZombieCharacter()
 void AZombieCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	//좀비 실제 이동속도를 PatrolSpeed로 변경해준다.
+	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 }
 
 
@@ -98,7 +103,7 @@ void AZombieCharacter::Die()
 	);
 }
 
-//Anim Notify에서 호출 - ChaseTarget이 범위 내에 있음ㄴ 데미지 적용
+//Anim Notify에서 호출 - ChaseTarget이 범위 내에 있으면 데미지 적용
 void AZombieCharacter::Attack()
 {
 	if (ChaseTarget)
