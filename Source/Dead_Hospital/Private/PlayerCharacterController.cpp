@@ -6,7 +6,8 @@ APlayerCharacterController::APlayerCharacterController()
 	MoveAction(nullptr),
 	SitAction(nullptr),
 	LookAction(nullptr),
-	SprintAction(nullptr)
+	SprintAction(nullptr),
+	InteractAction(nullptr)
 {
 }
 
