@@ -21,7 +21,7 @@ AZombieCharacter::AZombieCharacter()
 	Power = 20.0f;
 	AttackRange = 100.0f;
 	PatrolSpeed = 300.0f;
-	ChaseSpeed = 500.0f;
+	ChaseSpeed = 300.0f;
 	ChaseTarget = nullptr;
 	CurrentState = EZombieState::Patrol;
 
@@ -42,6 +42,12 @@ void AZombieCharacter::BeginPlay()
 	Super::BeginPlay();
 	//좀비 실제 이동속도를 PatrolSpeed로 변경해준다.
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
+
+	//좀비가 이동방향으로 몸을 돌릴때 회전을 부드럽게 해주기 위해 사용
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
+
+	bUseControllerRotationYaw = false;
 }
 
 
@@ -121,4 +127,22 @@ void AZombieCharacter::Attack()
 void AZombieCharacter::SetHealth(float NewHealth)
 {
 	Health = NewHealth;
+}
+
+void AZombieCharacter::SetCurrentState(EZombieState NewState)
+{
+	CurrentState = NewState;
+
+	switch (CurrentState)
+	{
+	case EZombieState::Patrol:
+	case EZombieState::Idle:
+		GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
+		break;
+	case EZombieState::Chase:
+		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
+		break;
+	default:
+		break;
+	}
 }

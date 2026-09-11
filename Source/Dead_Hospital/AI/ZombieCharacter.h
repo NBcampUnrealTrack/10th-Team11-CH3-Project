@@ -58,9 +58,11 @@ public:
 		struct FDamageEvent const& DamageEvent,
 		AController* EventInstigator,
 		AActor* DamageCauser) override;
+	UFUNCTION(BlueprintCallable, Category = "Attack")
 	void Attack();
 	void Die();
 	void SetHealth(float NewHealth);
+	void SetCurrentState(EZombieState NewState);
 	FTimerHandle DisappearTimerHandle;
 
 protected:

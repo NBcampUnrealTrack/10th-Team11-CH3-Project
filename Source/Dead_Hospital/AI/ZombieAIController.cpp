@@ -20,7 +20,8 @@ AZombieAIController::AZombieAIController()
 	//경계선 거리에서 감지가 켜졌다 꺼졌다 하는 떨림 현상(hysteresis)를 방지한다.
 	SightConfig->LoseSightRadius = 2000.0f;
 	//좀비가 정면 기준으로 좌우 몇 도까지 볼 수 있는지(시야각)
-	SightConfig->PeripheralVisionAngleDegrees = 90.0f;
+	//예를 들어 90도로 지정해주면 총 정면에서부터 좌우 즉, 180도를 보는거다...
+	SightConfig->PeripheralVisionAngleDegrees = 30.0f;
 
 	//감지된 정보가 5초 동안은 유효하게 취급된다 - 타겟이 순간적으로 시야에서 가려져도
 	//바로 놓친 것으로 처리하지 않아 부자연스러운 끊김을 방지해준다
