@@ -3,6 +3,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
+#include "GameFramework/Pawn.h"
 
 AZombieAIController::AZombieAIController()
 {
@@ -77,7 +78,19 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 {
 	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
 	//블랙보드 컴포넌트를 찾지 못하면 아래까지 내려가지 않도록 여기서 끊어버린다.
-	if (!BlackboardComp) return;
+	if (!BlackboardComp || !Actor) {
+		return;
+	}
+
+	// 감지된 Actor가 Pawn인지 확인한다.
+	APawn* DetectedPawn = Cast<APawn>(Actor);
+
+	// Pawn이 아니거나 플레이어가 조종하는 Pawn이 아니라면
+	// 추격 대상으로 사용하지 않고 무시한다.
+	if (!DetectedPawn || !DetectedPawn->IsPlayerControlled())
+	{
+		return;
+	}
 
 	if (Stimulus.WasSuccessfullySensed())
 	{
