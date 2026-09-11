@@ -83,3 +83,14 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity)
 	// 해당 아이템을 찾지 못함
 	return false;
 }
+// 전투 파트가 Ammo 수량을 확인할수 있는 함수
+int32 UInventoryComponent::GetItemQuantity(FName ItemID) const{
+	for (const FItemData& Item : Items){
+		if (Item.ItemID == ItemID){
+			return Item.Quantity;
+		}
+	}
+
+	// 인벤토리에 해당 아이템이 없으면 0
+	return 0;
+}

@@ -23,6 +23,8 @@ public:
 	// 아이템 제거
 	bool RemoveItem(FName ItemID, int32 RemoveQuantity = 1);
 
+	int32 GetItemQuantity(FName ItemID) const;
+
 protected:
 	virtual void BeginPlay() override;
 };
