@@ -45,19 +45,37 @@ bool UInventoryComponent::AddItem(const FItemData& NewItem)
 // 아이템 제거
 bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity)
 {
+	//제거 수량이 0 이하이면 잘못된 요청
+	if (RemoveQuantity <= 0) {
+		return false;
+	}
+
+	//인벤토리 전체를 확인
 	for (int32 i = 0; i < Items.Num(); i++)
-	{
-		if (Items[i].ItemID == ItemID)
-		{
-			// 현재 수량이 제거할 수량보다 많으면 수량만 감소
-			if (Items[i].Quantity > RemoveQuantity)
-			{
-				Items[i].Quantity -= RemoveQuantity;
+	{	
+		//같은 ItemID를 찾음
+		if (Items[i].ItemID == ItemID) {
+			// 가지고 있는 수량보다 많이 제거하려고 하면 실패
+			if (Items[i].Quantity < RemoveQuantity) {
+				UE_LOG(LogTemp, Warning, TEXT("Not enough item quantity: %s"), *ItemID.ToString());
+
+				return false;
+			}
+
+			//수량이 정확히 같으면 인벤토리에서 아이템 자체를 제거
+			if (Items[i].Quantity == RemoveQuantity) {
+				Items.RemoveAt(i);
+
+				UE_LOG(LogTemp, Warning, TEXT("Item removed: %s"), *ItemID.ToString());
+
 				return true;
 			}
 
-			// 수량이 같거나 더 적으면 아이템 자체 삭제
-			Items.RemoveAt(i);
+			//가지고 있는 수량이 더 많으면 수량만 감소
+			Items[i].Quantity -= RemoveQuantity;
+
+			UE_LOG(LogTemp, Warning, TEXT("Item quantity decreased: %s / Remaining: %d"), *ItemID.ToString(), Items[i].Quantity);
+
 			return true;
 		}
 	}
