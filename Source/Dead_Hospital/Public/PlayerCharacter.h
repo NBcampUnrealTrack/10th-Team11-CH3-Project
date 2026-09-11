@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -18,23 +18,23 @@ public:
 
 	APlayerCharacter();
 
-	UFUNCTION(CPF_BlueprintCallable, Category = "Health")
+	UFUNCTION(BlueprintCallable, Category = "Health")
 	float GetCurrentHP() const { return CurrentHP; }
 
-	UFUNCTION(CPF_BlueprintCallable, Category = "Health")
+	UFUNCTION(BlueprintCallable, Category = "Health")
 	float GetMaxHP() const { return MaxHP; }
 
-	UFUNCTION(CPF_BlueprintCallable, Category = "Stamina")
-	float GetCurrentStamina() const { return GetCurrentStamina; }
+	UFUNCTION(BlueprintCallable, Category = "Stamina")
+	float GetCurrentStamina() const { return CurrentStamina; }
 
-	UFUNCTION(CPF_BlueprintCallable, Category = "Stamina")
+	UFUNCTION(BlueprintCallable, Category = "Stamina")
 	float GetMaxStamina() const { return MaxStamina; }
 
-	UFUNCTION(CPF_BlueprintCallable, Category = "Health")
+	UFUNCTION(BlueprintCallable, Category = "Health")
 	bool IsDead() const { return bIsDead; }
 
 	// 힐 아이템 호출하는 함수
-	UFUNCTION(CPF_BlueprintCallable, Category = "Health")
+	UFUNCTION(BlueprintCallable, Category = "Health")
 	void Heal(float HealAmount);
 
 	// 언리얼 기본 데미지 파이프라인 오버라이드
@@ -94,7 +94,7 @@ protected:
 	float StaminaDrainRate = 20.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stamina")
-	float StamimaRegenRate = 10.0f;
+	float StaminaRegenRate = 10.0f;
 
 	// 스테미너가 이 값 이상이어야 뛰기 시작 가능
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stamina")
