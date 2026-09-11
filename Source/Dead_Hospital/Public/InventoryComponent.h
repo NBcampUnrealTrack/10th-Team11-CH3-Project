@@ -25,6 +25,23 @@ public:
 
 	int32 GetItemQuantity(FName ItemID) const;
 
+	// 무기 장착
+	bool EquipWeapon(FName ItemID);
+
+	// 무기 해제
+	void UnequipWeapon();
+
+	// 현재 장착 중인 무기 ID
+	FName GetEquippedWeaponID() const;
+
+	// 무기 장착 여부 확인
+	bool HasEquippedWeapon() const;
+
 protected:
 	virtual void BeginPlay() override;
+
+private:
+
+	//현재 장착 중인 무기 ID
+	FName EquippedWeaponID;
 };

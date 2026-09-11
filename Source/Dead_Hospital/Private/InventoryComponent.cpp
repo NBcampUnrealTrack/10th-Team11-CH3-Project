@@ -4,6 +4,9 @@
 UInventoryComponent::UInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+
+	//처음에는 장착된 무기가 없음
+	EquippedWeaponID = NAME_None;
 }
 
 // Called when the game starts
@@ -129,4 +132,52 @@ int32 UInventoryComponent::GetItemQuantity(FName ItemID) const{
 
 	// 인벤토리에 해당 아이템이 없으면 0
 	return TotalQuantity;
+}
+
+// 무기 장착 함수
+bool UInventoryComponent::EquipWeapon(FName ItemID) {
+
+	//인벤토리에서 해당 아이템 찾기
+	for (const FItemData& Item : Items) {
+		if (Item.ItemID == ItemID) {
+			//무기 타입인지 확인
+			if (Item.ItemType != EItemType::Weapon) {
+				UE_LOG(LogTemp, Warning, TEXT("Item is not a weapon: %s"), *ItemID.ToString());
+
+				return false;
+			}
+
+			// 현재 장착 무기로 설정
+			EquippedWeaponID = ItemID;
+
+			UE_LOG(LogTemp, Warning, TEXT("Weapon equipped: %s"), *ItemID.ToString());
+
+			return true;
+		}
+	}
+
+	// 인벤토리에 해당 무기가 없음
+	UE_LOG(LogTemp, Warning, TEXT("Weapon not found in inventory: %s"), *ItemID.ToString());
+
+	return false;
+}
+
+// 무기 해제 함수
+void UInventoryComponent::UnequipWeapon() {
+	if (EquippedWeaponID.IsNone()) {
+		return;
+	}
+	UE_LOG(LogTemp, Warning, TEXT("Weapon unequipped: %s"), *EquippedWeaponID.ToString());
+
+	EquippedWeaponID = NAME_None;
+}
+
+//현재 장착 무기 확인
+FName UInventoryComponent::GetEquippedWeaponID() const {
+	return EquippedWeaponID;
+}
+
+// 장착 여부 확인
+bool UInventoryComponent::HasEquippedWeapon() const {
+	return !EquippedWeaponID.IsNone();
 }
