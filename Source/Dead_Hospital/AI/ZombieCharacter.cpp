@@ -1,5 +1,6 @@
 ﻿#include "ZombieCharacter.h"
 #include "ZombieAIController.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/DamageEvents.h"
@@ -54,23 +55,39 @@ void AZombieCharacter::BeginPlay()
 //공격 범위 안에 플레이어가 들어오면 Attack 상태로 전환(실제 공격은 아님)
 void AZombieCharacter::OnAttackOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (ACharacter* Player = Cast<ACharacter>(OtherActor))
+	//공격 범위에 들어온 Actor가 플레이엉니지 확인한다.
+	ACharacter* Player = Cast<ACharacter>(OtherActor);
+	if (!Player || !Player->IsPlayerControlled())
 	{
-		if (Player->IsPlayerControlled())
+		return;
+	}
+
+	//Blackboard에 "공격 범위 안이다"라고 기록한다.
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
 		{
-			CurrentState = EZombieState::Attack;
-			ChaseTarget = Player;
+			BlackboardComp->SetValueAsBool(TEXT("InAttackRange"), true);
 		}
 	}
 }
+
 //오버랩 끝나면 상태를 Chase로 변경되고 다시 플레이어를 쫓아간다.
 void AZombieCharacter::OnAttackEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	if (ACharacter* Player = Cast<ACharacter>(OtherActor))
+	//공격 범위에서 벗어난 Actor가 플레이어인지 확인한다.
+	ACharacter* Player = Cast<ACharacter>(OtherActor);
+	if (!Player || !Player->IsPlayerControlled())
 	{
-		if (Player->IsPlayerControlled() && Player == ChaseTarget)
+		return;
+	}
+
+	//Blackboard에 "공격 범위 밖이다"라고 기록한다.
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
 		{
-			CurrentState = EZombieState::Chase;
+			BlackboardComp->SetValueAsBool(TEXT("InAttackRange"), false);
 		}
 	}
 }
@@ -112,14 +129,19 @@ void AZombieCharacter::Die()
 //Anim Notify에서 호출 - ChaseTarget이 범위 내에 있으면 데미지 적용
 void AZombieCharacter::Attack()
 {
-	if (ChaseTarget)
+	AAIController* AIController = Cast<AAIController>(GetController());
+	if (!AIController)
 	{
-		if (AttackRangeComp->IsOverlappingActor(ChaseTarget))
-		{
-			//상대가 만들어놓은 TakeDamage를 호출하겠다
-			//FDamageEvent()를 사용할 때는 "Engine/DamageEvent.h"를 사용해야한다.
-			ChaseTarget->TakeDamage(Power, FDamageEvent(), GetController(), this);
-		}
+		return;
+	}
+	
+	UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent();
+	AActor* Target = BlackboardComp
+		? Cast<AActor>(BlackboardComp->GetValueAsObject(TEXT("ChaseTarget")))
+		: nullptr;
+	if (Target && AttackRangeComp->IsOverlappingActor(Target))
+	{
+		Target->TakeDamage(Power, FDamageEvent(), GetController(), this);
 	}
 }
 
@@ -144,5 +166,17 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		break;
 	default:
 		break;
+	}
+}
+
+//공격 애니메이션이 끝나는 순간 호출된다.
+void AZombieCharacter::OnAttackAnimationFinished()
+{
+	//이 좀비를 조종하는 AI Controller를 가져온다.
+	if (AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController()))
+	{
+		//Blackboard의 IsAttacking을 false로 바꾼다.
+		//그러면 BT가 다시 Chase 또는 다음 Attack을 선택할 수 있다.
+		ZombieController->FinishAttack();
 	}
 }

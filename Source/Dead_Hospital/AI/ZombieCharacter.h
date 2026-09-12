@@ -63,6 +63,8 @@ public:
 	void Die();
 	void SetHealth(float NewHealth);
 	void SetCurrentState(EZombieState NewState);
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void OnAttackAnimationFinished();
 	FTimerHandle DisappearTimerHandle;
 
 protected:
