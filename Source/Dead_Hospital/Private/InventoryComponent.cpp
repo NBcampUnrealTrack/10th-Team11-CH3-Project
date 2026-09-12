@@ -18,6 +18,13 @@ void UInventoryComponent::BeginPlay()
 // 아이템 추가
 bool UInventoryComponent::AddItem(const FItemData& NewItem)
 {
+	// 잘못된 아이템 데이터 방지
+	if (NewItem.Quantity <= 0 || NewItem.MaxStack <= 0) {
+		UE_LOG(LogTemp, Warning, TEXT("Invalid item data: %s"), *NewItem.ItemID.ToString());
+
+		return false;
+	}
+
 	// 새로 추가해야 할 남은 수량
 	int32 RemainingQuantity = NewItem.Quantity;
 
@@ -107,6 +114,12 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 
 			// 필요한 만큼 전부 제거했으면 종료
 			if (RemainingQuantity <= 0){
+
+				//장착 중인 무기를 전부 제거했다면 장착 해제
+				if (EquippedWeaponID == ItemID && GetItemQuantity(ItemID) <= 0) {
+					UnequipWeapon();
+				}
+
 				UE_LOG(LogTemp, Warning, TEXT("Item removed: %s / Amount: %d"),*ItemID.ToString(),RemoveQuantity);
 
 				return true;

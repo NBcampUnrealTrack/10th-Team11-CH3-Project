@@ -4,6 +4,7 @@
 #include "GameFramework/Pawn.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
+#include "GameFramework/Pawn.h"
 
 AZombieAIController::AZombieAIController()
 {

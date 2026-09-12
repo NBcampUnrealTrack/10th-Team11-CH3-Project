@@ -224,11 +224,9 @@ void UCombatComponent::FinishReload()
     // 빈 공간(NeededAmmo)과 가방 속 총알(AmmoCount) 중 더 작은 값을 선택
     int32 ReloadAmount = FMath::Min(NeededAmmo, AmmoCount);
 
-    // 탄창에 총알 추가
-    CurrentWeapon.CurrentAmmo += ReloadAmount;
-
-    // 가방에서 실제로 소비한 총알 차감
-    InventoryComponent->RemoveItem("Ammo", ReloadAmount);
+    if (InventoryComponent->RemoveItem("Ammo", ReloadAmount)) {
+        CurrentWeapon.CurrentAmmo += ReloadAmount;
+    }
 
     // 장전 상태 해제
     bIsReloading = false;

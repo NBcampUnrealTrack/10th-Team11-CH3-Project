@@ -2,6 +2,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "InventoryComponent.h"
+#include "GameFramework/Character.h"
 
 
 AItemPickup::AItemPickup(){
@@ -49,10 +50,14 @@ void AItemPickup::OnSphereBeginOverlap(
 	const FHitResult& SweepResult
 )
 {
-	if (OtherActor && OtherActor != this) {
-		InteractingActor = OtherActor;
+	if (ACharacter* Player = Cast<ACharacter>(OtherActor)){
+		// 플레이어가 조종하는 캐릭터일 때만 상호작용 대상으로 저장
+		if (Player->IsPlayerControlled())
+		{
+			InteractingActor = Player;
 
-		UE_LOG(LogTemp, Warning, TEXT("Entered item interaction range"));
+			UE_LOG(LogTemp, Warning, TEXT("Player entered item interaction range"));
+		}
 	}
 }
 
@@ -64,10 +69,11 @@ void AItemPickup::OnSphereEndOverlap(
 	int32 OtherBodyIndex
 )
 {
-	if (OtherActor == InteractingActor) {
+	if (OtherActor == InteractingActor)
+	{
 		InteractingActor = nullptr;
 
-		UE_LOG(LogTemp, Warning, TEXT("Exited item interaction range"));
+		UE_LOG(LogTemp, Warning,TEXT("Player exited item interaction range"));
 	}
 }
 
@@ -78,18 +84,31 @@ void AItemPickup::Interact(AActor* PlayerActor) {
 		return;
 	}
 
+	// 현재 InteractionSphere 안에 들어와 있는 플레이어가 아니라면
+	// 아이템을 획득하지 못하도록 막는다.
+	if (PlayerActor != InteractingActor)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("Player is not in interaction range"));
+
+		return;
+	}
+
 	// 플레이어에서 InventoryComponent가 있는지 찾기
 	UInventoryComponent* Inventory = PlayerActor->FindComponentByClass<UInventoryComponent>();
 
-	// 인벤토리가 있으면
-	if (Inventory) {
+	// InventoryComponent가 없다면 아이템을 추가할 수 없으므로 종료한다.
+	if (!Inventory){
+		UE_LOG(LogTemp, Warning, TEXT("InventoryComponent not found"));
 
-		// 인벤토리에 추가
-		if (Inventory->AddItem(ItemData)) {
-			UE_LOG(LogTemp, Warning, TEXT("Item picked up: %s"), *ItemData.ItemID.ToString());
+		return;
+	}
 
-			//획득한 아이템을 월드에서 제거
-			Destroy();
-		}
+	// 인벤토리에 아이템 추가를 시도한다.
+	if (Inventory->AddItem(ItemData)){
+		UE_LOG(LogTemp, Warning,TEXT("Item picked up: %s"), *ItemData.ItemID.ToString());
+
+		// 획득에 성공했으므로 월드에 있는 Pickup 제거
+		Destroy();
 	}
 }
