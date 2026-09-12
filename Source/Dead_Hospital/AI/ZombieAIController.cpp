@@ -1,6 +1,7 @@
 ﻿#include "ZombieAIController.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "GameFramework/Pawn.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "GameFramework/Pawn.h"
@@ -97,10 +98,32 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(TEXT("ChaseTarget"), Actor);
 	}
-	else
+	else if (BlackboardComp->GetValueAsObject(TEXT("ChaseTarget")) == Actor)
 	{
 		//대상을 잃어버렸으므로, ChaseTarget을 비워서 다시 순찰 상태로 돌아가게 한다.
 		BlackboardComp->ClearValue(TEXT("ChaseTarget"));
+	}
+}
+
+void AZombieAIController::StartAttack()
+{
+	//현재 실행 중인 Move To 등의 이동을 중단시킨다.
+	StopMovement();
+
+	//BT가 "좀비가 공격 중인지" 알 수 있게 Blackboard 값을 true로 바꾼다.
+	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
+	{
+		//IsAttacking = true "지금 공격 중이다"라는 상태를 Blackboard에 저장한다.
+		BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), true);
+	}
+}
+
+//공격 애니메이션이 끝난 뒤 실행해서 "이제 공격이 끝났다"고 알려주는 역할이다. BT가 다시 이동/추적 판단을 할 수 있게 해준다.
+void AZombieAIController::FinishAttack()
+{
+	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
+	{
+		BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), false);
 	}
 }
 

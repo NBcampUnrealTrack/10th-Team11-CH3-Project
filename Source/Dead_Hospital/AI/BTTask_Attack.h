@@ -2,16 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "BehaviorTree/BTTaskNode.h"
-#include "ZombieCharacter.h"
-#include "BTTask_SetCurrentState.generated.h"
+#include "BTTask_Attack.generated.h"
 
 UCLASS()
-class DEAD_HOSPITAL_API UBTTask_SetCurrentState : public UBTTaskNode
+class DEAD_HOSPITAL_API UBTTask_Attack : public UBTTaskNode
 {
 	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, Category = "State")
-	EZombieState NewState;
 	
 protected:
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
