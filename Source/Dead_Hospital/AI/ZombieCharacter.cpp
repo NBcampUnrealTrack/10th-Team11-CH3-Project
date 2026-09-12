@@ -58,7 +58,11 @@ void AZombieCharacter::OnAttackOverlap(UPrimitiveComponent* OverlappedComp, AAct
 	{
 		if (Player->IsPlayerControlled())
 		{
-			CurrentState = EZombieState::Attack;
+			// 직접 CurrentState를 바꾸지 않고
+			// SetCurrentState()를 통해 상태를 변경한다.
+			SetCurrentState(EZombieState::Attack);
+
+			// 공격 범위 안에 들어온 플레이어를 추격 대상으로 저장한다.
 			ChaseTarget = Player;
 		}
 	}
@@ -70,7 +74,9 @@ void AZombieCharacter::OnAttackEndOverlap(UPrimitiveComponent* OverlappedComp, A
 	{
 		if (Player->IsPlayerControlled() && Player == ChaseTarget)
 		{
-			CurrentState = EZombieState::Chase;
+			// 직접 상태를 바꾸지 않고 SetCurrentState()를 호출해서
+			// Chase 상태와 추격 속도를 함께 적용한다.
+			SetCurrentState(EZombieState::Chase);
 		}
 	}
 }
@@ -84,20 +90,49 @@ void AZombieCharacter::OnDeathTimerExpired()
 //받은 데미지 계산
 float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
-	float ActualDamage = DamageAmount * (1 - Defense / 100.0f);
+
+	// 이미 죽은 상태라면 추가 데미지를 받지 않는다.
+	if (CurrentState == EZombieState::Dead)
+	{
+		return 0.0f;
+	}
+
+	// 방어력은 0 ~ 100 사이의 값으로 제한한다.
+	// 실수로 100보다 큰 값이 들어가도
+	// 데미지가 음수가 되는 것을 방지한다.
+	float ClampedDefense = FMath::Clamp(Defense, 0.0f, 100.0f);
+
+	// 방어력을 적용한 실제 데미지 계산
+	float ActualDamage =
+		DamageAmount * (1.0f - ClampedDefense / 100.0f);
+
+	// 실제 데미지만큼 체력 감소
 	Health -= ActualDamage;
+
+	// 체력이 0보다 작아지지 않도록 제한
 	Health = FMath::Max(Health, 0.0f);
-	if (Health <= 0)
+
+	// 체력이 0 이하가 되면 사망 처리
+	if (Health <= 0.0f)
 	{
 		Die();
 	}
+
 	return ActualDamage;
 }
 
 //좀비 사망 처리 - 상태 변경, 콜리전 비활성화, 일정 시간 후 제거 예약
 void AZombieCharacter::Die()
 {
-	CurrentState = EZombieState::Dead;
+	// 이미 죽은 상태라면 사망 처리를 다시 실행하지 않는다.
+	if (CurrentState == EZombieState::Dead)
+	{
+		return;
+	}
+
+	// Dead 상태로 변경
+	SetCurrentState(EZombieState::Dead);
+
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	AttackRangeComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetWorldTimerManager().SetTimer(
