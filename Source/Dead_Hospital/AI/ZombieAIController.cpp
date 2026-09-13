@@ -4,7 +4,7 @@
 #include "GameFramework/Pawn.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
-#include "GameFramework/Pawn.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 AZombieAIController::AZombieAIController()
 {
@@ -56,6 +56,12 @@ void AZombieAIController::BeginPlay()
 			this,
 			&AZombieAIController::OnPerceptionUpdated
 		);
+		//OnPerceptionUpdated에서 감지 실패(WasSuccessfullySensed = false)가 온 뒤에도, AIPerception이 MaxAge 시간 동안은 그 대상을 기억하고 있다가,
+		//그 시간이 다 지나서 완전히 잊혀지는 순간 호출되는 지연성 이벤트. 이 시점에 진짜로 ChaseTarget을 Clear한다.
+		AIPerception->OnTargetPerceptionForgotten.AddDynamic(
+			this,
+			&AZombieAIController::OnPerceptionForgotten
+		);
 	}
 	
 }
@@ -95,11 +101,22 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 
 	if (Stimulus.WasSuccessfullySensed())
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Chase"));
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(TEXT("ChaseTarget"), Actor);
 	}
-	else if (BlackboardComp->GetValueAsObject(TEXT("ChaseTarget")) == Actor)
+}
+
+void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
+{
+	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
+	if (!BlackboardComp || !Actor) {
+		return;
+	}
+
+	if (BlackboardComp->GetValueAsObject(TEXT("ChaseTarget")) == Actor)
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Forgotten"));
 		//대상을 잃어버렸으므로, ChaseTarget을 비워서 다시 순찰 상태로 돌아가게 한다.
 		BlackboardComp->ClearValue(TEXT("ChaseTarget"));
 	}
@@ -114,6 +131,7 @@ void AZombieAIController::StartAttack()
 	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
 	{
 		//IsAttacking = true "지금 공격 중이다"라는 상태를 Blackboard에 저장한다.
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("True"));
 		BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), true);
 	}
 }
@@ -123,6 +141,7 @@ void AZombieAIController::FinishAttack()
 {
 	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("False"));
 		BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), false);
 	}
 }

@@ -33,6 +33,8 @@ protected:
 	//AIPerception이 뭔가를 감지/놓쳤을 때 호출되는 콜백 함수
 	UFUNCTION()
 	void OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
+	UFUNCTION()
+	void OnPerceptionForgotten(AActor* Actor);
 	
 public:
 	void StartAttack();

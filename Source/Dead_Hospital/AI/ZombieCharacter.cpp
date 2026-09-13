@@ -5,6 +5,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
 
 AZombieCharacter::AZombieCharacter()
 {
@@ -201,6 +202,7 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 //공격 애니메이션이 끝나는 순간 호출된다.
 void AZombieCharacter::OnAttackAnimationFinished()
 {
+	GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Attack Finished Called"));
 	//이 좀비를 조종하는 AI Controller를 가져온다.
 	if (AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController()))
 	{
