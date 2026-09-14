@@ -1,4 +1,5 @@
 #include "InventoryComponent.h"
+#include "PlayerCharacter.h"
 
 // Sets default values for this component's properties
 UInventoryComponent::UInventoryComponent()
@@ -13,6 +14,24 @@ UInventoryComponent::UInventoryComponent()
 void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Grid Inventory 슬롯 초기화
+	InventorySlots.Empty();
+
+	for (int32 i = 0; i < MaxInventorySlots; i++){
+		FInventorySlot NewSlot;
+
+		// 슬롯 번호 설정
+		NewSlot.SlotIndex = i;
+
+		// 처음에는 모든 슬롯이 비어있음
+		NewSlot.bIsEmpty = true;
+
+		// 슬롯 배열에 추가
+		InventorySlots.Add(NewSlot);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Inventory Slots Initialized: %d"), InventorySlots.Num());
 }
 
 // 아이템 추가
@@ -81,6 +100,14 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 		return false;
 	}
 
+	// Key, Painting 같은 진행 아이템은 일반 제거 불가
+	if (IsProtectedItem(ItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Protected item cannot be removed: %s"), *ItemID.ToString());
+
+		return false;
+	}
+
 	// 먼저 전체 수량 확인
 	int32 TotalQuantity = GetItemQuantity(ItemID);
 
@@ -129,6 +156,61 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 
 	return false;
 }
+
+// 퍼즐에서 KeyItem을 정상 사용했을 때 제거
+bool UInventoryComponent::ConsumeKeyItem(FName ItemID, int32 Quantity){
+	if (Quantity <= 0){
+		return false;
+	}
+
+	// 해당 KeyItem을 필요한 수량만큼 가지고 있는지 확인
+	if (GetItemQuantity(ItemID) < Quantity){
+		UE_LOG(LogTemp, Warning, TEXT("Not enough KeyItem quantity: %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// 실제 인벤토리에서 해당 아이템 찾기
+	for (const FItemData& Item : Items)
+	{
+		if (Item.ItemID == ItemID)
+		{
+			// KeyItem 타입만 퍼즐 전용 소비 허용
+			if (Item.ItemType != EItemType::KeyItem){
+				UE_LOG(LogTemp, Warning, TEXT("Item is not KeyItem: %s"), *ItemID.ToString());
+
+				return false;
+			}
+
+			break;
+		}
+	}
+
+	// RemoveItem은 보호 아이템을 막기 때문에
+	// 여기서는 직접 수량 제거
+	int32 RemainingQuantity = Quantity;
+
+	for (int32 i = Items.Num() - 1; i >= 0; i--){
+		if (Items[i].ItemID == ItemID){
+			if (Items[i].Quantity <= RemainingQuantity){
+				RemainingQuantity -= Items[i].Quantity;
+				Items.RemoveAt(i);
+			}
+			else{
+				Items[i].Quantity -= RemainingQuantity;
+				RemainingQuantity = 0;
+			}
+
+			if (RemainingQuantity <= 0){
+				UE_LOG(LogTemp, Warning, TEXT("KeyItem consumed: %s / Amount: %d"), *ItemID.ToString(), Quantity);
+
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
 // 전투 파트가 Ammo 수량을 확인할수 있는 함수
 int32 UInventoryComponent::GetItemQuantity(FName ItemID) const{
 
@@ -145,6 +227,105 @@ int32 UInventoryComponent::GetItemQuantity(FName ItemID) const{
 
 	// 인벤토리에 해당 아이템이 없으면 0
 	return TotalQuantity;
+}
+
+// 해당 아이템을 가지고 있는지 확인
+bool UInventoryComponent::HasItem(FName ItemID) const
+{
+	return GetItemQuantity(ItemID) > 0;
+}
+
+// 진행에 필요한 보호 아이템인지 확인
+bool UInventoryComponent::IsProtectedItem(FName ItemID) const
+{
+	return ItemID == FName(TEXT("Key")) || ItemID == FName(TEXT("Painting"));
+}
+
+// 소비 아이템 사용
+bool UInventoryComponent::UseItem(FName ItemID){
+	
+	// 해당 아이템을 가지고 있는지 확인
+	if (!HasItem(ItemID)){
+		UE_LOG(LogTemp, Warning, TEXT("Item not found: %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// InventoryComponent를 가지고 있는 Player 가져오기
+	APlayerCharacter* Player = Cast<APlayerCharacter>(GetOwner());
+
+	if (!Player){
+		UE_LOG(LogTemp, Warning, TEXT("Inventory owner is not PlayerCharacter"));
+
+		return false;
+	}
+
+	// Player가 죽어 있으면 아이템 사용 불가
+	if (Player->IsDead()){
+		UE_LOG(LogTemp, Warning, TEXT("Cannot use item: Player is dead"));
+
+		return false;
+	}
+
+	// Player가 은신 중이면 아이템 사용 불가
+	/*
+	if (Player->IsHiding()){
+
+		UE_LOG(LogTemp, Warning, TEXT("Cannot use item while hiding"));
+
+		return false;
+	}
+	*/
+
+	// 인벤토리에서 사용할 아이템 찾기
+	for (const FItemData& Item : Items){
+		if (Item.ItemID != ItemID){
+			continue;
+		}
+
+		// 소비 아이템만 사용 가능
+		if (Item.ItemType != EItemType::Consumable){
+			UE_LOG(LogTemp, Warning, TEXT("Item is not consumable: %s"), *ItemID.ToString());
+
+			return false;
+		}
+
+		// 현재는 Bandage만 소비 아이템으로 처리
+		if (Item.ItemID == FName(TEXT("Bandage"))){
+
+			// HP가 이미 최대라면 사용하지 않음
+			if (Player->GetCurrentHP() >= Player->GetMaxHP()){
+				UE_LOG(LogTemp, Warning, TEXT("Cannot use Bandage: HP is full"));
+
+				return false;
+			}
+
+			// 효과량이 잘못 설정된 경우 사용하지 않음
+			if (Item.EffectAmount <= 0.0f){
+				UE_LOG(LogTemp, Warning, TEXT("Invalid Bandage EffectAmount"));
+
+				return false;
+			}
+
+			// Bandage 1개 제거
+			// 제거에 실패하면 회복도 하지 않음
+			if (!RemoveItem(ItemID, 1)){
+				return false;
+			}
+
+			// HP 회복
+			Player->Heal(Item.EffectAmount);
+
+			UE_LOG(LogTemp, Warning, TEXT("Bandage used / Heal: %.1f / HP: %.1f / %.1f"),
+				Item.EffectAmount,
+				Player->GetCurrentHP(),
+				Player->GetMaxHP());
+
+			return true;
+		}
+	}
+
+	return false;
 }
 
 // 무기 장착 함수
