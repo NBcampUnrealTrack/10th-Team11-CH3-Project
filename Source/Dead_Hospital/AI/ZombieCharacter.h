@@ -22,6 +22,10 @@ class DEAD_HOSPITAL_API AZombieCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Search")
+	bool bSearchTurnMirrored = false;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	USphereComponent* AttackRangeComp;
@@ -46,6 +50,9 @@ protected:
 	EZombieState CurrentState;//좀비 현재 상태(Idle, Patrol, Chase, Attack,	Dead)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
 	UAnimMontage* AttackMontage;//애니메이션 몽타주
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Search")
+	UAnimMontage* SearchTurnMontage;
+
 
 public:
 	AZombieCharacter();
@@ -67,6 +74,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void OnAttackAnimationFinished();
 	void PlayAttackMontage();
+	void PlaySearchTurnMontage();
+	void OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void ToggleSearchTurnDirection();
+	UFUNCTION(BlueprintCallable, Category = "Search")
+	bool IsPlayingSearchTurn() const;
 	FTimerHandle DisappearTimerHandle;
 
 protected:

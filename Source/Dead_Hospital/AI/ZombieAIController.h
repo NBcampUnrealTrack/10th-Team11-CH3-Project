@@ -16,6 +16,9 @@ class DEAD_HOSPITAL_API AZombieAIController : public AAIController
 public:
 	AZombieAIController();
 
+private:
+	bool bWasPlayerHidingLastFrame = false;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
@@ -36,8 +39,10 @@ protected:
 	UFUNCTION()
 	void OnPerceptionForgotten(AActor* Actor);
 	virtual void Tick(float DeltaTime) override;
+	bool CheckSearchTurnVisibility(AActor* Target) const;
 	
 public:
 	void StartAttack();
 	void FinishAttack();
+	void StartSearchTurn();
 };
