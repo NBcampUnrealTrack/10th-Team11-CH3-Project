@@ -1,5 +1,6 @@
 ﻿#include "BTTask_SetCurrentState.h"
 #include "AIController.h"
+#include "ZombieCharacter.h"
 
 EBTNodeResult::Type UBTTask_SetCurrentState::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {

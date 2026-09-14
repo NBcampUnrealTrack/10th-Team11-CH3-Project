@@ -35,6 +35,7 @@ protected:
 	void OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 	UFUNCTION()
 	void OnPerceptionForgotten(AActor* Actor);
+	virtual void Tick(float DeltaTime) override;
 	
 public:
 	void StartAttack();

@@ -1,4 +1,5 @@
 ﻿#include "ZombieAIController.h"
+#include "ZombieCharacter.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "GameFramework/Pawn.h"
@@ -8,6 +9,7 @@
 
 AZombieAIController::AZombieAIController()
 {
+	PrimaryActorTick.bCanEverTick = true;
 	//좀비의 감지 기능을 담당할 AIPerceptionn 컴포넌트를 생성
 	AIPerception = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("AIPerception"));
 	//방금 만든 컴포넌트를, 이 AI 컨트롤러의 공식 Perception 컴포넌트로 등록한다.
@@ -104,6 +106,11 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Chase"));
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(TEXT("ChaseTarget"), Actor);
+		BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), true);
+	}
+	else
+	{
+		BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), false);
 	}
 }
 
@@ -122,6 +129,23 @@ void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
 	}
 }
 
+void AZombieAIController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
+	if (!BlackboardComp) return;
+
+	if (BlackboardComp->GetValueAsBool(TEXT("bCanSeeTarget")))
+	{
+		AActor* Target = Cast<AActor>(BlackboardComp->GetValueAsObject(TEXT("ChaseTarget")));
+		if (Target)
+		{
+			BlackboardComp->SetValueAsVector(TEXT("LastKnownLocation"), Target->GetActorLocation());
+		}
+	}
+}
+
 void AZombieAIController::StartAttack()
 {
 	//현재 실행 중인 Move To 등의 이동을 중단시킨다.
@@ -133,6 +157,15 @@ void AZombieAIController::StartAttack()
 		//IsAttacking = true "지금 공격 중이다"라는 상태를 Blackboard에 저장한다.
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("True"));
 		BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), true);
+	}
+	APawn* MyPawn = GetPawn();
+	if (MyPawn)
+	{
+		AZombieCharacter* Zombie = Cast<AZombieCharacter>(MyPawn);
+		if (Zombie)
+		{
+			Zombie->PlayAttackMontage();
+		}
 	}
 }
 

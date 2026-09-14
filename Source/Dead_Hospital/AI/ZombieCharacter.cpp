@@ -3,6 +3,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -19,7 +20,6 @@ AZombieCharacter::AZombieCharacter()
 	MaxHealth = 100.0f;
 	Health = MaxHealth;
 	ZombieName = "ZombieA";
-	Defense = 30.0f;
 	Power = 20.0f;
 	AttackRange = 100.0f;
 	PatrolSpeed = 300.0f;
@@ -112,14 +112,14 @@ float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	// 방어력은 0 ~ 100 사이의 값으로 제한한다.
 	// 실수로 100보다 큰 값이 들어가도
 	// 데미지가 음수가 되는 것을 방지한다.
-	float ClampedDefense = FMath::Clamp(Defense, 0.0f, 100.0f);
+	//float ClampedDefense = FMath::Clamp(Defense, 0.0f, 100.0f);
 
 	// 방어력을 적용한 실제 데미지 계산
-	float ActualDamage =
-		DamageAmount * (1.0f - ClampedDefense / 100.0f);
+	//float ActualDamage =
+	//	DamageAmount * (1.0f - ClampedDefense / 100.0f);
 
 	// 실제 데미지만큼 체력 감소
-	Health -= ActualDamage;
+	Health -= DamageAmount;
 
 	// 체력이 0보다 작아지지 않도록 제한
 	Health = FMath::Max(Health, 0.0f);
@@ -130,7 +130,7 @@ float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 		Die();
 	}
 
-	return ActualDamage;
+	return DamageAmount;
 }
 
 //좀비 사망 처리 - 상태 변경, 콜리전 비활성화, 일정 시간 후 제거 예약
@@ -209,5 +209,20 @@ void AZombieCharacter::OnAttackAnimationFinished()
 		//Blackboard의 IsAttacking을 false로 바꾼다.
 		//그러면 BT가 다시 Chase 또는 다음 Attack을 선택할 수 있다.
 		ZombieController->FinishAttack();
+	}
+}
+
+void AZombieCharacter::PlayAttackMontage()
+{
+	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+
+	if (AnimInstance && AttackMontage)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Yellow, TEXT("Montage Playing"));
+		AnimInstance->Montage_Play(AttackMontage);
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Blue, TEXT("Montage NULL or AnimInstance NULL"));
 	}
 }
