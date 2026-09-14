@@ -16,13 +16,17 @@ class DEAD_HOSPITAL_API AZombieAIController : public AAIController
 public:
 	AZombieAIController();
 
+	virtual void Tick(float DeltaTime) override;
+
+	void StartAttack();
+	void FinishAttack();
+	void StartSearchTurn();
+	bool CheckSearchTurnVisibility(AActor* Target) const;
+
 private:
 	bool bWasPlayerHidingLastFrame = false;
 
 protected:
-	virtual void BeginPlay() override;
-	virtual void OnPossess(APawn* InPawn) override;
-
 	//이 AI 컨트롤러가 실제로 실행할 Behavior Tree 에셋 (에디터/블루프린트에서 BT_Zombie를 지정)
 	UPROPERTY(EditAnywhere, Category = "AI")
 	class UBehaviorTree* BehaviorTreeAsset;
@@ -33,16 +37,19 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
 	UAISenseConfig_Sight* SightConfig;
 
+	//하드코딩 방지를 위한 Blackboard Key 상의 정의
+	static const FName BBKey_ChaseTarget;
+	static const FName BBKey_bCanSeeTarget;
+	static const FName BBKey_LastKnownLocation;
+	static const FName BBKey_IsAttacking;
+
+protected:
+	virtual void BeginPlay() override;
+	virtual void OnPossess(APawn* InPawn) override;
 	//AIPerception이 뭔가를 감지/놓쳤을 때 호출되는 콜백 함수
 	UFUNCTION()
 	void OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 	UFUNCTION()
 	void OnPerceptionForgotten(AActor* Actor);
-	virtual void Tick(float DeltaTime) override;
-	bool CheckSearchTurnVisibility(AActor* Target) const;
-	
-public:
-	void StartAttack();
-	void FinishAttack();
-	void StartSearchTurn();
+
 };

@@ -1,12 +1,19 @@
 ﻿#include "ZombieCharacter.h"
 #include "ZombieAIController.h"
+
 #include "BehaviorTree/BlackboardComponent.h"
+#include "BrainComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Perception/AIPerceptionComponent.h"
+#include "Perception/AISenseConfig_Sight.h"
 #include "Kismet/KismetSystemLibrary.h"
+
+static const FName BBKey_InAttackRange(TEXT("InAttackRange"));
+static const FName BBKey_ChaseTarget(TEXT("ChaseTarget"));
 
 AZombieCharacter::AZombieCharacter()
 {
@@ -51,9 +58,9 @@ AZombieCharacter::AZombieCharacter()
 void AZombieCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
 	//좀비 실제 이동속도를 PatrolSpeed로 변경해준다.
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
-
 	//좀비가 이동방향으로 몸을 돌릴때 회전을 부드럽게 해주기 위해 사용
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
@@ -65,6 +72,11 @@ void AZombieCharacter::BeginPlay()
 //공격 범위 안에 플레이어가 들어오면 Attack 상태로 전환(실제 공격은 아님)
 void AZombieCharacter::OnAttackOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
+	if (CurrentState == EZombieState::Dead)
+	{
+		return;
+	}
+
 	//공격 범위에 들어온 Actor가 플레이어인지 확인한다.
 	ACharacter* Player = Cast<ACharacter>(OtherActor);
 	if (!Player || !Player->IsPlayerControlled())
@@ -77,7 +89,7 @@ void AZombieCharacter::OnAttackOverlap(UPrimitiveComponent* OverlappedComp, AAct
 	{
 		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
 		{
-			BlackboardComp->SetValueAsBool(TEXT("InAttackRange"), true);
+			BlackboardComp->SetValueAsBool(BBKey_InAttackRange, true);
 		}
 	}
 }
@@ -97,16 +109,11 @@ void AZombieCharacter::OnAttackEndOverlap(UPrimitiveComponent* OverlappedComp, A
 	{
 		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
 		{
-			BlackboardComp->SetValueAsBool(TEXT("InAttackRange"), false);
+			BlackboardComp->SetValueAsBool(BBKey_InAttackRange, false);
 		}
 	}
 }
 
-//사망 후 일정 시간이 지나면 호출 - 액터를 완전히 제거
-void AZombieCharacter::OnDeathTimerExpired()
-{
-	Destroy();
-}
 
 //받은 데미지 계산
 float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -118,18 +125,8 @@ float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 		return 0.0f;
 	}
 
-	// 방어력은 0 ~ 100 사이의 값으로 제한한다.
-	// 실수로 100보다 큰 값이 들어가도
-	// 데미지가 음수가 되는 것을 방지한다.
-	//float ClampedDefense = FMath::Clamp(Defense, 0.0f, 100.0f);
-
-	// 방어력을 적용한 실제 데미지 계산
-	//float ActualDamage =
-	//	DamageAmount * (1.0f - ClampedDefense / 100.0f);
-
 	// 실제 데미지만큼 체력 감소
 	Health -= DamageAmount;
-
 	// 체력이 0보다 작아지지 않도록 제한
 	Health = FMath::Max(Health, 0.0f);
 
@@ -154,18 +151,45 @@ void AZombieCharacter::Die()
 	// Dead 상태로 변경
 	SetCurrentState(EZombieState::Dead);
 
-	//죽은 좀비와 더 이상 충돌/오버랩이 발생하지 않도록 콜리전을 모두 끈다.
+	//충돌체 비활성화. 죽은 좀비와 더 이상 충돌/오버랩이 발생하지 않도록 콜리전을 모두 끈다.
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	AttackRangeComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	//AI 컨트롤러 정지 및 UnPossess 처리로 뇌(Brain) 정지
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		AIController->StopMovement();
+
+		//비헤이비어 트리(brain) 완전히 정지
+		if (UBrainComponent* BrainComp = AIController->GetBrainComponent())
+		{
+			BrainComp->StopLogic(TEXT("Zombie Died"));
+		}
+
+		if (UAIPerceptionComponent* PerceptionComp = AIController->GetAIPerceptionComponent())
+		{
+			PerceptionComp->ForgetAll();
+			PerceptionComp->SetSenseEnabled(UAISenseConfig_Sight::StaticClass(), false);
+		}
+
+		AIController->UnPossess();
+	}
+
 	//30초 뒤 OndeathTimerExpired가 호출되어 액터가 완전히 제거되도록 타이머 예약
 	//(죽는 애니메이션 등을 보여줄 시간을 벌어주는 용도, 시간은 조절)
 	GetWorldTimerManager().SetTimer(
 		DisappearTimerHandle,
 		this,
 		&AZombieCharacter::OnDeathTimerExpired,
-		30.0,
+		30.0f,
 		false
 	);
+}
+
+//사망 후 일정 시간이 지나면 호출 - 액터를 완전히 제거
+void AZombieCharacter::OnDeathTimerExpired()
+{
+	Destroy();
 }
 
 //Anim Notify에서 호출 - ChaseTarget이 범위 내에 있으면 데미지 적용
@@ -180,11 +204,10 @@ void AZombieCharacter::Attack()
 	//Blackboard에 저장된 ChaseTarget(현재 추적/공격 대상)을 가져온다.
 	UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent();
 	AActor* Target = BlackboardComp
-		? Cast<AActor>(BlackboardComp->GetValueAsObject(TEXT("ChaseTarget")))
-		: nullptr;
+		? Cast<AActor>(BlackboardComp->GetValueAsObject(TEXT("ChaseTarget"))) : nullptr;
 	//대상이 존재하고, 실제로 공격 범위 콜리전 안에 있는 경우에만 데미지를 적용한다.
 	//(애니메이션 재생 중 대상이 범위를 벗어났을 수 있으므로 여기서 다시 확인)
-	if (Target && AttackRangeComp->IsOverlappingActor(Target))
+	if (IsValid(Target) && AttackRangeComp->IsOverlappingActor(Target))
 	{
 		Target->TakeDamage(Power, FDamageEvent(), GetController(), this);
 	}
@@ -202,13 +225,12 @@ void AZombieCharacter::SetHealth(float NewHealth)
 void AZombieCharacter::SetCurrentState(EZombieState NewState)
 {
 	EZombieState OldState = CurrentState;
-
 	CurrentState = NewState;
 
 	if (OldState == EZombieState::Search && NewState != EZombieState::Search)
 	{
 		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-		if (AnimInstance)
+		if (AnimInstance && SearchTurnMontage)
 		{
 			AnimInstance->Montage_Stop(0.1f, SearchTurnMontage);
 		}
@@ -231,7 +253,9 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 //공격 애니메이션이 끝나는 순간 호출된다.
 void AZombieCharacter::OnAttackAnimationFinished()
 {
+#if WITH_EDITOR
 	GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Attack Finished Called"));
+#endif
 	//이 좀비를 조종하는 AI Controller를 가져온다.
 	if (AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController()))
 	{
@@ -255,6 +279,11 @@ void AZombieCharacter::PlayAttackMontage()
 
 void AZombieCharacter::PlaySearchTurnMontage()
 {
+	if (CurrentState != EZombieState::Search)
+	{
+		return;
+	}
+
 	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
 
 	if (AnimInstance && SearchTurnMontage)
@@ -272,7 +301,9 @@ void AZombieCharacter::OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInt
 	if (!bInterrupted && CurrentState == EZombieState::Search)
 	{
 		ToggleSearchTurnDirection();
-		PlaySearchTurnMontage();
+
+		//재귀적 직호출로 인한 스택 오버플로우/델리게이트 꼬임 방지를 위해 NextTick 활용
+		GetWorldTimerManager().SetTimerForNextTick(this, &AZombieCharacter::PlaySearchTurnMontage);
 	}
 }
 

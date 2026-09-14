@@ -1,18 +1,27 @@
 ﻿#include "ZombieAIController.h"
 #include "ZombieCharacter.h"
 #include "PlayerCharacter.h"
+
 #include "DrawDebugHelpers.h"
+#include "Kismet/KismetSystemLibrary.h"
+
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "GameFramework/Pawn.h"
+
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
-#include "Kismet/KismetSystemLibrary.h"
+#include "Perception/AISense_Sight.h"
+
+const FName AZombieAIController::BBKey_ChaseTarget(TEXT("ChaseTarget"));
+const FName AZombieAIController::BBKey_bCanSeeTarget(TEXT("bCanSeeTarget"));
+const FName AZombieAIController::BBKey_LastKnownLocation(TEXT("LastKnownLocation"));
+const FName AZombieAIController::BBKey_IsAttacking(TEXT("IsAttacking"));
 
 AZombieAIController::AZombieAIController()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	//좀비의 감지 기능을 담당할 AIPerceptionn 컴포넌트를 생성
+	//좀비의 감지 기능을 담당할 AIPerception 컴포넌트를 생성
 	AIPerception = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("AIPerception"));
 	//방금 만든 컴포넌트를, 이 AI 컨트롤러의 공식 Perception 컴포넌트로 등록한다.
 	SetPerceptionComponent(*AIPerception);
@@ -105,25 +114,27 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 
 	if (Stimulus.WasSuccessfullySensed())
 	{
+#if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Chase"));
+#endif
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
-		BlackboardComp->SetValueAsObject(TEXT("ChaseTarget"), Actor);
-		BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), true);
+		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
 	}
 	else
 	{
 		if (CheckSearchTurnVisibility(Actor))
 		{
-			BlackboardComp->SetValueAsObject(TEXT("ChaseTarget"), Actor);
-			BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), true);
+			BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
 		}
 		else
 		{
-			//Sitmulus는 왓지만 실패(WasSuccessfullySensed == false)로 온 경우
+			//Sitmulus는 왔지만 실패(WasSuccessfullySensed == false)로 온 경우
 			//즉 "방금 시야에서 놓쳤다"는 뜻. 아직 ChaseTarget 자체를 지우지는 않고
 			//(LastKnownLocation으로 계속 추적할 수 있도록) bCanSeeTarget만 false로 내린다.
 			//ChaseTarget을 완전히 비우는 처리는 OnPerceptionForgotten에서 한다.
-			BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), false);
+			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
 		}
 	}
 }
@@ -134,17 +145,19 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
 {
 	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
-	if (!BlackboardComp || !Actor) {
+	if (!BlackboardComp || !IsValid(Actor)) {
 		return;
 	}
 
 	//지금 Blackboard에 저장된 ChaseTarget이 "잊혀진 그 Actor"가 맞는지 확인한다.
 	//(다른 대상으로 이미 바뀌어 있는데 예전 이벤트 때문에 잘못 지우는 것을 방지)
-	if (BlackboardComp->GetValueAsObject(TEXT("ChaseTarget")) == Actor)
+	if (BlackboardComp->GetValueAsObject(BBKey_ChaseTarget) == Actor)
 	{
+#if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Forgotten"));
+#endif
 		//대상을 잃어버렸으므로, ChaseTarget을 비워서 다시 순찰 상태로 돌아가게 한다.
-		BlackboardComp->ClearValue(TEXT("ChaseTarget"));
+		BlackboardComp->ClearValue(BBKey_ChaseTarget);
 	}
 }
 
@@ -161,26 +174,35 @@ void AZombieAIController::Tick(float DeltaTime)
 	{
 		return;
 	}
-	UObject* ChaseTargetObj = BlackboardComp->GetValueAsObject(TEXT("ChaseTarget"));
-	AActor* ChaseTarget = Cast<AActor>(ChaseTargetObj);
 
-	if (!ChaseTarget)
+	AActor* ChaseTarget = Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget));
+
+	if (!IsValid(ChaseTarget))
 	{
 		return;
 	}
 
-	bool bCanSeeTarget = BlackboardComp->GetValueAsBool(TEXT("bCanSeeTarget"));
+	APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(ChaseTarget);
+	if (PlayerCharacter && PlayerCharacter->IsDead())
+	{
+		BlackboardComp->ClearValue(BBKey_ChaseTarget);
+		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
+
+		return;
+	}
+
+	bool bCanSeeTarget = BlackboardComp->GetValueAsBool(BBKey_bCanSeeTarget);
 
 	if (bCanSeeTarget)
 	{
-		BlackboardComp->SetValueAsVector(TEXT("LastKnownLocation"), ChaseTarget->GetActorLocation());
+		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
 	}
 
-	if (ChaseTarget && !BlackboardComp->GetValueAsBool(TEXT("bCanSeeTarget")))
+	else
 	{
 		if (CheckSearchTurnVisibility(ChaseTarget))
 		{
-			BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), true);
+			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
 		}
 	}
 
@@ -209,30 +231,37 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	APawn* MyPawn = GetPawn();
 	AZombieCharacter* Zombie = MyPawn ? Cast<AZombieCharacter>(MyPawn) : nullptr;
 
+#if WITH_EDITOR
 	GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Orange,
 		FString::Printf(TEXT("CheckSearchTurnVisibility called - Zombie:%s Target:%s IsPlaying:%s"),
 			Zombie ? TEXT("O") : TEXT("X"),
 			Target ? TEXT("O") : TEXT("X"),
 			(Zombie && Zombie->IsPlayingSearchTurn()) ? TEXT("O") : TEXT("X")));
+#endif
 
-	if (!Zombie || !Target || !Zombie->IsPlayingSearchTurn())
+	if (!Zombie || !IsValid(Target) || !Zombie->IsPlayingSearchTurn())
 	{
 		return false;
 	}
+
 	//정면 기준으로, 두리번 방향(좌/우)만큼 오프셋을 준 "바라보는 방향" 근사
-	const float SearchTurnOffsetDog = 90.0f;//실제 애니메이션이 도는 각도에 맞춰 조정 가능
-	const float SignedOffset = Zombie->bSearchTurnMirrored ? -SearchTurnOffsetDog : SearchTurnOffsetDog;
+	const float SearchTurnOffsetDeg = 90.0f;//실제 애니메이션이 도는 각도에 맞춰 조정 가능
+	const float SignedOffset = Zombie->bSearchTurnMirrored ? -SearchTurnOffsetDeg : SearchTurnOffsetDeg;
 
 	FRotator LookRotation = Zombie->GetActorRotation();
 	LookRotation.Yaw += SignedOffset;
 	FVector LookDirection = LookRotation.Vector();
+
+	// 시점 위치(Eye Location)와 타겟의 중심 위치(Target Location) 계산
+	FVector StartLoc = Zombie->GetPawnViewLocation();
+	FVector TargetLoc = Target->GetTargetLocation();
 
 #if WITH_EDITOR
 	DrawDebugLine(GetWorld(), Zombie->GetActorLocation(), Zombie->GetActorLocation() + Zombie->GetActorForwardVector() * 300.0f, FColor::Red, false, 0.0f, 0, 2.0f);
 	DrawDebugLine(GetWorld(), Zombie->GetActorLocation(), Zombie->GetActorLocation() + LookDirection * 300.0f, FColor::Green, false, 0.0f, 0, 2.0f);
 #endif
 
-	FVector ToTarget = (Target->GetActorLocation() - Zombie->GetActorLocation()).GetSafeNormal();
+	FVector ToTarget = (TargetLoc - StartLoc).GetSafeNormal();
 	float DotResult = FVector::DotProduct(LookDirection, ToTarget);
 	float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(DotResult, -1.0f, 1.0f)));
 
@@ -242,8 +271,10 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 
 	const float SearchTurnSightAngle = 45.0f;
 
+#if WITH_EDITOR
 	GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Yellow, FString::Printf(TEXT("SearchTurn AngleDeg: %.1f / Threshold: %.1f / Mirrored: %s"),
-		AngleDeg, SearchTurnSightAngle, Zombie->bSearchTurnMirrored ? TEXT("true") : TEXT("falst")));
+		AngleDeg, SearchTurnSightAngle, Zombie->bSearchTurnMirrored ? TEXT("true") : TEXT("false")));
+#endif
 
 	if (AngleDeg > SearchTurnSightAngle)
 	{
@@ -252,21 +283,25 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 
 	FHitResult Hit;
 	FCollisionQueryParams Params;
+	//Zombie 자신만 충돌 무시
 	Params.AddIgnoredActor(Zombie);
-	Params.AddIgnoredActor(Target);
+	//Params.AddIgnoredActor(Target);
 
 	bool bBlocked = GetWorld()->LineTraceSingleByChannel(
 		Hit,
-		Zombie->GetActorLocation() + FVector(0, 0, 50.0f),
-		Target->GetActorLocation() + FVector(0, 0, 50.0f),
+		StartLoc,
+		TargetLoc,
 		ECC_Visibility,
 		Params
 	);
 
+#if WITH_EDITOR
 	GEngine->AddOnScreenDebugMessage(-1, 0.0f, bBlocked ? FColor::Red : FColor::Green,
 		FString::Printf(TEXT("LineTrace Blocked: %s"), bBlocked ? TEXT("Yes") : TEXT("No")));
+#endif
 
-	return !bBlocked;
+	//시야선 상 장애물에 걸리지 않았거나, 장애물로 판정된 Actor가 Target 본인인 경우 가시 범위 인정
+	return !bBlocked || (Hit.GetActor() == Target);
 }
 
 //Behavior Tree Task 등에서 호출 - 공격을 시작할 때 이동을 멈추고
@@ -280,20 +315,18 @@ void AZombieAIController::StartAttack()
 	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
 	{
 		//IsAttacking = true "지금 공격 중이다"라는 상태를 Blackboard에 저장한다.
+#if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("True"));
-		BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), true);
+#endif
+		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, true);
 	}
 
 	//이 AI 컨트롤러가 빙의 중인 Pawn(좀비 캐릭터)를 가져와서
 	//실제 공격 몽타주 재생을 위임한다.
-	APawn* MyPawn = GetPawn();
-	if (MyPawn)
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+	if (Zombie)
 	{
-		AZombieCharacter* Zombie = Cast<AZombieCharacter>(MyPawn);
-		if (Zombie)
-		{
-			Zombie->PlayAttackMontage();
-		}
+		Zombie->PlayAttackMontage();
 	}
 }
 
@@ -302,21 +335,20 @@ void AZombieAIController::FinishAttack()
 {
 	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
 	{
+#if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("False"));
-		BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), false);
+#endif
+		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
 	}
 }
 
 void AZombieAIController::StartSearchTurn()
 {
-	APawn* MyPawn = GetPawn();
-	if(MyPawn)
-	{ 
-		AZombieCharacter* Zombie = Cast<AZombieCharacter>(MyPawn);
-		if (Zombie)
-		{
-			Zombie->PlaySearchTurnMontage();
-		}
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+	if (Zombie)
+	{
+		Zombie->PlaySearchTurnMontage();
 	}
+
 }
 
