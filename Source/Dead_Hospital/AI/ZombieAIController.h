@@ -7,6 +7,7 @@
 
 class UAIPerceptionComponent;
 class UAISenseConfig_Sight;
+class UAISenseConfig_Hearing;
 
 UCLASS()
 class DEAD_HOSPITAL_API AZombieAIController : public AAIController
@@ -22,9 +23,9 @@ public:
 	void FinishAttack();
 	void StartSearchTurn();
 	bool CheckSearchTurnVisibility(AActor* Target) const;
+	void OnAttackCooldownFinished();
 
 private:
-	bool bWasPlayerHidingLastFrame = false;
 
 protected:
 	//이 AI 컨트롤러가 실제로 실행할 Behavior Tree 에셋 (에디터/블루프린트에서 BT_Zombie를 지정)
@@ -36,12 +37,21 @@ protected:
 	//AIPerception에 등록할 시야 감지 설정 (시야 거리, 시야각 등을 결정)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
 	UAISenseConfig_Sight* SightConfig;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI")
+	UAISenseConfig_Hearing* HearingConfig;
+
+	bool bWasPlayerHidingLastFrame;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
+	float AttackCooldown;
+
+	FTimerHandle AttackCooldownTimerHandle;
 
 	//하드코딩 방지를 위한 Blackboard Key 상의 정의
 	static const FName BBKey_ChaseTarget;
 	static const FName BBKey_bCanSeeTarget;
 	static const FName BBKey_LastKnownLocation;
 	static const FName BBKey_IsAttacking;
+	static const FName BBKey_bInvestigatingNoise;
 
 protected:
 	virtual void BeginPlay() override;

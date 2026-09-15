@@ -1,15 +1,19 @@
 ﻿#include "ZombieCharacter.h"
 #include "ZombieAIController.h"
+//#include "GameManager.h"
+#include "ItemPickup.h"
 
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BrainComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/DataTable.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
 static const FName BBKey_InAttackRange(TEXT("InAttackRange"));
@@ -52,6 +56,16 @@ AZombieCharacter::AZombieCharacter()
 	//공격 범위 오버랩 이벤트 바인딩
 	AttackRangeComp->OnComponentBeginOverlap.AddDynamic(this, &AZombieCharacter::OnAttackOverlap);
 	AttackRangeComp->OnComponentEndOverlap.AddDynamic(this, &AZombieCharacter::OnAttackEndOverlap);
+
+	//좀비끼리(또는 다른 AI/장애물과) 서로 겹치지 않고 부드럽게 비껴가도록 RVO Avoidance 활성화
+	//BeginPlay가 아니라 생성자에서 세팅해야함 - AvoidanceManager 등록(SetUpdatedComponent)이
+	//Character의 경우 BeginPlay보다 먼저 실행되기 때문에, BeginPlay에서 세팅하면 이미 등록 타이밍을 놓쳐 무효화 됨
+	GetCharacterMovement()->bUseRVOAvoidance = true;
+	GetCharacterMovement()->AvoidanceConsiderationRadius = 150.0f;//이 반경 안의 다른 Agent를 고려 대상으로 삼음
+	GetCharacterMovement()->AvoidanceWeight = 0.5f;//명시적으로 설정(기본값에 의존하지 않음)
+	GetCharacterMovement()->SetAvoidanceGroup(1);//이 좀비가 속한 그룸 (좀비끼리 같은 그룹으로)
+	GetCharacterMovement()->SetGroupsToAvoid(1);//회피할 그룹(자기 그룹, 즉 다른 좀비들을 피함)
+	GetCharacterMovement()->SetGroupsToIgnore(0);//무시할 그룹(없음)
 
 }
 
@@ -151,6 +165,13 @@ void AZombieCharacter::Die()
 	// Dead 상태로 변경
 	SetCurrentState(EZombieState::Dead);
 
+	HandleItemDrop();
+
+	/*if (AGameManager* GameManager = Cast<AGameManager>(UGameplayStatics::GetGameMode(this)))
+	{
+		GameManager->AddKillCount();
+	}*/
+
 	//충돌체 비활성화. 죽은 좀비와 더 이상 충돌/오버랩이 발생하지 않도록 콜리전을 모두 끈다.
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	AttackRangeComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -190,6 +211,83 @@ void AZombieCharacter::Die()
 void AZombieCharacter::OnDeathTimerExpired()
 {
 	Destroy();
+}
+
+void AZombieCharacter::HandleItemDrop()
+{
+	if (!ZombieDropTable || !ItemDataTable || !ItemPickupClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: DropTable/ItemDataTable/PickupClass 설정 누락"), *GetName());
+		return;
+	}
+
+	TArray<FZombieDropEntry*> AllRows;
+	ZombieDropTable->GetAllRows<FZombieDropEntry>(TEXT("HandleItemDrop"), AllRows);
+
+	if (AllRows.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: DropTable에 행이 없음"), *GetName());
+		return;
+	}
+
+	float TotalWeight = 0.0f;
+	for (const FZombieDropEntry* Row : AllRows)
+	{
+		TotalWeight += Row->Weight;
+	}
+
+	if (TotalWeight <= 0.0f)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: 전체 가중치 합이 0이하"), *GetName());
+		return;
+	}
+
+	//가중치 기반 랜덤 뽑기(누적합 방식)
+	float RandomValue = FMath::FRandRange(0.0f, TotalWeight);
+	float AccumulatedWeight = 0.0f;
+	const FZombieDropEntry* SelectedEntry = nullptr;
+
+	for (const FZombieDropEntry* Row : AllRows)
+	{
+		AccumulatedWeight += Row->Weight;
+		if (RandomValue <= AccumulatedWeight)
+		{
+			SelectedEntry = Row;
+			break;
+		}
+	}
+
+	//"드랍 없음"도 정상 결과로 처리
+	if (!SelectedEntry || SelectedEntry->ItemID.IsNone())
+	{
+		UE_LOG(LogTemp, Log, TEXT("[%s] HandleItemDrop: 드랍 없음"), *GetName());
+		return;
+	}
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AItemPickup* SpawnedPickup = GetWorld()->SpawnActor<AItemPickup>(
+		ItemPickupClass,
+		GetActorLocation(),
+		GetActorRotation(),
+		SpawnParams
+	);
+
+	if (!SpawnedPickup)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[%s] HandleItemDrop: ItemPickup 스폰 실패(ItemID: %s)"),
+			*GetName(), *SelectedEntry->ItemID.ToString());
+		return;
+	}
+
+	//FItemData NewItemData = *FoundItemData;
+	//NewItemData.Quantity = SelectedEntry->DropQuantity;
+	//SpawnedPickup->SetItemData(NewItemData);
+
+	//UE_LOG(LogTemp, Log, TEXT("[%s] HandleItemDrop: %s x %d 드랍됨"),
+	//	*GetName(), *SelectedEntry->ItemID.ToString(), SelectedEntry->DropQuantity);
+
 }
 
 //Anim Notify에서 호출 - ChaseTarget이 범위 내에 있으면 데미지 적용
@@ -236,6 +334,14 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		}
 	}
 
+	if (AAIController* AIController = Cast<AAIController>(GetController()))
+	{
+		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
+		{
+			BlackboardComp->SetValueAsBool(TEXT("bInvestigatingNoise"), false);
+		}
+	}
+
 	switch (CurrentState)
 	{
 	case EZombieState::Patrol:
@@ -243,6 +349,7 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 		break;
 	case EZombieState::Chase:
+	case EZombieState::Search:
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 		break;
 	default:
@@ -316,4 +423,25 @@ bool AZombieCharacter::IsPlayingSearchTurn() const
 {
 	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
 	return AnimInstance && SearchTurnMontage && AnimInstance->Montage_IsPlaying(SearchTurnMontage);
+}
+
+void AZombieCharacter::WakeUp()
+{
+	// 이미 일어났거나, 애초에 일어날 시체가 아니면 무시
+	if (!bIsFakeDead) return;
+
+	bIsFakeDead = false;
+
+	// 일어나는 애니메이션 재생
+	if (GetUpMontage)
+	{
+		PlayAnimMontage(GetUpMontage);
+	}
+
+	// 비명 소리 재생
+	// if (ScreamSound) UGameplayStatics::PlaySoundAtLocation(...);
+
+	// 여기서 AI Controller를 활성화하거나 상태 변경 신호 주기
+	UE_LOG(LogTemp, Warning, TEXT("좀비가 깨어납니다."));
+
 }

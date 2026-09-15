@@ -1,6 +1,9 @@
 ﻿#pragma once
 
+#include "ItemData.h"
+#include "ZombieDropTable.h"
 #include "CoreMinimal.h"
+#include "Engine/DataTable.h"
 #include "GameFramework/Character.h"
 #include "ZombieCharacter.generated.h"
 
@@ -21,6 +24,12 @@ UCLASS()
 class DEAD_HOSPITAL_API AZombieCharacter : public ACharacter
 {
 	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Search")
+	bool bSearchTurnMirrored = false;
+	// 이 좀비가 죽은 척 대기 중인지 여부
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare")
+	bool bIsFakeDead = false;
 
 protected:
 	// 컴포넌트 및 타이머
@@ -56,6 +65,16 @@ protected:
 	UAnimMontage* AttackMontage;//애니메이션 몽타주
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Search")
 	UAnimMontage* SearchTurnMontage;
+	// 일어날 때 재생할 애니메이션
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare")
+	class UAnimMontage* GetUpMontage;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Drop")
+	UDataTable* ZombieDropTable;
+	UPROPERTY(EditDefaultsOnly, Category = "Drop")
+	UDataTable* ItemDataTable;
+	UPROPERTY(EditDefaultsOnly, Category = "Drop")
+	TSubclassOf<class AItemPickup> ItemPickupClass;
 
 public:
 	AZombieCharacter();
@@ -89,8 +108,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Search")
 	bool IsPlayingSearchTurn() const;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Search")
-	bool bSearchTurnMirrored = false;
+	// 트리거가 밟히면 호출
+	UFUNCTION(BlueprintCallable, Category = "JumpScare")
+	void WakeUp();
 
 protected:
 	virtual void BeginPlay() override;
@@ -112,6 +132,7 @@ protected:
 		int32 OtherBodyIndex);
 
 	void OnDeathTimerExpired();
+	void HandleItemDrop();
 
 	//델리게이트 바인딩용 함수 - UFUNCTION 필수
 	UFUNCTION()

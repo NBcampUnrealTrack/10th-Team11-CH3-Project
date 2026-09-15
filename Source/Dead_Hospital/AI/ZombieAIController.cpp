@@ -12,11 +12,13 @@
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
 #include "Perception/AISense_Sight.h"
+#include "Perception/AISenseConfig_Hearing.h"
 
 const FName AZombieAIController::BBKey_ChaseTarget(TEXT("ChaseTarget"));
 const FName AZombieAIController::BBKey_bCanSeeTarget(TEXT("bCanSeeTarget"));
 const FName AZombieAIController::BBKey_LastKnownLocation(TEXT("LastKnownLocation"));
 const FName AZombieAIController::BBKey_IsAttacking(TEXT("IsAttacking"));
+const FName AZombieAIController::BBKey_bInvestigatingNoise(TEXT("bInvestigatingNoise"));
 
 AZombieAIController::AZombieAIController()
 {
@@ -48,11 +50,21 @@ AZombieAIController::AZombieAIController()
 	SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
 	SightConfig->DetectionByAffiliation.bDetectFriendlies = true;
 	
+	HearingConfig = CreateDefaultSubobject<UAISenseConfig_Hearing>(TEXT("HearingConfig"));
+	HearingConfig->HearingRange = 1500.0f;
+	HearingConfig->DetectionByAffiliation.bDetectEnemies = true;
+	HearingConfig->DetectionByAffiliation.bDetectNeutrals = true;
+	HearingConfig->DetectionByAffiliation.bDetectFriendlies = true;
+
 	//방금 설정한 SightConfig를 AIPerception 컴포넌트에 등록
 	AIPerception->ConfigureSense(*SightConfig);
+	AIPerception->ConfigureSense(*HearingConfig);
 	//여러 감각을 등록했을 때 대표(기준)로 삼을 감각을 시야로 지정
 	//지금은 시야뿐이라 당장 큰 차이는 없지만, 나중에 청각 등을 추가할 때를 대비한 명시적 설정
 	AIPerception->SetDominantSense(SightConfig->GetSenseImplementation());
+
+	bWasPlayerHidingLastFrame = false;
+	AttackCooldown = 1.2f;
 }
 
 void AZombieAIController::BeginPlay()
@@ -109,6 +121,35 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 	// 추격 대상으로 사용하지 않고 무시한다.
 	if (!DetectedPawn || !DetectedPawn->IsPlayerControlled())
 	{
+		return;
+	}
+	//죽은 플레이어가 낸 소리/모습에 반응하지 않도록 설정
+	/*APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(Actor);
+	if (APlayerCharacter && PlayerTarget->IsDead())
+	{
+		return;
+	}*/
+
+	if (Stimulus.Type == UAISense::GetSenseID<UAISense_Hearing>())
+	{
+		if (!Stimulus.WasSuccessfullySensed())
+		{
+			return;
+		}
+
+		bool bAlreadyInvestigating = BlackboardComp->GetValueAsBool(BBKey_bInvestigatingNoise);
+		bool bCanSeeTargetNow = BlackboardComp->GetValueAsBool(BBKey_bCanSeeTarget);
+
+		if (bAlreadyInvestigating || bCanSeeTargetNow)
+		{
+			return;
+		}
+
+		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, Stimulus.StimulusLocation);
+		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
+		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingNoise, true);
+		
 		return;
 	}
 
@@ -188,6 +229,10 @@ void AZombieAIController::Tick(float DeltaTime)
 		BlackboardComp->ClearValue(BBKey_ChaseTarget);
 		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
 
+		//Player 사망 시 HideSpot 수색도 같이 종료
+		BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), false);
+		bWasPlayerHidingLastFrame = false;
+
 		return;
 	}
 
@@ -203,24 +248,20 @@ void AZombieAIController::Tick(float DeltaTime)
 		if (CheckSearchTurnVisibility(ChaseTarget))
 		{
 			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
+			bCanSeeTarget = true;//이번 프레임 안에서 HideSpot 판정 시 최신 값 쓰기 위해 갱신
 		}
 	}
 
-	//APlayerCharacter* Player = Cast<APlayerCharacter>(ChaseTarget);
-	//if (Player)
+	//HideSpot(은신) 감지 - "목격된 상태로 숨는 순간"을 포착
+	//if (PlayerCharacter)
 	//{
-	//	bool bIsHidingNow = Player->IsHiding();
+	//	AActor* HideSpot = PlayerCharacter->GetCurrentHidingSpot();
+	//	bool bIsHidingNow = (HideSpot != nullptr);
 
-	//	if (bIsHidingNow && !bWasPlayerHidingLastFrame)
+	//	if (bIsHidingNow && !bWasPlayerHidingLastFrame && bCanSeeTarget)
 	//	{
-	//		if (bCanSeeTarget)
-	//		{
-	//			if (AActor* HideSpot = Player->GetCurrentHideSpot())
-	//			{
-	//				BlackboardComp->SetValueAsVector(TEXT("KnownHideSpotLocation"), HideSpot->GetActorLocation());
-	//				BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), true);
-	//			}
-	//		}
+	//		BlackboardComp->SetValueAsVector(TEXT("KnownHideSpotLocation"), HideSpot->GetActorLocation());
+	//		BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), true);
 	//	}
 	//	bWasPlayerHidingLastFrame = bIsHidingNow;
 	//}
@@ -244,12 +285,14 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 		return false;
 	}
 
-	//정면 기준으로, 두리번 방향(좌/우)만큼 오프셋을 준 "바라보는 방향" 근사
+	//바라보는 방향 계산(Z축 제거하여 2D Yaw 회전만 깔끔하게 계산)
 	const float SearchTurnOffsetDeg = 90.0f;//실제 애니메이션이 도는 각도에 맞춰 조정 가능
 	const float SignedOffset = Zombie->bSearchTurnMirrored ? -SearchTurnOffsetDeg : SearchTurnOffsetDeg;
 
 	FRotator LookRotation = Zombie->GetActorRotation();
-	LookRotation.Yaw += SignedOffset;
+	LookRotation.Yaw = FRotator::NormalizeAxis(LookRotation.Yaw + SignedOffset);
+	LookRotation.Pitch = 0.0f;
+	LookRotation.Roll = 0.0f;
 	FVector LookDirection = LookRotation.Vector();
 
 	// 시점 위치(Eye Location)와 타겟의 중심 위치(Target Location) 계산
@@ -260,9 +303,17 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	DrawDebugLine(GetWorld(), Zombie->GetActorLocation(), Zombie->GetActorLocation() + Zombie->GetActorForwardVector() * 300.0f, FColor::Red, false, 0.0f, 0, 2.0f);
 	DrawDebugLine(GetWorld(), Zombie->GetActorLocation(), Zombie->GetActorLocation() + LookDirection * 300.0f, FColor::Green, false, 0.0f, 0, 2.0f);
 #endif
+	//방향 벡터도 Z축을 제거하여 높이차로 인한 각도 왜곡 방지
+	FVector DirToTarget2D = (TargetLoc - StartLoc);
+	DirToTarget2D.Z = 0.0f;
+	DirToTarget2D.Normalize();
 
-	FVector ToTarget = (TargetLoc - StartLoc).GetSafeNormal();
-	float DotResult = FVector::DotProduct(LookDirection, ToTarget);
+	FVector LookDir2D = LookDirection;
+	LookDir2D.Z = 0.0f;
+	LookDir2D.Normalize();
+
+	//수평 각도 차이 계산
+	float DotResult = FVector::DotProduct(LookDir2D, DirToTarget2D);
 	float AngleDeg = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(DotResult, -1.0f, 1.0f)));
 
 #if WITH_EDITOR
@@ -281,13 +332,22 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 		return false;
 	}
 
+	//LineTrace (자기 자신 및 자기 컴포넌트 모두 무시)
 	FHitResult Hit;
 	FCollisionQueryParams Params;
 	//Zombie 자신만 충돌 무시
 	Params.AddIgnoredActor(Zombie);
 	//Params.AddIgnoredActor(Target);
 
-	bool bBlocked = GetWorld()->LineTraceSingleByChannel(
+	//좀비의 모든 자식 컴포넌트(메시, 콜리전 등)도 무시 대상에 추가
+	TArray<UPrimitiveComponent*> ZombieComponents;
+	Zombie->GetComponents<UPrimitiveComponent>(ZombieComponents);
+	for (UPrimitiveComponent* Comp : ZombieComponents)
+	{
+		Params.AddIgnoredComponent(Comp);
+	}
+
+	bool bHit = GetWorld()->LineTraceSingleByChannel(
 		Hit,
 		StartLoc,
 		TargetLoc,
@@ -296,12 +356,22 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	);
 
 #if WITH_EDITOR
-	GEngine->AddOnScreenDebugMessage(-1, 0.0f, bBlocked ? FColor::Red : FColor::Green,
-		FString::Printf(TEXT("LineTrace Blocked: %s"), bBlocked ? TEXT("Yes") : TEXT("No")));
+	DrawDebugLine(GetWorld(), StartLoc, TargetLoc, (!bHit || Hit.GetActor() == Target) ? FColor::Green : FColor::Red, false, 0.1f, 0, 1.5f);
 #endif
 
 	//시야선 상 장애물에 걸리지 않았거나, 장애물로 판정된 Actor가 Target 본인인 경우 가시 범위 인정
-	return !bBlocked || (Hit.GetActor() == Target);
+	return !bHit || (Hit.GetActor() == Target) || (Hit.GetActor() && Hit.GetActor()->IsAttachedTo(Target));
+}
+
+void AZombieAIController::OnAttackCooldownFinished()
+{
+	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
+	{
+#if WITH_EDITOR
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("False"));
+#endif
+		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
+	}
 }
 
 //Behavior Tree Task 등에서 호출 - 공격을 시작할 때 이동을 멈추고
@@ -333,12 +403,20 @@ void AZombieAIController::StartAttack()
 //공격 애니메이션이 끝난 뒤 실행해서 "이제 공격이 끝났다"고 알려주는 역할이다. BT가 다시 이동/추적 판단을 할 수 있게 해준다.
 void AZombieAIController::FinishAttack()
 {
-	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
+	//여기서 바로 IsAttacking을 내리지 않고, Cooldown 시간만큼 기다렸다가 내린다.
+	GetWorldTimerManager().SetTimer(
+		AttackCooldownTimerHandle,
+		this,
+		&AZombieAIController::OnAttackCooldownFinished,
+		AttackCooldown,
+		false
+	);
+	
+	//Cooldown 동안 Attack/Chase 둘 다 BT 조건에 막혀서 State가 갱신 안 되고
+	//마지막 값(Chase)이 그대로 남아 Run 애니메이션이 계속 재생되는 문제 방지
+	if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
 	{
-#if WITH_EDITOR
-		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("False"));
-#endif
-		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
+		Zombie->SetCurrentState(EZombieState::Idle);
 	}
 }
 
