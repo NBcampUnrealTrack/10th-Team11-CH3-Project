@@ -36,6 +36,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	USphereComponent* AttackRangeComp;
 
+	FTimerHandle SearchTimerHandle;
 	FTimerHandle DisappearTimerHandle;
 
 	//캐릭터 스탯
@@ -111,6 +112,9 @@ public:
 	// 트리거가 밟히면 호출
 	UFUNCTION(BlueprintCallable, Category = "JumpScare")
 	void WakeUp();
+	UFUNCTION(BlueprintCallable, Category = "JumpScare")
+	void EnterFakeDead();
+	void OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 
 protected:
 	virtual void BeginPlay() override;

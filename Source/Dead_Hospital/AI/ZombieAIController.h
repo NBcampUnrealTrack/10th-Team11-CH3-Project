@@ -25,8 +25,6 @@ public:
 	bool CheckSearchTurnVisibility(AActor* Target) const;
 	void OnAttackCooldownFinished();
 
-private:
-
 protected:
 	//이 AI 컨트롤러가 실제로 실행할 Behavior Tree 에셋 (에디터/블루프린트에서 BT_Zombie를 지정)
 	UPROPERTY(EditAnywhere, Category = "AI")
@@ -56,6 +54,7 @@ protected:
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
 	//AIPerception이 뭔가를 감지/놓쳤을 때 호출되는 콜백 함수
 	UFUNCTION()
 	void OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);

@@ -104,6 +104,12 @@ void AZombieAIController::OnPossess(APawn* InPawn)
 	}
 }
 
+void AZombieAIController::OnUnPossess()
+{
+	GetWorldTimerManager().ClearTimer(AttackCooldownTimerHandle);
+	Super::OnUnPossess();
+}
+
 //AIPerception이 뭔가를 감지하거나 놓칠 때마다 호출된다. - 그 결과를 Blackboard의
 //ChaseTarget 키에 반영해서, Behavior Tree가 추격할지 순찰할지 판단할 수 있게 해준다.
 void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus)
@@ -116,6 +122,10 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 
 	// 감지된 Actor가 Pawn인지 확인한다.
 	APawn* DetectedPawn = Cast<APawn>(Actor);
+	if (!DetectedPawn || !DetectedPawn->IsPlayerControlled())
+	{
+		return;
+	}
 
 	// Pawn이 아니거나 플레이어가 조종하는 Pawn이 아니라면
 	// 추격 대상으로 사용하지 않고 무시한다.
@@ -289,7 +299,7 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	const float SearchTurnOffsetDeg = 90.0f;//실제 애니메이션이 도는 각도에 맞춰 조정 가능
 	const float SignedOffset = Zombie->bSearchTurnMirrored ? -SearchTurnOffsetDeg : SearchTurnOffsetDeg;
 
-	FRotator LookRotation = Zombie->GetActorRotation();
+	FRotator LookRotation = Zombie->GetMesh() ? Zombie->GetMesh()->GetComponentRotation() : Zombie->GetActorRotation();
 	LookRotation.Yaw = FRotator::NormalizeAxis(LookRotation.Yaw + SignedOffset);
 	LookRotation.Pitch = 0.0f;
 	LookRotation.Roll = 0.0f;
@@ -340,12 +350,12 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	//Params.AddIgnoredActor(Target);
 
 	//좀비의 모든 자식 컴포넌트(메시, 콜리전 등)도 무시 대상에 추가
-	TArray<UPrimitiveComponent*> ZombieComponents;
-	Zombie->GetComponents<UPrimitiveComponent>(ZombieComponents);
-	for (UPrimitiveComponent* Comp : ZombieComponents)
-	{
-		Params.AddIgnoredComponent(Comp);
-	}
+	//TArray<UPrimitiveComponent*> ZombieComponents;
+	//Zombie->GetComponents<UPrimitiveComponent>(ZombieComponents);
+	//for (UPrimitiveComponent* Comp : ZombieComponents)
+	//{
+	//	Params.AddIgnoredComponent(Comp);
+	//}
 
 	bool bHit = GetWorld()->LineTraceSingleByChannel(
 		Hit,

@@ -80,6 +80,11 @@ void AZombieCharacter::BeginPlay()
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
 
 	bUseControllerRotationYaw = false;
+
+	if (bIsFakeDead)
+	{
+		EnterFakeDead();
+	}
 }
 
 
@@ -111,6 +116,8 @@ void AZombieCharacter::OnAttackOverlap(UPrimitiveComponent* OverlappedComp, AAct
 //오버랩 끝나면 상태를 Chase로 변경되고 다시 플레이어를 쫓아간다.
 void AZombieCharacter::OnAttackEndOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
+	if (CurrentState == EZombieState::Dead) return;
+
 	//공격 범위에서 벗어난 Actor가 플레이어인지 확인한다.
 	ACharacter* Player = Cast<ACharacter>(OtherActor);
 	if (!Player || !Player->IsPlayerControlled())
@@ -257,6 +264,14 @@ void AZombieCharacter::HandleItemDrop()
 		}
 	}
 
+	//부동소수점 오차로 인해 SelectedEntry를 찾지 못했으나,
+	//실제 드랍 테이블 행이 존재한다면 마지막 행을 기본값으로 할당
+	//안전장치
+	if (!SelectedEntry && AllRows.Num() > 0)
+	{
+		SelectedEntry = AllRows.Last();
+	}
+
 	//"드랍 없음"도 정상 결과로 처리
 	if (!SelectedEntry || SelectedEntry->ItemID.IsNone())
 	{
@@ -327,18 +342,19 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 
 	if (OldState == EZombieState::Search && NewState != EZombieState::Search)
 	{
+		GetWorldTimerManager().ClearTimer(SearchTimerHandle);
+
 		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
 		if (AnimInstance && SearchTurnMontage)
 		{
 			AnimInstance->Montage_Stop(0.1f, SearchTurnMontage);
 		}
-	}
-
-	if (AAIController* AIController = Cast<AAIController>(GetController()))
-	{
-		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
+		if (AAIController* AIController = Cast<AAIController>(GetController()))
 		{
-			BlackboardComp->SetValueAsBool(TEXT("bInvestigatingNoise"), false);
+			if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
+			{
+				BlackboardComp->SetValueAsBool(TEXT("bInvestigatingNoise"), false);
+			}
 		}
 	}
 
@@ -347,10 +363,12 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 	case EZombieState::Patrol:
 	case EZombieState::Idle:
 		GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
+		GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
 		break;
 	case EZombieState::Chase:
 	case EZombieState::Search:
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
+		GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
 		break;
 	default:
 		break;
@@ -408,9 +426,24 @@ void AZombieCharacter::OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInt
 	if (!bInterrupted && CurrentState == EZombieState::Search)
 	{
 		ToggleSearchTurnDirection();
+		// NextTick 대신 0.1초의 최소 지연 시간을 부여하여 몽타주 실패 시의 무한 재귀 및 프레임 부하를 완벽히 차단
+		GetWorldTimerManager().SetTimer(SearchTimerHandle, this, &AZombieCharacter::PlaySearchTurnMontage, 0.1f, false);
+	}
+}
 
-		//재귀적 직호출로 인한 스택 오버플로우/델리게이트 꼬임 방지를 위해 NextTick 활용
-		GetWorldTimerManager().SetTimerForNextTick(this, &AZombieCharacter::PlaySearchTurnMontage);
+void AZombieCharacter::OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (CurrentState == EZombieState::Dead)
+	{
+		return;
+	}
+
+	if (AAIController* AICon = Cast<AAIController>(GetController()))
+	{
+		if (UBrainComponent* Brain = AICon->GetBrainComponent())
+		{
+			Brain->RestartLogic();
+		}
 	}
 }
 
@@ -431,11 +464,22 @@ void AZombieCharacter::WakeUp()
 	if (!bIsFakeDead) return;
 
 	bIsFakeDead = false;
-
-	// 일어나는 애니메이션 재생
-	if (GetUpMontage)
+	if(GetUpMontage)
 	{
-		PlayAnimMontage(GetUpMontage);
+		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+		if (AnimInstance)
+		{
+			FOnMontageEnded EndDelegate;
+			EndDelegate.BindUObject(this, &AZombieCharacter::OnGetUpMontageEnded);
+			AnimInstance->Montage_SetEndDelegate(EndDelegate, GetUpMontage);
+
+			PlayAnimMontage(GetUpMontage);
+		}
+	}
+	else
+	{
+		//몽타주가 없으면 바로 추적 시작
+		OnGetUpMontageEnded(nullptr, false);
 	}
 
 	// 비명 소리 재생
@@ -444,4 +488,17 @@ void AZombieCharacter::WakeUp()
 	// 여기서 AI Controller를 활성화하거나 상태 변경 신호 주기
 	UE_LOG(LogTemp, Warning, TEXT("좀비가 깨어납니다."));
 
+}
+
+void AZombieCharacter::EnterFakeDead()
+{
+	bIsFakeDead = true;
+
+	if (AAIController* AICon = Cast<AAIController>(GetController()))
+	{
+		if (UBrainComponent* Brain = AICon->GetBrainComponent())
+		{
+			Brain->StopLogic(TEXT("FakeDead"));
+		}
+	}
 }
