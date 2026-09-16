@@ -224,13 +224,38 @@ bool ADeadHospitalDoor::TryUnlockWithKey(AActor* Interactor)
 
 	// 에디터에서 ConsumeKeyWhenUnlocked를 실수로 켜도 보호 목록의 필수 Key는 절대 제거하지 않습니다.
 	const bool ShouldConsumeKey = ConsumeKeyWhenUnlocked && !IsProtectedKey;
-	// ? : 는 조건에 따라 둘 중 하나를 고르는 문법입니다. Key 소비가 필요한 경우만
-	// 제거 전 목록을 복사해 두고, 문 해제가 실패하면 그대로 돌려놓습니다.
-	/*const TArray<FItemData> InventoryBeforeUnlock = ShouldConsumeKey ? Inventory->Items : TArray<FItemData>();
-	if (ShouldConsumeKey && !Inventory->RemoveItem(RequiredKeyItemId, 1))
+
+	// 일회용 Key라면 먼저 인벤토리 슬롯에서 같은 ItemID의 원본 자료를 한 개 찾아 둡니다.
+	// 문 잠금 해제 기록에 실패하면 아래에서 AddItem()으로 Key 한 개를 돌려줘야 하기 때문입니다.
+	// 여기서는 팀원 InventoryComponent 내부 배열을 직접 수정하지 않고,
+	// GetInventorySlots()로 읽고 ConsumeKeyItem()/AddItem() 공개 함수로만 변경합니다.
+	FItemData ConsumedKeyItemData;
+	if (ShouldConsumeKey)
 	{
-		return false;
-	}*/
+		bool FoundKeyItemData = false;
+		for (const FInventorySlot& Slot : Inventory->GetInventorySlots())
+		{
+			// 빈 슬롯이거나 이 문에 필요한 Key가 아닌 슬롯은 다음 슬롯을 확인합니다.
+			if (Slot.bIsEmpty || Slot.ItemData.ItemID != RequiredKeyItemId)
+			{
+				continue;
+			}
+
+			// 슬롯에는 여러 개가 겹쳐 있을 수 있지만 문 하나가 소비하는 수량은 한 개입니다.
+			// 따라서 이름·종류·최대 중첩 수 같은 자료는 복사하고 Quantity만 1로 바꿉니다.
+			ConsumedKeyItemData = Slot.ItemData;
+			ConsumedKeyItemData.Quantity = 1;
+			FoundKeyItemData = true;
+			break;
+		}
+
+		// 수량 검사는 위에서 통과했더라도 정상적인 KeyItem 자료를 찾지 못했다면
+		// 잘못된 인벤토리 자료일 수 있으므로 문을 열지 않고 안전하게 끝냅니다.
+		if (!FoundKeyItemData || !Inventory->ConsumeKeyItem(RequiredKeyItemId, 1))
+		{
+			return false;
+		}
+	}
 
 	if (UnlockDoor())
 	{
@@ -238,11 +263,18 @@ bool ADeadHospitalDoor::TryUnlockWithKey(AActor* Interactor)
 	}
 
 	// 문 Event 예약/기록에 실패했다면, 잠금이 여전히 유지됩니다.
-	// 그때 Key만 사라지면 진행이 막히므로 제거 전 인벤토리 내용을 그대로 복구합니다.
-	/*if (ShouldConsumeKey)
+	// 그때 Key만 사라지면 진행이 막히므로 조금 전에 소비한 Key 한 개를 공개 함수로 돌려줍니다.
+	if (ShouldConsumeKey && !Inventory->AddItem(ConsumedKeyItemData))
 	{
-		Inventory->Items = InventoryBeforeUnlock;
-	}*/
+		// 한 개를 소비했으므로 원래 있던 자리가 반드시 생기는 것이 정상입니다.
+		// 그래도 복구가 실패했다면 자료 설정에 문제가 있다는 뜻이므로 로그를 남겨 찾기 쉽게 합니다.
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("Door %s failed to return consumed KeyItem %s after unlock failure."),
+			*DoorId.ToString(),
+			*RequiredKeyItemId.ToString());
+	}
 	return false;
 }
 
