@@ -35,7 +35,7 @@ APlayerCharacter::APlayerCharacter()
 	//InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 
 	//NormalSpeed = 600.0f;
-	//SprintSpeedMultiplier = 1.5f;
+	//SprintSpeedMultiplier = 1.5f; //3줄다 주석 지우지 마세요!!
 	//SprintSpeed = NormalSpeed * SprintSpeedMultiplier;
 
 	GetCharacterMovement()->MaxWalkSpeed = NormalSpeed;
@@ -151,6 +151,17 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 						ETriggerEvent::Started,
 						this,
 						&APlayerCharacter::OnFlashlightPressed
+				);
+			}
+
+			// I키 (InventoryAction) 바인딩
+			if (CharacterController->InventoryAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->InventoryAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnInventoryPressed
 				);
 			}
 		}
@@ -372,6 +383,9 @@ void APlayerCharacter::Die()
 		OnFlashlightStateChanged(false);
 	}
 
+	// 인벤토리 강제로 닫음
+	CloseInventory();
+
 	// 상호작용 연타 방지용 값 정리
 	LastInteractActor.Reset();
 	LastInteractTime = -1.0f;
@@ -450,6 +464,12 @@ void APlayerCharacter::OnFlashlightPressed(const FInputActionValue& value)
 	ToggleFlashlight();
 }
 
+// I키 입력 -> 인벤토리 토글
+void APlayerCharacter::OnInventoryPressed(const FInputActionValue& value)
+{
+	ToggleInventory();
+}
+
 void APlayerCharacter::AcquireFlashlight()
 {
 	bHasFlashlight = true;
@@ -481,6 +501,39 @@ void APlayerCharacter::ToggleFlashlight()
 	OnFlashlightStateChanged(bFlashlightOn);
 }
 
+// I 입력->인벤토리 토글.실제 인벤토리 위젯 표시 / 숨김은 인벤토리 파트에서
+// OnInventoryToggled 이벤트를 받아 처리한다. (Player 쪽은 상태 관리 + 입력 차단만 담당)
+void APlayerCharacter::ToggleInventory()
+{
+	//사망 / 은신(연출포함) / 입력 잠금 상태면 무시
+	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked)
+	{
+		return;
+	}
+
+	bIsInventoryOpen = !bIsInventoryOpen;
+
+	//인벤토리가 열리면 일반 상호작용 프롬프트도 같이 숨겨야 하므로
+	// 기존 UI 오픈 플래그를 재사용한다 (문서/키패드 등과 동일 취급).
+	SetUIOpen(bIsInventoryOpen);
+
+	// 실제 인벤토리 위젯 표시/ 숨김은 인벤토리 파트에서 이 이벤트를 반아 처리
+	OnInventoryToggled(bIsInventoryOpen);
+}
+
+// 인벤토리 UI 쪽(ESC, X버튼, 아이템 사용 후 자동 닫힘 등)에서 호출.
+// I키 Toggle과 달리 "무조건 닫기"만 하는 함수라서, 이미 닫혀 있으면 아무 일도 하지 않는다.
+void APlayerCharacter::CloseInventory()
+{
+	if (!bIsInventoryOpen)
+	{
+		return;
+	}
+
+	bIsInventoryOpen = false;
+	SetUIOpen(false);
+	OnInventoryToggled(false);
+}
 
 // 카메라 전방으로 스피어 트레이스 쏴서 맞은 액터 확인
 // TryInteract()와 UpdateInteractionPrompt()가 동일하게 사용하는 단일 트레이스 진입점.

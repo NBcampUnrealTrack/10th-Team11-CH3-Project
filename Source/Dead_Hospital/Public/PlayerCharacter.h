@@ -65,6 +65,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Flashlight")
 	void AcquireFlashlight();
 
+	// 인벤토리 창이 열려 있는지 확인 (UI/다른 시스템에서 조회용)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool IsInventoryOpen() const { return bIsInventoryOpen; }
+
+	// 인벤토리 UI 쪽(ESC, X버튼, 아이템 사용 후 자동 닫힘 등)에서 호출.
+	// 이미 닫혀 있으면 아무 동작 안 함. 상태를 false로 바꾸고 OnInventoryToggled(false)를 발생시킨다.
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void CloseInventory();
+
 	// Ending, 컷씬, 강제 연출 등 F 입력 자체를 막아야 할 때 외부에서 호출
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetInputLocked(bool bNewLocked) { bIsInputLocked = bNewLocked; }
@@ -124,7 +133,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float NormalSpeed = 180.0f; //걷기
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	//float SprintSpeedMultiplier; 
+	//float SprintSpeedMultiplier; //주석뺴지 마세요!!
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
 	float SprintSpeed = 240.0f; //뛰기
 
@@ -177,6 +186,10 @@ protected:
 	float FlashlightToggleCooldown = 0.2f;
 
 	float LastFlashlightToggleTime = -1.0f;
+
+	// I키로 인벤토리 창이 열려 있는지 여부
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
+	bool bIsInventoryOpen = false;
 
 	// Ending, 컷씬 등 외부 연출이 강제로 모든 입력을 막을 때 true
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
@@ -245,6 +258,10 @@ protected:
 	UFUNCTION()
 	void OnFlashlightPressed(const FInputActionValue& value);
 
+	// I키 입력 핸들러
+	UFUNCTION()
+	void OnInventoryPressed(const FInputActionValue& value);
+
 	void Sit();
 	void StopSitting();
 
@@ -253,6 +270,9 @@ protected:
 
 	// F 입력 -> 손전등 토글 은신 중/사망 상태면 무시된다
 	void ToggleFlashlight();
+
+	// I 입력 -> 인벤토리 토글. 실제 UI 표시는 인벤토리 파트에서 OnInventoryToggled를 받아 처리한다
+	void ToggleInventory();
 
 	// 지금 은신 중인 HidingSpot Actor가 Destroy될 때 호출됨 (SetHiding에서 구독)
 	UFUNCTION()
@@ -290,6 +310,11 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Flashlight")
 	void OnFlashlightStateChanged(bool bNewOn);
+
+	// 인벤토리 열림/닫힘 상태가 바뀔 때 호출됨. 인벤토리/UI 파트에서 이 이벤트를 받아
+	// 실제 인벤토리 위젯을 열고 닫으면 된다. (Player 쪽은 상태 관리와 입력 차단만 담당)
+	UFUNCTION(BlueprintImplementableEvent, Category = "Inventory")
+	void OnInventoryToggled(bool bNewOpen);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
