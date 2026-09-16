@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -16,33 +16,33 @@ class DEAD_HOSPITAL_API APuzzleScareSpawner : public AActor
 public:
     APuzzleScareSpawner();
 
-    // ¼ÒÈ¯ÇÒ Á»ºñ Å¬·¡½º
+    // ì†Œí™˜í•  ì¢€ë¹„ í´ë˜ìŠ¤
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Puzzle")
     TSubclassOf<AZombieCharacter> ZombieClassToSpawn;
 
-    // µî µÚ¿¡¼­ µé¸± »ç¿îµå (¹ß¼Ò¸®, ±«¼º µî)
+    // ë“± ë’¤ì—ì„œ ë“¤ë¦´ ì‚¬ìš´ë“œ (ë°œì†Œë¦¬, ê´´ì„± ë“±)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Puzzle")
     USoundBase* ScareSound;
 
-    // ÆÛÁñ ¿Ï·á ÈÄ ÀûÀÌ µîÀåÇÏ±â±îÁöÀÇ ¾È½É ½Ã°£ (±âº»°ª 2.5ÃÊ)
+    // í¼ì¦ ì™„ë£Œ í›„ ì ì´ ë“±ì¥í•˜ê¸°ê¹Œì§€ì˜ ì•ˆì‹¬ ì‹œê°„ (ê¸°ë³¸ê°’ 2.5ì´ˆ)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Puzzle")
     float DelayBeforeScare = 2.5f;
 
-    // µî µÚ ¾ó¸¸Å­ ¶³¾îÁ®¼­ ½ºÆùµÉÁö
+    // ë“± ë’¤ ì–¼ë§Œí¼ ë–¨ì–´ì ¸ì„œ ìŠ¤í°ë ì§€
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Puzzle")
     float SpawnDistance = 400.0f;
 
-    // ÆÛÁñ ¼º°ø ½Ã È£ÃâÇØ ÁÙ ÇÔ¼ö
+    // í¼ì¦ ì„±ê³µ ì‹œ í˜¸ì¶œí•´ ì¤„ í•¨ìˆ˜
     UFUNCTION(BlueprintCallable, Category = "JumpScare|Puzzle")
     void OnPuzzleSolved(APlayerCharacter* Player);
 
 private:
-    // ¾È½É ½Ã°£ÀÌ ³¡³­ µÚ ½ÇÁ¦·Î ÀûÀ» ¼ÒÈ¯ÇÏ´Â ³»ºÎ ÇÔ¼ö
+    // ì•ˆì‹¬ ì‹œê°„ì´ ëë‚œ ë’¤ ì‹¤ì œë¡œ ì ì„ ì†Œí™˜í•˜ëŠ” ë‚´ë¶€ í•¨ìˆ˜
     void ExecuteScare();
 
-    // Å¸ÀÌ¸Ó°¡ µ¹ µ¿¾È ÇÃ·¹ÀÌ¾î Á¤º¸¸¦ µé°í ÀÖÀ» º¯¼ö
+    // íƒ€ì´ë¨¸ê°€ ëŒ ë™ì•ˆ í”Œë ˆì´ì–´ ì •ë³´ë¥¼ ë“¤ê³  ìˆì„ ë³€ìˆ˜
     APlayerCharacter* TargetPlayer;
 
-    // ½Ã°£Â÷ °ø°İÀ» À§ÇÑ Å¸ÀÌ¸Ó ÇÚµé
+    // ì‹œê°„ì°¨ ê³µê²©ì„ ìœ„í•œ íƒ€ì´ë¨¸ í•¸ë“¤
     FTimerHandle ScareTimerHandle;
 };

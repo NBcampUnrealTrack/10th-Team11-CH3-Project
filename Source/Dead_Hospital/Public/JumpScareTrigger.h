@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -18,15 +18,15 @@ public:
 protected:
     virtual void BeginPlay() override;
 
-    // ÇÃ·¹ÀÌ¾î°¡ ¹âÀ» Åõ¸íÇÑ Ãæµ¹ ¹Ú½º
+    // í”Œë ˆì´ì–´ê°€ ë°Ÿì„ íˆ¬ëª…í•œ ì¶©ëŒ ë°•ìŠ¤
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Trigger")
     UBoxComponent* TriggerBox;
 
-    // ÀÌ Æ®¸®°Å¸¦ ¹â¾ÒÀ» ¶§ ±ú¿ï ´ë»ó Á»ºñ
+    // ì´ íŠ¸ë¦¬ê±°ë¥¼ ë°Ÿì•˜ì„ ë•Œ ê¹¨ìš¸ ëŒ€ìƒ ì¢€ë¹„
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Trigger")
     AZombieCharacter* TargetZombie;
 
-    // ÇÃ·¹ÀÌ¾î°¡ ¹Ú½º¿¡ ´ê¾ÒÀ» ¶§ ½ÇÇàµÉ ÀÌº¥Æ®
+    // í”Œë ˆì´ì–´ê°€ ë°•ìŠ¤ì— ë‹¿ì•˜ì„ ë•Œ ì‹¤í–‰ë  ì´ë²¤íŠ¸
     UFUNCTION()
     void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 };

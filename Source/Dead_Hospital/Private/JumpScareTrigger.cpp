@@ -1,46 +1,46 @@
-#include "JumpScareTrigger.h"
+ï»¿#include "JumpScareTrigger.h"
 #include "Components/BoxComponent.h"
 #include "PlayerCharacter.h"
 #include "../AI/ZombieCharacter.h"
 
 AJumpScareTrigger::AJumpScareTrigger()
 {
-    // ¹Ú½º ÄÄÆ÷³ÍÆ® »ı¼º ¹× ¼³Á¤
+    // ë°•ìŠ¤ ì»´í¬ë„ŒíŠ¸ ìƒì„± ë° ì„¤ì •
     TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
     RootComponent = TriggerBox;
 
-    // ÇÃ·¹ÀÌ¾î¿Í¸¸ Ãæµ¹ÇÏµµ·Ï ¼³Á¤
+    // í”Œë ˆì´ì–´ì™€ë§Œ ì¶©ëŒí•˜ë„ë¡ ì„¤ì •
     TriggerBox->SetCollisionProfileName(TEXT("Trigger"));
 
-    // ¿À¹ö·¦ ÀÌº¥Æ® ¹ÙÀÎµù
+    // ì˜¤ë²„ë© ì´ë²¤íŠ¸ ë°”ì¸ë”©
     TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &AJumpScareTrigger::OnOverlapBegin);
 }
 
-// °ÔÀÓ ½ÃÀÛ ½Ã Á»ºñ ´¯È÷±â
+// ê²Œì„ ì‹œì‘ ì‹œ ì¢€ë¹„ ëˆ•íˆê¸°
 void AJumpScareTrigger::BeginPlay()
 {
     Super::BeginPlay();
 
-    // ¿¡µğÅÍ¿¡¼­ ¿¬°áÇØ µĞ Å¸°Ù Á»ºñ°¡ ÀÖ´Ù¸é
+    // ì—ë””í„°ì—ì„œ ì—°ê²°í•´ ë‘” íƒ€ê²Ÿ ì¢€ë¹„ê°€ ìˆë‹¤ë©´
     if (TargetZombie != nullptr)
     {
-        // ½ÃÃ¼È­ + BT Á¤Áö ÇÔ¼ö ½ÇÇà
+        // ì‹œì²´í™” + BT ì •ì§€ í•¨ìˆ˜ ì‹¤í–‰
         TargetZombie->EnterFakeDead();
     }
 }
 
 void AJumpScareTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-    // ¹âÀº ´ë»óÀÌ ÇÃ·¹ÀÌ¾îÀÎÁö È®ÀÎ
+    // ë°Ÿì€ ëŒ€ìƒì´ í”Œë ˆì´ì–´ì¸ì§€ í™•ì¸
     APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
     if (Player != nullptr)
     {
-        // ¿¬°áµÈ Á»ºñ°¡ ÀÖ°í, ±× Á»ºñ°¡ Á×Àº Ã´ ÁßÀÌ¶ó¸é
+        // ì—°ê²°ëœ ì¢€ë¹„ê°€ ìˆê³ , ê·¸ ì¢€ë¹„ê°€ ì£½ì€ ì²™ ì¤‘ì´ë¼ë©´
         if (TargetZombie && TargetZombie->bIsFakeDead)
         {
             TargetZombie->WakeUp();
 
-            // ÇÑ ¹ø¸¸ ¹ß»ıÇØ¾ß ÇÏ¹Ç·Î Æ®¸®°Å ½º½º·Î ÆÄ±«
+            // í•œ ë²ˆë§Œ ë°œìƒí•´ì•¼ í•˜ë¯€ë¡œ íŠ¸ë¦¬ê±° ìŠ¤ìŠ¤ë¡œ íŒŒê´´
             Destroy();
         }
     }

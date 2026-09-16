@@ -1,4 +1,4 @@
-#include "WeepingAngelZombie.h"
+ï»¿#include "WeepingAngelZombie.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "PlayerCharacter.h"
@@ -8,33 +8,33 @@ AWeepingAngelZombie::AWeepingAngelZombie()
     PrimaryActorTick.bCanEverTick = true;
 }
 
-// °ø°İ ºÒ°¡
+// ê³µê²© ë¶ˆê°€
 float AWeepingAngelZombie::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
 {
-    // ¾Æ¹«¸® µ¥¹ÌÁö°¡ µé¾î¿Íµµ 0.0f¸¦ ¹İÈ¯ÇÏ¿© Ã¼·ÂÀÌ ±ğÀÌÁö ¾Ê°Ô ¹æ¾î
-    UE_LOG(LogTemp, Warning, TEXT("¿ì´Â Ãµ»ç´Â °ø°İÇÒ ¼ö ¾ø½À´Ï´Ù"));
+    // ì•„ë¬´ë¦¬ ë°ë¯¸ì§€ê°€ ë“¤ì–´ì™€ë„ 0.0fë¥¼ ë°˜í™˜í•˜ì—¬ ì²´ë ¥ì´ ê¹ì´ì§€ ì•Šê²Œ ë°©ì–´
+    UE_LOG(LogTemp, Warning, TEXT("ìš°ëŠ” ì²œì‚¬ëŠ” ê³µê²©í•  ìˆ˜ ì—†ìŠµë‹ˆë‹¤"));
     return 0.0f;
 }
 
-// ¾óÀ½/¶¯ Ã³¸®
+// ì–¼ìŒ/ë•¡ ì²˜ë¦¬
 void AWeepingAngelZombie::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 
     bool bIsSeenNow = CheckIfSeenByPlayer();
 
-    // »óÅÂ°¡ º¯ÇßÀ» ¶§¸¸ ¼Óµµ¿Í ¾Ö´Ï¸ŞÀÌ¼Ç ¾÷µ¥ÀÌÆ®
+    // ìƒíƒœê°€ ë³€í–ˆì„ ë•Œë§Œ ì†ë„ì™€ ì• ë‹ˆë©”ì´ì…˜ ì—…ë°ì´íŠ¸
     if (bIsSeenNow != bWasSeenLastFrame)
     {
         if (bIsSeenNow)
         {
-            // [¾óÀ½] ÇÃ·¹ÀÌ¾î°¡ ÃÄ´Ùº¼ ¶§: ¹ßÀ» ¹­°í ¾Ö´Ï¸ŞÀÌ¼ÇÀ» ¸ØÃã
+            // [ì–¼ìŒ] í”Œë ˆì´ì–´ê°€ ì³ë‹¤ë³¼ ë•Œ: ë°œì„ ë¬¶ê³  ì• ë‹ˆë©”ì´ì…˜ì„ ë©ˆì¶¤
             GetCharacterMovement()->MaxWalkSpeed = 0.0f;
             GetMesh()->bPauseAnims = true;
         }
         else
         {
-            // [¶¯] ½Ã¾ß¿¡¼­ ¹ş¾î³µÀ» ¶§: µ¹ÁøÇÏ¸ç ¾Ö´Ï¸ŞÀÌ¼Ç Àç»ı
+            // [ë•¡] ì‹œì•¼ì—ì„œ ë²—ì–´ë‚¬ì„ ë•Œ: ëŒì§„í•˜ë©° ì• ë‹ˆë©”ì´ì…˜ ì¬ìƒ
             GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
             GetMesh()->bPauseAnims = false;
         }
@@ -43,7 +43,7 @@ void AWeepingAngelZombie::Tick(float DeltaTime)
     }
 }
 
-// ½Ã¾ß ÆÇÁ¤
+// ì‹œì•¼ íŒì •
 bool AWeepingAngelZombie::CheckIfSeenByPlayer()
 {
     APlayerCharacter* Player = Cast<APlayerCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
@@ -56,15 +56,15 @@ bool AWeepingAngelZombie::CheckIfSeenByPlayer()
     FVector DirToAngel = (GetActorLocation() - PlayerLocation).GetSafeNormal();
     FVector PlayerForward = PlayerRotation.Vector();
 
-    // ½Ã¾ß°¢(FOV) °Ë»ç 
-    // ³»Àû °ªÀÌ 0.5 ÀÌ»óÀÌ¸é Á¤¸éÀ» ±âÁØÀ¸·Î ¾à 60µµ ¿ø»Ô ½Ã¾ß ³»¿¡ ÀÖ´Ù´Â ¶æ
+    // ì‹œì•¼ê°(FOV) ê²€ì‚¬ 
+    // ë‚´ì  ê°’ì´ 0.5 ì´ìƒì´ë©´ ì •ë©´ì„ ê¸°ì¤€ìœ¼ë¡œ ì•½ 60ë„ ì›ë¿” ì‹œì•¼ ë‚´ì— ìˆë‹¤ëŠ” ëœ»
     float DotProduct = FVector::DotProduct(PlayerForward, DirToAngel);
     if (DotProduct > 0.5f)
     {
-        // Àå¾Ö¹°(º®) °¡¸² °Ë»ç
+        // ì¥ì• ë¬¼(ë²½) ê°€ë¦¼ ê²€ì‚¬
         FHitResult HitResult;
         FCollisionQueryParams QueryParams;
-        QueryParams.AddIgnoredActor(Player); // ÇÃ·¹ÀÌ¾î ÀÚ½ÅÀº Åë°ú
+        QueryParams.AddIgnoredActor(Player); // í”Œë ˆì´ì–´ ìì‹ ì€ í†µê³¼
 
         bool bHit = GetWorld()->LineTraceSingleByChannel(
             HitResult,
@@ -74,10 +74,10 @@ bool AWeepingAngelZombie::CheckIfSeenByPlayer()
             QueryParams
         );
 
-        // ½Ã¾ß¿¡ ÀÖ°í + ±¤¼±À» ½úÀ» ¶§ º®¿¡ ¸·È÷Áö ¾Ê°í ¿ì´Â Ãµ»ç¸¦ Á¤È®È÷ ¸ÂÃè´Ù¸é
+        // ì‹œì•¼ì— ìˆê³  + ê´‘ì„ ì„ ìˆì„ ë•Œ ë²½ì— ë§‰íˆì§€ ì•Šê³  ìš°ëŠ” ì²œì‚¬ë¥¼ ì •í™•íˆ ë§ì·„ë‹¤ë©´
         if (bHit && HitResult.GetActor() == this)
         {
-            return true; // ÇÃ·¹ÀÌ¾î°¡ ³ª¸¦ ÃÄ´Ùº¸°í ÀÖ´Ù´Â ¶æ
+            return true; // í”Œë ˆì´ì–´ê°€ ë‚˜ë¥¼ ì³ë‹¤ë³´ê³  ìˆë‹¤ëŠ” ëœ»
         }
     }
     return false;

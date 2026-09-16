@@ -1,4 +1,4 @@
-#include "PuzzleScareSpawner.h"
+ï»¿#include "PuzzleScareSpawner.h"
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "../AI/ZombieCharacter.h"
@@ -13,9 +13,9 @@ void APuzzleScareSpawner::OnPuzzleSolved(APlayerCharacter* Player)
 {
     if (Player == nullptr || ZombieClassToSpawn == nullptr) return;
 
-    TargetPlayer = Player; // Å¸ÀÌ¸Ó°¡ ³¡³­ µÚ¿¡ ¾²±â À§ÇØ ÇÃ·¹ÀÌ¾î ÀúÀå
+    TargetPlayer = Player; // íƒ€ì´ë¨¸ê°€ ëë‚œ ë’¤ì— ì“°ê¸° ìœ„í•´ í”Œë ˆì´ì–´ ì €ì¥
 
-    // ¼³Á¤µÈ ½Ã°£(DelayBeforeScare)¸¸Å­ ±â´Ù·È´Ù°¡ ExecuteScare ½ÇÇà
+    // ì„¤ì •ëœ ì‹œê°„(DelayBeforeScare)ë§Œí¼ ê¸°ë‹¤ë ¸ë‹¤ê°€ ExecuteScare ì‹¤í–‰
     GetWorld()->GetTimerManager().SetTimer(
         ScareTimerHandle,
         this,
@@ -24,14 +24,14 @@ void APuzzleScareSpawner::OnPuzzleSolved(APlayerCharacter* Player)
         false
     );
 
-    UE_LOG(LogTemp, Warning, TEXT("ÆÛÁñ ¿Ï·á ½ÅÈ£ ¼ö½Å. %fÃÊ µÚ Á¡ÇÁ ½ºÄÉ¾î°¡ ¹ßµ¿µË´Ï´Ù..."), DelayBeforeScare);
+    UE_LOG(LogTemp, Warning, TEXT("í¼ì¦ ì™„ë£Œ ì‹ í˜¸ ìˆ˜ì‹ . %fì´ˆ ë’¤ ì í”„ ìŠ¤ì¼€ì–´ê°€ ë°œë™ë©ë‹ˆë‹¤..."), DelayBeforeScare);
 }
 
 void APuzzleScareSpawner::ExecuteScare()
 {
     if (TargetPlayer == nullptr) return;
 
-    // ÇÃ·¹ÀÌ¾î µî µÚ ÁÂÇ¥ °è»ê
+    // í”Œë ˆì´ì–´ ë“± ë’¤ ì¢Œí‘œ ê³„ì‚°
     FVector PlayerLocation = TargetPlayer->GetActorLocation();
     FVector PlayerForward = TargetPlayer->GetActorForwardVector();
 
@@ -39,13 +39,13 @@ void APuzzleScareSpawner::ExecuteScare()
     SpawnLocation.Z = PlayerLocation.Z;
     FRotator SpawnRotation = (PlayerLocation - SpawnLocation).Rotation();
 
-    // µî µÚ(½ºÆùµÉ À§Ä¡)¿¡¼­ »ç¿îµå Àç»ı
+    // ë“± ë’¤(ìŠ¤í°ë  ìœ„ì¹˜)ì—ì„œ ì‚¬ìš´ë“œ ì¬ìƒ
     if (ScareSound)
     {
         UGameplayStatics::PlaySoundAtLocation(this, ScareSound, SpawnLocation);
     }
 
-    // Á»ºñ ¼ÒÈ¯
+    // ì¢€ë¹„ ì†Œí™˜
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
@@ -58,6 +58,6 @@ void APuzzleScareSpawner::ExecuteScare()
 
     if (SpawnedZombie)
     {
-        UE_LOG(LogTemp, Warning, TEXT("ÇÃ·¹ÀÌ¾î µî µÚ¿¡ Á»ºñ°¡ ³ªÅ¸³µ½À´Ï´Ù."));
+        UE_LOG(LogTemp, Warning, TEXT("í”Œë ˆì´ì–´ ë“± ë’¤ì— ì¢€ë¹„ê°€ ë‚˜íƒ€ë‚¬ìŠµë‹ˆë‹¤."));
     }
 }

@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -15,15 +15,15 @@ class DEAD_HOSPITAL_API AItemBaitSpawner : public AActor
 public:
     AItemBaitSpawner();
 
-    // Á»ºñÀÇ Á¾·ù
+    // ì¢€ë¹„ì˜ ì¢…ë¥˜
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare")
     TSubclassOf<AZombieCharacter> ZombieClassToSpawn;
 
-    // ÇÃ·¹ÀÌ¾î µî µÚ ¾ó¸¸Å­ ¶³¾îÁ®¼­ ½ºÆùµÉÁö (±âº»°ª 3¹ÌÅÍ)
+    // í”Œë ˆì´ì–´ ë“± ë’¤ ì–¼ë§Œí¼ ë–¨ì–´ì ¸ì„œ ìŠ¤í°ë ì§€ (ê¸°ë³¸ê°’ 3ë¯¸í„°)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare")
     float SpawnDistance = 300.0f;
 
-    // ¾ÆÀÌÅÛ ´ã´çÀÚ°¡ ¾ÆÀÌÅÛ ½Àµæ ½Ã È£ÃâÇÒ ½ºÀ§Ä¡ ÇÔ¼ö
+    // ì•„ì´í…œ ë‹´ë‹¹ìê°€ ì•„ì´í…œ ìŠµë“ ì‹œ í˜¸ì¶œí•  ìŠ¤ìœ„ì¹˜ í•¨ìˆ˜
     UFUNCTION(BlueprintCallable, Category = "JumpScare")
     void TriggerScare(APlayerCharacter* TargetPlayer);
 };

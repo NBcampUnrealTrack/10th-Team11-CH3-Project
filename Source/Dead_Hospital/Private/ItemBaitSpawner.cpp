@@ -1,4 +1,4 @@
-#include "ItemBaitSpawner.h"
+ï»¿#include "ItemBaitSpawner.h"
 #include "../AI/ZombieCharacter.h"
 #include "PlayerCharacter.h"
 #include "Engine/World.h"
@@ -10,27 +10,27 @@ AItemBaitSpawner::AItemBaitSpawner()
 
 void AItemBaitSpawner::TriggerScare(APlayerCharacter* TargetPlayer)
 {
-    // ÇÃ·¹ÀÌ¾î Á¤º¸°¡ ¾ø°Å³ª, ¿¡µğÅÍ¿¡¼­ ½ºÆùÇÒ Á»ºñ Å¬·¡½º¸¦ ¾È ³Ö¾úÀ¸¸é ¹«½Ã
+    // í”Œë ˆì´ì–´ ì •ë³´ê°€ ì—†ê±°ë‚˜, ì—ë””í„°ì—ì„œ ìŠ¤í°í•  ì¢€ë¹„ í´ë˜ìŠ¤ë¥¼ ì•ˆ ë„£ì—ˆìœ¼ë©´ ë¬´ì‹œ
     if (TargetPlayer == nullptr || ZombieClassToSpawn == nullptr) return;
 
-    // ÇÃ·¹ÀÌ¾îÀÇ µî µÚ À§Ä¡ °è»ê
+    // í”Œë ˆì´ì–´ì˜ ë“± ë’¤ ìœ„ì¹˜ ê³„ì‚°
     FVector PlayerLocation = TargetPlayer->GetActorLocation();
     FVector PlayerForward = TargetPlayer->GetActorForwardVector();
 
-    // µî µÚ ÁÂÇ¥ = ÇÃ·¹ÀÌ¾î À§Ä¡ - (ÇÃ·¹ÀÌ¾î ¾Õ¹æÇâ º¤ÅÍ * °Å¸®)
+    // ë“± ë’¤ ì¢Œí‘œ = í”Œë ˆì´ì–´ ìœ„ì¹˜ - (í”Œë ˆì´ì–´ ì•ë°©í–¥ ë²¡í„° * ê±°ë¦¬)
     FVector SpawnLocation = PlayerLocation - (PlayerForward * SpawnDistance);
 
-    // ³ôÀÌ´Â ÇÃ·¹ÀÌ¾î¿Í µ¿ÀÏÇÏ°Ô ¸ÂÃç¼­ °øÁß¿¡ ¶ß°Å³ª ¶¥¿¡ ¹ÚÈ÷Áö ¾Ê°Ô ÇÔ
+    // ë†’ì´ëŠ” í”Œë ˆì´ì–´ì™€ ë™ì¼í•˜ê²Œ ë§ì¶°ì„œ ê³µì¤‘ì— ëœ¨ê±°ë‚˜ ë•…ì— ë°•íˆì§€ ì•Šê²Œ í•¨
     SpawnLocation.Z = PlayerLocation.Z;
 
-    // Á»ºñ°¡ ½ºÆùµÇÀÚ¸¶ÀÚ ÇÃ·¹ÀÌ¾î¸¦ ¹Ù¶óº¸µµ·Ï È¸Àü°ª °è»ê
+    // ì¢€ë¹„ê°€ ìŠ¤í°ë˜ìë§ˆì í”Œë ˆì´ì–´ë¥¼ ë°”ë¼ë³´ë„ë¡ íšŒì „ê°’ ê³„ì‚°
     FRotator SpawnRotation = (PlayerLocation - SpawnLocation).Rotation();
 
-    // ¿ùµå¿¡ Á»ºñ ½ºÆù ¼³Á¤ (º®¿¡ ³¢¸é »ìÂ¦ ¹Ğ¾î³»¼­¶óµµ ¹«Á¶°Ç ¼ÒÈ¯)
+    // ì›”ë“œì— ì¢€ë¹„ ìŠ¤í° ì„¤ì • (ë²½ì— ë¼ë©´ ì‚´ì§ ë°€ì–´ë‚´ì„œë¼ë„ ë¬´ì¡°ê±´ ì†Œí™˜)
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-    // Á»ºñ ¼ÒÈ¯
+    // ì¢€ë¹„ ì†Œí™˜
     AZombieCharacter* SpawnedZombie = GetWorld()->SpawnActor<AZombieCharacter>(
         ZombieClassToSpawn,
         SpawnLocation,
@@ -40,6 +40,6 @@ void AItemBaitSpawner::TriggerScare(APlayerCharacter* TargetPlayer)
 
     if (SpawnedZombie)
     {
-        UE_LOG(LogTemp, Warning, TEXT("µî µÚ¿¡ Á»ºñ°¡ ¼ÒÈ¯µÇ¾ú½À´Ï´Ù."));
+        UE_LOG(LogTemp, Warning, TEXT("ë“± ë’¤ì— ì¢€ë¹„ê°€ ì†Œí™˜ë˜ì—ˆìŠµë‹ˆë‹¤."));
     }
 }

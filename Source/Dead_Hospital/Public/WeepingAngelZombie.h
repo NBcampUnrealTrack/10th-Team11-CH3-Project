@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "../AI/ZombieCharacter.h"
@@ -12,20 +12,20 @@ class DEAD_HOSPITAL_API AWeepingAngelZombie : public AZombieCharacter
 public:
     AWeepingAngelZombie();
 
-    // ¸Å ÇÁ·¹ÀÓ ½Ã¾ß¸¦ °Ë»çÇÏ±â À§ÇØ Tick ÇÔ¼ö ¿À¹ö¶óÀÌµå
+    // ë§¤ í”„ë ˆì„ ì‹œì•¼ë¥¼ ê²€ì‚¬í•˜ê¸° ìœ„í•´ Tick í•¨ìˆ˜ ì˜¤ë²„ë¼ì´ë“œ
     virtual void Tick(float DeltaTime) override;
 
-    // °ø°İ ºÒ°¡ Ã³¸®¸¦ À§ÇØ µ¥¹ÌÁö ÆÄÀÌÇÁ¶óÀÎ ¿À¹ö¶óÀÌµå
+    // ê³µê²© ë¶ˆê°€ ì²˜ë¦¬ -> ë°ë¯¸ì§€ íŒŒì´í”„ë¼ì¸ ì˜¤ë²„ë¼ì´ë“œ
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
-    // ½Ã¾ß¿¡¼­ ¹ş¾î³µÀ» ¶§ÀÇ Ãß°İ ¼Óµµ
+    // ì‹œì•¼ì—ì„œ ë²—ì–´ë‚¬ì„ ë•Œì˜ ì¶”ê²© ì†ë„
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Angel")
     float ChaseSpeed = 800.0f;
 
 private:
-    // ÇÃ·¹ÀÌ¾î°¡ ³ª¸¦ º¸°í ÀÖ´ÂÁö °è»êÇÏ´Â ÇÔ¼ö
+    // í”Œë ˆì´ì–´ê°€ ë‚˜ë¥¼ ë³´ê³  ìˆëŠ”ì§€ ê³„ì‚°í•˜ëŠ” í•¨ìˆ˜
     bool CheckIfSeenByPlayer();
 
-    // »óÅÂ º¯È­¸¦ °¨ÁöÇÏ±â À§ÇÑ ÀÌÀü ÇÁ·¹ÀÓ »óÅÂ ÀúÀå¿ë º¯¼ö
+    // ìƒíƒœ ë³€í™”ë¥¼ ê°ì§€í•˜ê¸° ìœ„í•œ ì´ì „ í”„ë ˆì„ ìƒíƒœ ì €ì¥ìš© ë³€ìˆ˜
     bool bWasSeenLastFrame = false;
 };
