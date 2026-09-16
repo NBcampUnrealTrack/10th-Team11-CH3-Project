@@ -3,6 +3,7 @@
 #include "Components/SphereComponent.h"
 #include "InventoryComponent.h"
 #include "GameFramework/Character.h"
+#include "Engine/DataTable.h"
 
 
 AItemPickup::AItemPickup(){
@@ -29,15 +30,65 @@ AItemPickup::AItemPickup(){
 	InteractingActor = nullptr;
 }
 
+// Pickup이 가지고 있을 아이템 데이터 설정
+void AItemPickup::SetItemData(const FItemData& NewItemData)
+{
+	ItemData = NewItemData;
+
+	UE_LOG(LogTemp, Warning, TEXT("ItemPickup data set: %s / Quantity: %d"), *ItemData.ItemID.ToString(), ItemData.Quantity);
+}
+
+// DataTable의 Row Name을 이용해 ItemData를 설정
+bool AItemPickup::LoadItemDataFromTable(){
+	// DataTable이 설정되지 않았다면 실패
+	if (!ItemDataTable){
+
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickup: ItemDataTable is not set"));
+		return false;
+	}
+
+	// Row Name이 설정되지 않았다면 실패
+	if (ItemRowName.IsNone()){
+
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickup: ItemRowName is not set"));
+		return false;
+	}
+
+	// DataTable에서 ItemRowName에 해당하는 FItemData 검색
+	const FItemData* FoundItemData = ItemDataTable->FindRow<FItemData>(ItemRowName, TEXT("ItemPickup LoadItemData"));
+
+	// 해당 Row를 찾지 못했다면 실패
+	if (!FoundItemData){
+
+		UE_LOG(LogTemp, Warning,TEXT("ItemPickup: Failed to find Row: %s"), *ItemRowName.ToString());
+
+		return false;
+	}
+
+	// 찾은 데이터를 현재 Pickup의 ItemData에 복사
+	ItemData = *FoundItemData;
+
+	UE_LOG(LogTemp, Warning, TEXT("ItemPickup loaded from DataTable: %s / Quantity: %d"), *ItemData.ItemID.ToString(), ItemData.Quantity);
+
+	return true;
+}
+
 void AItemPickup::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// DataTable과 Row Name이 설정되어 있다면 ItemData를 불러옴
+	if (ItemDataTable && !ItemRowName.IsNone())
+	{
+		LoadItemDataFromTable();
+	}
 
 	// 플레이어가 Sphere 안으로 들어왔을 때
 	InteractionSphere->OnComponentBeginOverlap.AddDynamic(this, &AItemPickup::OnSphereBeginOverlap);
 
 	// 플레이어가 Sphere 밖으로 나갔을 때
 	InteractionSphere->OnComponentEndOverlap.AddDynamic(this, &AItemPickup::OnSphereEndOverlap);
+
 }
 
 // Sphere 안으로 들어왔을 때 실행
@@ -104,11 +155,23 @@ void AItemPickup::Interact(AActor* PlayerActor) {
 		return;
 	}
 
-	// 인벤토리에 아이템 추가를 시도한다.
-	if (Inventory->AddItem(ItemData)){
-		UE_LOG(LogTemp, Warning,TEXT("Item picked up: %s"), *ItemData.ItemID.ToString());
+	// 아이템 데이터가 정상적으로 설정되어 있는지 확인
+	if (ItemData.ItemID.IsNone() || ItemData.Quantity <= 0 || ItemData.MaxStack <= 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ItemPickup has invalid ItemData"));
 
-		// 획득에 성공했으므로 월드에 있는 Pickup 제거
+		return;
+	}
+
+	// 인벤토리에 아이템 추가 시도
+	if (Inventory->AddItem(ItemData)){
+
+		// 아이템 추가에 성공했을 때만 획득 이벤트 발생
+		Inventory->OnItemAcquired.Broadcast(ItemData.ItemID, ItemData.Quantity);
+
+		UE_LOG(LogTemp, Warning, TEXT("Item Acquired / Item: %s / Quantity: %d"), *ItemData.ItemID.ToString(), ItemData.Quantity);
+
+		// 획득이 완료되었으므로 월드의 아이템 제거
 		Destroy();
 	}
 }
