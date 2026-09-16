@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "DeadHospitalGameMode.h"
 
@@ -473,7 +473,16 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 
 	// InventoryComponent는 팀원 코드를 수정하지 않고 공개된 데이터와 함수만 사용합니다.
 	NewCheckpoint.HasInventorySnapshot = true;
-	NewCheckpoint.InventoryItems = Inventory->Items;
+	// GetInventorySlots()는 현재 인벤토리의 모든 칸을 읽기 전용으로 보여 주는 공개 함수입니다.
+	// 빈 칸은 저장할 필요가 없으므로 건너뛰고, 실제 아이템이 들어 있는 칸의 ItemData만 복사합니다.
+	// ItemData 안에는 ItemID뿐 아니라 Quantity도 있으므로 같은 아이템의 현재 수량도 함께 저장됩니다.
+	for (const FInventorySlot& Slot : Inventory->GetInventorySlots())
+	{
+		if (!Slot.bIsEmpty)
+		{
+			NewCheckpoint.InventoryItems.Add(Slot.ItemData);
+		}
+	}
 	NewCheckpoint.EquippedWeaponId = Inventory->GetEquippedWeaponID();
 
 	// 모든 자료를 채운 뒤 마지막 기록을 교체합니다. MoveTemp는 배열처럼
@@ -558,9 +567,32 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 			return false;
 		}
 
-		// 이미 존재하는 팀원 InventoryComponent의 공개 자료와 함수를 사용합니다.
-		// 장착할 무기가 기록되어 있다면 EquipWeapon 성공까지 확인하고 넘어갑니다.
-		Inventory->Items = LastCheckpoint.InventoryItems;
+		// 새 Pawn의 인벤토리는 BeginPlay에서 빈 슬롯들로 초기화됩니다.
+		// 저장해 둔 각 ItemData를 팀원 파트의 공개 함수 AddItem()으로 다시 넣습니다.
+		// 예전처럼 존재하지 않는 Items 배열을 직접 대입하지 않기 때문에 병합된 인벤토리 구조와 맞습니다.
+		for (const FItemData& SavedItem : LastCheckpoint.InventoryItems)
+		{
+			if (!Inventory->AddItem(SavedItem))
+			{
+				// 하나라도 복구하지 못하면 일부 아이템만 가진 잘못된 상태로 게임을 계속하지 않습니다.
+				// 아직 OldPawn을 삭제하기 전이므로 새 Pawn을 없애고 이전 Pawn을 다시 조종하게 합니다.
+				PlayerController->UnPossess();
+				NewPlayerPawn->Destroy();
+				if (IsValid(OldPawn))
+				{
+					PlayerController->Possess(OldPawn);
+				}
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("Checkpoint restart failed: inventory item %s could not be restored."),
+					*SavedItem.ItemID.ToString());
+				return false;
+			}
+		}
+
+		// 아이템을 모두 넣은 다음, 저장 당시 장착 중이던 무기가 있다면 다시 장착합니다.
+		// EquipWeapon()은 해당 무기가 인벤토리에 실제로 있는지도 검사하므로 성공 여부를 확인합니다.
 		if (!LastCheckpoint.EquippedWeaponId.IsNone()
 			&& !Inventory->EquipWeapon(LastCheckpoint.EquippedWeaponId))
 		{

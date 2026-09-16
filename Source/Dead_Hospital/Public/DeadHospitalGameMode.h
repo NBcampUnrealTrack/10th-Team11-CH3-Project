@@ -140,6 +140,12 @@ struct FDeadHospitalCheckpointData
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	bool HasInventorySnapshot = false;
 
+	/**
+	 * 저장 시점에 비어 있지 않았던 인벤토리 슬롯들의 아이템 자료입니다.
+	 * FItemData 안의 Quantity까지 복사되므로 아이템 종류와 개수를 함께 기억합니다.
+	 * 재시작할 때는 팀원 InventoryComponent의 AddItem()을 이용해 새 Pawn에게 다시 넣습니다.
+	 * 슬롯 번호 자체는 저장하지 않으므로 재시작 뒤 칸 배치는 앞쪽부터 다시 정리될 수 있습니다.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	TArray<FItemData> InventoryItems;
 
