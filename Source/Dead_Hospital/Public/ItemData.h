@@ -27,6 +27,10 @@ struct FItemData : public FTableRowBase
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName ItemID;
 
+	// UI에 표시할 아이템 설명
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FText Description;
+
 	// 화면에 표시할 아이템 이름
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FText ItemName;
@@ -54,8 +58,7 @@ struct FItemData : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct FInventorySlot
-{
+struct FInventorySlot{
 	GENERATED_BODY()
 
 	// 인벤토리 슬롯 번호
@@ -69,4 +72,34 @@ struct FInventorySlot
 	// 슬롯에 들어있는 아이템 데이터
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FItemData ItemData;
+};
+
+// 자판기에서 판매하는 상품 정보
+USTRUCT(BlueprintType)
+struct FShopItem{
+
+	GENERATED_BODY()
+
+	// DT_ItemData에서 가져올 상품의 Row Name
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FName ItemRowName;
+
+	// 실제 판매할 아이템 데이터
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FItemData ItemData;
+
+	// 현재 자판기에 남아있는 판매 수량
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Stock = 0;
+};
+
+// 자판기 구매 결과
+UENUM(BlueprintType)
+enum class EPurchaseResult : uint8
+{
+	Success,          // 구매 성공
+	InvalidItem,      // 잘못된 상품
+	OutOfStock,       // 재고 없음
+	NotEnoughCoin,    // Coin 부족
+	InventoryFull     // 인벤토리 공간 부족
 };
