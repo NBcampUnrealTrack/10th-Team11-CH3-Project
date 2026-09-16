@@ -34,6 +34,12 @@ public:
     }
 };
 
+// 탄약 갱신 신호 (현재 탄창, 가방에 남은 예비 총알)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAmmoChangedSignature, int32, CurrentAmmo, int32, ReserveAmmo);
+
+// 적중 신호 (실제 들어간 데미지, 헤드샷 여부)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEnemyHitSignature, float, DamageApplied, bool, bIsHeadshot);
+
 // 전투 총괄 관리 컴포넌트
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class DEAD_HOSPITAL_API UCombatComponent : public UActorComponent
@@ -47,9 +53,20 @@ protected:
     virtual void BeginPlay() override;
 
 public:
+    // 블루프린트에서 바인딩할 이벤트 변수
+    UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+    FOnAmmoChangedSignature OnAmmoChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+    FOnEnemyHitSignature OnEnemyHit;
+
+    // 탄약 UI 갱신을 한 번에 처리할 헬퍼 함수
+    UFUNCTION(BlueprintCallable, Category = "Combat|UI")
+    void UpdateAmmoUI();
+
     // 무기 데이터 및 상태 변수
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
-    FWeaponData CurrentWeapon;  // 현재 장착 중인 무기 데이터 참조
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Data")
+    TMap<FName, FWeaponData> WeaponDataMap;
 
     UPROPERTY(BlueprintReadOnly, Category = "Combat|State")
     bool bCanPrimaryAttack; // 기본 공격 가능 여부 - 연사 쿨타임 체크
@@ -64,6 +81,9 @@ public:
     UFUNCTION(BlueprintPure, Category = "Combat|UI")
     float GetWeaponDamage() const;  // 총 데미지
 
+    UFUNCTION(BlueprintPure, Category = "Combat|UI")
+    int32 GetMagazineCapacity() const;  // 탄창 최대 용량 반환
+
     // UI 경고 메시지 띄우기 (탄약이 없습니다)
     UFUNCTION(BlueprintImplementableEvent, Category = "Combat|UI")
     void OnAmmoEmptyWarning();
@@ -74,7 +94,7 @@ public:
 
     // 타격 처리 및 데미지 전달
     UFUNCTION(BlueprintCallable, Category = "Combat|Action")
-    void ProcessHit(AActor* HitTarget, float AppliedDamage);
+    void ProcessHit(AActor* HitTarget, float AppliedDamage, bool bIsHeadshot = false);
 
     // 쿨타임 복구 함수
     UFUNCTION()
@@ -102,6 +122,22 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Animation")
     class UAnimMontage* ReloadAnimation; // 재장전 애니메이션
+
+    // 헤드샷 배수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Stats")
+    float HeadshotMultiplier = 2.0f;
+
+    // 플레이어 사망 시 호출되어 타이머와 상태를 강제 초기화
+    UFUNCTION(BlueprintCallable, Category = "Combat|Action")
+    void HandlePlayerDeath();
+
+    // UI 비활성화 신호 (사망 시 호출되어 전투 UI를 끄도록 유도)
+    UFUNCTION(BlueprintImplementableEvent, Category = "Combat|UI")
+    void OnCombatStateCleared();
+
+    // 무기 교체, 구르기 등 특정 액션 시 장전 취소
+    UFUNCTION(BlueprintCallable, Category = "Combat|Action")
+    void CancelReload();
 
 private:
     // 장전 완료 콜백
