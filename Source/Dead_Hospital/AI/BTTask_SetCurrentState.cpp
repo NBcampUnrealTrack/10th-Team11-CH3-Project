@@ -1,6 +1,7 @@
 ﻿#include "BTTask_SetCurrentState.h"
 #include "AIController.h"
 #include "ZombieCharacter.h"
+#include "BehaviorTree/BlackboardComponent.h"
 
 //Behavior Tree에서 이 Task 노드가 실행될 때 호출된다.
 //이 Task를 소유(빙의)한 AI 컨트롤러 -> 그 컨트롤러가 조종하는 Pawn -> 좀비 캐릭터 순으로
@@ -28,6 +29,11 @@ EBTNodeResult::Type UBTTask_SetCurrentState::ExecuteTask(UBehaviorTreeComponent&
 	//실제 상태 변경 - NewState는 이 Task 노드의 프로퍼티로,
 	//Behavior Tree 에디터에서 노드마다 다르게 지정해둔 목표 상태 값이다.
 	Zombie->SetCurrentState(NewState);
+
+	if (UBlackboardComponent* BlackboardComp = OwnerComp.GetBlackboardComponent())
+	{
+		BlackboardComp->SetValueAsEnum(TEXT("State"), static_cast<uint8>(NewState));
+	}
 
 	//여기까지 문제 없이 왔으면 Task 성공으로 종료한다.
 	return EBTNodeResult::Succeeded;

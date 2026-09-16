@@ -184,10 +184,8 @@ void AZombieCharacter::Die()
 		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
 		{
 			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_InAttackRange, false);
-			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_IsAttacking, false);
-			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bCanSeeTarget, false);
-			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bInvestigatingNoise, false);
 			BlackboardComp->ClearValue(AZombieAIController::BBKey_ChaseTarget);
+			BlackboardComp->SetValueAsEnum(AZombieAIController::BBKey_State, static_cast<uint8>(EZombieState::Dead));
 		}
 
 		AIController->StopMovement();
@@ -357,24 +355,18 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		{
 			AnimInstance->Montage_Stop(0.1f, SearchTurnMontage);
 		}
-		if (AAIController* AIController = Cast<AAIController>(GetController()))
-		{
-			if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
-			{
-				BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bInvestigatingNoise, false);
-			}
-		}
 	}
 
 	switch (CurrentState)
 	{
 	case EZombieState::Patrol:
-	case EZombieState::Idle:
+	case EZombieState::Attacking:
 		GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 		GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
 		break;
 	case EZombieState::Chase:
 	case EZombieState::Search:
+	case EZombieState::Investigating:
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 		GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
 		break;
@@ -497,8 +489,8 @@ void AZombieCharacter::ToggleSearchTurnDirection()
 
 void AZombieCharacter::AggroOnSpawn()
 {
-	AAIController* AIController = Cast<AAIController>(GetController());
-	UBlackboardComponent* BlackboardComp = AIController ? AIController->GetBlackboardComponent() : nullptr;
+	AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController());
+	UBlackboardComponent* BlackboardComp = ZombieController ? ZombieController->GetBlackboardComponent() : nullptr;
 
 	if (!BlackboardComp)
 	{
@@ -512,7 +504,7 @@ void AZombieCharacter::AggroOnSpawn()
 	}
 
 	BlackboardComp->SetValueAsObject(AZombieAIController::BBKey_ChaseTarget, PlayerCharacter);
-	BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bCanSeeTarget, true);
+	ZombieController->SetZombieState(EZombieState::Chase);
 
 	RefreshAttackRange();
 }

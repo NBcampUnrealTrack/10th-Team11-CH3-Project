@@ -10,12 +10,12 @@
 UENUM(BlueprintType)
 enum class EZombieState : uint8
 {
-	Idle,
-	Patrol,
-	Chase,
-	Search,
-	Attack,
-	Dead
+	Patrol UMETA(DisplayName = "Patrol"),
+	Investigating UMETA(DisplayName = "Investigating"),
+	Chase UMETA(DisplayName = "Chase"),
+	Search UMETA(DisplayName = "Search"),
+	Attacking UMETA(DisplayName = "Attacking"),
+	Dead UMETA(DisplayName = "Dead")	
 };
 
 class USphereComponent;

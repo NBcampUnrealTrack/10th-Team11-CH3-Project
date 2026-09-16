@@ -21,6 +21,7 @@ const FName AZombieAIController::BBKey_IsAttacking(TEXT("IsAttacking"));
 const FName AZombieAIController::BBKey_bInvestigatingNoise(TEXT("bInvestigatingNoise"));
 const FName AZombieAIController::BBKey_InAttackRange(TEXT("InAttackRange"));
 const FName AZombieAIController::BBKey_KnownHideSpotLocation(TEXT("KnownHideSpotLocation"));
+const FName AZombieAIController::BBKey_State(TEXT("State"));
 
 AZombieAIController::AZombieAIController()
 {
@@ -152,24 +153,25 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 			return;
 		}
 
-		bool bAlreadyInvestigating = BlackboardComp->GetValueAsBool(BBKey_bInvestigatingNoise);
-		bool bCanSeeTargetNow = BlackboardComp->GetValueAsBool(BBKey_bCanSeeTarget);
+		EZombieState CurrentZombieState = EZombieState::Patrol;
+		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+		{
+			CurrentZombieState = Zombie->GetCurrentState();
+		}
 
-		if (bAlreadyInvestigating || bCanSeeTargetNow)
+		if (CurrentZombieState == EZombieState::Investigating || CurrentZombieState == EZombieState::Chase)
 		{
 			return;
 		}
 
 		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
-		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, Stimulus.StimulusLocation);
+		SetZombieState(EZombieState::Investigating);
 
+		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
 		{
 			Zombie->RefreshAttackRange();
 		}
-
-		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, Stimulus.StimulusLocation);
-		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
-		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingNoise, true);
 		
 		return;
 	}
@@ -181,34 +183,28 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 #endif
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+		SetZombieState(EZombieState::Chase);
 
 		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
 		{
 			Zombie->RefreshAttackRange();
 		}
-
-		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
 	}
 	else
 	{
 		if (CheckSearchTurnVisibility(Actor))
 		{
 			BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+			SetZombieState(EZombieState::Chase);
 
 			if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
 			{
 				Zombie->RefreshAttackRange();
 			}
-
-			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
 		}
 		else
 		{
-			//Sitmulus는 왔지만 실패(WasSuccessfullySensed == false)로 온 경우
-			//즉 "방금 시야에서 놓쳤다"는 뜻. 아직 ChaseTarget 자체를 지우지는 않고
-			//(LastKnownLocation으로 계속 추적할 수 있도록) bCanSeeTarget만 false로 내린다.
-			//ChaseTarget을 완전히 비우는 처리는 OnPerceptionForgotten에서 한다.
-			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
+			SetZombieState(EZombieState::Search);
 		}
 	}
 }
@@ -230,10 +226,8 @@ void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
 #if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Forgotten"));
 #endif
-		//대상을 잃어버렸으므로, ChaseTarget을 비워서 다시 순찰 상태로 돌아가게 한다.
 		BlackboardComp->ClearValue(BBKey_ChaseTarget);
-		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
-		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingNoise, false);
+		SetZombieState(EZombieState::Patrol);
 	}
 }
 
@@ -254,10 +248,28 @@ void AZombieAIController::CheckSearchTurnSight()
 
 	if (CheckSearchTurnVisibility(ChaseTarget))
 	{
-		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
-		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingNoise, false);
+		SetZombieState(EZombieState::Chase);
 		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
 	}
+}
+
+void AZombieAIController::SetZombieState(EZombieState NewState)
+{
+	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+
+	if (!BlackboardComp || !Zombie)
+	{
+		return;
+	}
+
+	if (Zombie->GetCurrentState() == EZombieState::Dead)
+	{
+		return;
+	}
+
+	BlackboardComp->SetValueAsEnum(BBKey_State, static_cast<uint8>(NewState));
+	Zombie->SetCurrentState(NewState);
 }
 
 
@@ -285,30 +297,21 @@ void AZombieAIController::Tick(float DeltaTime)
 	if (PlayerCharacter && PlayerCharacter->IsDead())
 	{
 		BlackboardComp->ClearValue(BBKey_ChaseTarget);
-		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
-
+		SetZombieState(EZombieState::Patrol);
 		//Player 사망 시 HideSpot 수색도 같이 종료
-		BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), false);
+		//BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), false);
 		bWasPlayerHidingLastFrame = false;
 
-		return;
+		return;	
 	}
 
-	bool bCanSeeTarget = BlackboardComp->GetValueAsBool(BBKey_bCanSeeTarget);
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+	bool bIsChasing = (Zombie && Zombie->GetCurrentState() == EZombieState::Chase);	
 
-	if (bCanSeeTarget)
+	if (bIsChasing)
 	{
 		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
 	}
-
-	//else 사용x
-	//{
-	//	if (CheckSearchTurnVisibility(ChaseTarget))
-	//	{
-	//		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
-	//		bCanSeeTarget = true;//이번 프레임 안에서 HideSpot 판정 시 최신 값 쓰기 위해 갱신
-	//	}
-	//}
 
 	//HideSpot(은신) 감지 - "목격된 상태로 숨는 순간"을 포착 
 	//player연결해야함
@@ -432,12 +435,16 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 
 void AZombieAIController::OnAttackCooldownFinished()
 {
-	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
+	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
+	AActor* ChaseTarget = BlackboardComp ? Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget)) : nullptr;
+
+	if (IsValid(ChaseTarget))
 	{
-#if WITH_EDITOR
-		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("False"));
-#endif
-		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
+		SetZombieState(EZombieState::Chase);
+	}
+	else
+	{
+		SetZombieState(EZombieState::Patrol);
 	}
 }
 
@@ -445,8 +452,8 @@ void AZombieAIController::OnAttackCooldownFinished()
 //Blackboard 상태를 갱신한 뒤, 실제로 좀비 캐릭터의 공격 애니메이션을 재생시킨다.
 void AZombieAIController::StartAttack()
 {
-	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
-	if (!BlackboardComp || BlackboardComp->GetValueAsBool(BBKey_IsAttacking))
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+	if (!Zombie || Zombie->GetCurrentState() == EZombieState::Attacking)
 	{
 		return;
 	}
@@ -459,17 +466,8 @@ void AZombieAIController::StartAttack()
 #if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("True"));
 #endif
-	BlackboardComp->SetValueAsBool(BBKey_IsAttacking, true);
-	
 
-	//이 AI 컨트롤러가 빙의 중인 Pawn(좀비 캐릭터)를 가져와서
-	//실제 공격 몽타주 재생을 위임한다.
-	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
-	if (!Zombie)
-	{
-		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
-		return;
-	}
+	SetZombieState(EZombieState::Attacking);
 	Zombie->PlayAttackMontage();
 }
 
@@ -484,13 +482,6 @@ void AZombieAIController::FinishAttack()
 		AttackCooldown,
 		false
 	);
-	
-	//Cooldown 동안 Attack/Chase 둘 다 BT 조건에 막혀서 State가 갱신 안 되고
-	//마지막 값(Chase)이 그대로 남아 Run 애니메이션이 계속 재생되는 문제 방지
-	if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
-	{
-		Zombie->SetCurrentState(EZombieState::Idle);
-	}
 }
 
 void AZombieAIController::StartSearchTurn()

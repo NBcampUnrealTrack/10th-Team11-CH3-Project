@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "AIController.h"
+#include "ZombieCharacter.h"
 #include "Perception/AIPerceptionTypes.h"
 #include "ZombieAIController.generated.h"
 
@@ -13,19 +14,6 @@ UCLASS()
 class DEAD_HOSPITAL_API AZombieAIController : public AAIController
 {
 	GENERATED_BODY()
-	
-public:
-	AZombieAIController();
-
-	virtual void Tick(float DeltaTime) override;
-
-	void StartAttack();
-	void FinishAttack();
-	void StartSearchTurn();
-	bool CheckSearchTurnVisibility(AActor* Target) const;
-	void OnAttackCooldownFinished();
-	UFUNCTION(BlueprintCallable)
-	void CheckSearchTurnSight();
 
 protected:
 	//이 AI 컨트롤러가 실제로 실행할 Behavior Tree 에셋 (에디터/블루프린트에서 BT_Zombie를 지정)
@@ -55,6 +43,21 @@ public:
 	static const FName BBKey_bInvestigatingNoise;
 	static const FName BBKey_InAttackRange;
 	static const FName BBKey_KnownHideSpotLocation;
+	static const FName BBKey_State;
+
+public:
+	AZombieAIController();
+
+	virtual void Tick(float DeltaTime) override;
+
+	void StartAttack();
+	void FinishAttack();
+	void StartSearchTurn();
+	bool CheckSearchTurnVisibility(AActor* Target) const;
+	void OnAttackCooldownFinished();
+	UFUNCTION(BlueprintCallable)
+	void CheckSearchTurnSight();
+	void SetZombieState(EZombieState NewState);
 
 protected:
 	virtual void BeginPlay() override;
