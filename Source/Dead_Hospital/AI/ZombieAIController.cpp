@@ -19,6 +19,8 @@ const FName AZombieAIController::BBKey_bCanSeeTarget(TEXT("bCanSeeTarget"));
 const FName AZombieAIController::BBKey_LastKnownLocation(TEXT("LastKnownLocation"));
 const FName AZombieAIController::BBKey_IsAttacking(TEXT("IsAttacking"));
 const FName AZombieAIController::BBKey_bInvestigatingNoise(TEXT("bInvestigatingNoise"));
+const FName AZombieAIController::BBKey_InAttackRange(TEXT("InAttackRange"));
+const FName AZombieAIController::BBKey_KnownHideSpotLocation(TEXT("KnownHideSpotLocation"));
 
 AZombieAIController::AZombieAIController()
 {
@@ -317,7 +319,7 @@ void AZombieAIController::Tick(float DeltaTime)
 
 	//	if (bIsHidingNow && !bWasPlayerHidingLastFrame && bCanSeeTarget)
 	//	{
-	//		BlackboardComp->SetValueAsVector(TEXT("KnownHideSpotLocation"), HideSpot->GetActorLocation());
+	//		BlackboardComp->SetValueAsVector(BBKey_KnownHideSpotLocation, HideSpot->GetActorLocation());
 	//		BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), true);
 	//	}
 	//	bWasPlayerHidingLastFrame = bIsHidingNow;

@@ -16,9 +16,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
-static const FName BBKey_InAttackRange(TEXT("InAttackRange"));
-static const FName BBKey_ChaseTarget(TEXT("ChaseTarget"));
-
 AZombieCharacter::AZombieCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -46,6 +43,8 @@ AZombieCharacter::AZombieCharacter()
 	ChaseTarget = nullptr;
 	//좀비의 현재 상태 - 초기는 순찰
 	CurrentState = EZombieState::Patrol;
+	//좀비 어그로
+	bAggroOnSpawn = false;
 
 	//좀비 공격 범위 콜리전
 	AttackRangeComp = CreateDefaultSubobject<USphereComponent>(TEXT("AttackRangeComp"));
@@ -84,6 +83,10 @@ void AZombieCharacter::BeginPlay()
 	if (bIsFakeDead)
 	{
 		EnterFakeDead();
+	}
+	else if (bAggroOnSpawn)
+	{
+		AggroOnSpawn();
 	}
 }
 
@@ -180,11 +183,11 @@ void AZombieCharacter::Die()
 	{
 		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
 		{
-			BlackboardComp->SetValueAsBool(TEXT("InAttackRange"), false);
-			BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), false);
-			BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), false);
-			BlackboardComp->SetValueAsBool(TEXT("bInvestigatingNoise"), false);
-			BlackboardComp->ClearValue(TEXT("ChaseTarget"));
+			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_InAttackRange, false);
+			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_IsAttacking, false);
+			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bCanSeeTarget, false);
+			BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bInvestigatingNoise, false);
+			BlackboardComp->ClearValue(AZombieAIController::BBKey_ChaseTarget);
 		}
 
 		AIController->StopMovement();
@@ -318,7 +321,7 @@ void AZombieCharacter::Attack()
 	//Blackboard에 저장된 ChaseTarget(현재 추적/공격 대상)을 가져온다.
 	UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent();
 	AActor* Target = BlackboardComp
-		? Cast<AActor>(BlackboardComp->GetValueAsObject(TEXT("ChaseTarget"))) : nullptr;
+		? Cast<AActor>(BlackboardComp->GetValueAsObject(AZombieAIController::BBKey_ChaseTarget)) : nullptr;
 	//대상이 존재하고, 실제로 공격 범위 콜리전 안에 있는 경우에만 데미지를 적용한다.
 	//(애니메이션 재생 중 대상이 범위를 벗어났을 수 있으므로 여기서 다시 확인)
 	if (IsValid(Target) && AttackRangeComp->IsOverlappingActor(Target))
@@ -358,7 +361,7 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		{
 			if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
 			{
-				BlackboardComp->SetValueAsBool(TEXT("bInvestigatingNoise"), false);
+				BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bInvestigatingNoise, false);
 			}
 		}
 	}
@@ -480,16 +483,38 @@ void AZombieCharacter::RefreshAttackRange()
 		return;
 	}
 
-	AActor* TargetChase = Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget));
+	AActor* TargetChase = Cast<AActor>(BlackboardComp->GetValueAsObject(AZombieAIController::BBKey_ChaseTarget));
 
 	const bool bTargetInAttackRange = IsValid(TargetChase) && AttackRangeComp->IsOverlappingActor(TargetChase);
 
-	BlackboardComp->SetValueAsBool(BBKey_InAttackRange, bTargetInAttackRange);
+	BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_InAttackRange, bTargetInAttackRange);
 }
 
 void AZombieCharacter::ToggleSearchTurnDirection()
 {
 	bSearchTurnMirrored = !bSearchTurnMirrored;
+}
+
+void AZombieCharacter::AggroOnSpawn()
+{
+	AAIController* AIController = Cast<AAIController>(GetController());
+	UBlackboardComponent* BlackboardComp = AIController ? AIController->GetBlackboardComponent() : nullptr;
+
+	if (!BlackboardComp)
+	{
+		return;
+	}
+
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(this, 0);
+	if (!PlayerCharacter)
+	{
+		return;
+	}
+
+	BlackboardComp->SetValueAsObject(AZombieAIController::BBKey_ChaseTarget, PlayerCharacter);
+	BlackboardComp->SetValueAsBool(AZombieAIController::BBKey_bCanSeeTarget, true);
+
+	RefreshAttackRange();
 }
 
 bool AZombieCharacter::IsPlayingSearchTurn() const

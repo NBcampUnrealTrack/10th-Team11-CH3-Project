@@ -30,6 +30,8 @@ public:
 	// 이 좀비가 죽은 척 대기 중인지 여부
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare")
 	bool bIsFakeDead = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	bool bAggroOnSpawn;
 
 protected:
 	// 컴포넌트 및 타이머
@@ -105,6 +107,7 @@ public:
 	void PlayAttackMontage();
 	void PlaySearchTurnMontage();
 	void ToggleSearchTurnDirection();
+	void AggroOnSpawn();
 
 	UFUNCTION(BlueprintCallable, Category = "Search")
 	bool IsPlayingSearchTurn() const;
