@@ -107,6 +107,13 @@ void AZombieAIController::OnPossess(APawn* InPawn)
 void AZombieAIController::OnUnPossess()
 {
 	GetWorldTimerManager().ClearTimer(AttackCooldownTimerHandle);
+
+	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
+	{
+		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
+		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
+	}
+
 	Super::OnUnPossess();
 }
 
@@ -122,17 +129,13 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 
 	// 감지된 Actor가 Pawn인지 확인한다.
 	APawn* DetectedPawn = Cast<APawn>(Actor);
-	if (!DetectedPawn || !DetectedPawn->IsPlayerControlled())
-	{
-		return;
-	}
-
 	// Pawn이 아니거나 플레이어가 조종하는 Pawn이 아니라면
 	// 추격 대상으로 사용하지 않고 무시한다.
 	if (!DetectedPawn || !DetectedPawn->IsPlayerControlled())
 	{
 		return;
 	}
+
 	//죽은 플레이어가 낸 소리/모습에 반응하지 않도록 설정
 	/*APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(Actor);
 	if (APlayerCharacter && PlayerTarget->IsDead())
@@ -156,6 +159,12 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		}
 
 		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+
+		{
+			Zombie->RefreshAttackRange();
+		}
+
 		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, Stimulus.StimulusLocation);
 		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
 		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingNoise, true);
@@ -170,6 +179,12 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 #endif
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+
+		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+		{
+			Zombie->RefreshAttackRange();
+		}
+
 		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
 	}
 	else
@@ -177,6 +192,12 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		if (CheckSearchTurnVisibility(Actor))
 		{
 			BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+
+			if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+			{
+				Zombie->RefreshAttackRange();
+			}
+
 			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
 		}
 		else
@@ -196,7 +217,7 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
 {
 	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
-	if (!BlackboardComp || !IsValid(Actor)) {
+	if (!BlackboardComp || !Actor) {
 		return;
 	}
 
@@ -209,6 +230,31 @@ void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
 #endif
 		//대상을 잃어버렸으므로, ChaseTarget을 비워서 다시 순찰 상태로 돌아가게 한다.
 		BlackboardComp->ClearValue(BBKey_ChaseTarget);
+		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
+		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingNoise, false);
+	}
+}
+
+void AZombieAIController::CheckSearchTurnSight()
+{
+	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
+	if (!BlackboardComp)
+	{
+		return;
+	}
+
+	AActor* ChaseTarget = Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget));
+
+	if (!IsValid(ChaseTarget))
+	{
+		return;
+	}
+
+	if (CheckSearchTurnVisibility(ChaseTarget))
+	{
+		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
+		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingNoise, false);
+		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
 	}
 }
 
@@ -253,16 +299,17 @@ void AZombieAIController::Tick(float DeltaTime)
 		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
 	}
 
-	else
-	{
-		if (CheckSearchTurnVisibility(ChaseTarget))
-		{
-			BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
-			bCanSeeTarget = true;//이번 프레임 안에서 HideSpot 판정 시 최신 값 쓰기 위해 갱신
-		}
-	}
+	//else 사용x
+	//{
+	//	if (CheckSearchTurnVisibility(ChaseTarget))
+	//	{
+	//		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, true);
+	//		bCanSeeTarget = true;//이번 프레임 안에서 HideSpot 판정 시 최신 값 쓰기 위해 갱신
+	//	}
+	//}
 
-	//HideSpot(은신) 감지 - "목격된 상태로 숨는 순간"을 포착
+	//HideSpot(은신) 감지 - "목격된 상태로 숨는 순간"을 포착 
+	//player연결해야함
 	//if (PlayerCharacter)
 	//{
 	//	AActor* HideSpot = PlayerCharacter->GetCurrentHidingSpot();
@@ -308,6 +355,14 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	// 시점 위치(Eye Location)와 타겟의 중심 위치(Target Location) 계산
 	FVector StartLoc = Zombie->GetPawnViewLocation();
 	FVector TargetLoc = Target->GetTargetLocation();
+
+	const float MaxSearchTurnSightDistance = SightConfig
+		? SightConfig->LoseSightRadius : 2000.0f;
+
+	if (FVector::DistSquared2D(StartLoc, TargetLoc) > FMath::Square(MaxSearchTurnSightDistance))
+	{
+		return false;
+	}
 
 #if WITH_EDITOR
 	DrawDebugLine(GetWorld(), Zombie->GetActorLocation(), Zombie->GetActorLocation() + Zombie->GetActorForwardVector() * 300.0f, FColor::Red, false, 0.0f, 0, 2.0f);
@@ -388,26 +443,32 @@ void AZombieAIController::OnAttackCooldownFinished()
 //Blackboard 상태를 갱신한 뒤, 실제로 좀비 캐릭터의 공격 애니메이션을 재생시킨다.
 void AZombieAIController::StartAttack()
 {
+	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
+	if (!BlackboardComp || BlackboardComp->GetValueAsBool(BBKey_IsAttacking))
+	{
+		return;
+	}
+
 	//현재 실행 중인 Move To 등의 이동을 중단시킨다.
 	StopMovement();
 
 	//BT가 "좀비가 공격 중인지" 알 수 있게 Blackboard 값을 true로 바꾼다.
-	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
-	{
-		//IsAttacking = true "지금 공격 중이다"라는 상태를 Blackboard에 저장한다.
+	//IsAttacking = true "지금 공격 중이다"라는 상태를 Blackboard에 저장한다.
 #if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("True"));
 #endif
-		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, true);
-	}
+	BlackboardComp->SetValueAsBool(BBKey_IsAttacking, true);
+	
 
 	//이 AI 컨트롤러가 빙의 중인 Pawn(좀비 캐릭터)를 가져와서
 	//실제 공격 몽타주 재생을 위임한다.
 	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
-	if (Zombie)
+	if (!Zombie)
 	{
-		Zombie->PlayAttackMontage();
+		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
+		return;
 	}
+	Zombie->PlayAttackMontage();
 }
 
 //공격 애니메이션이 끝난 뒤 실행해서 "이제 공격이 끝났다"고 알려주는 역할이다. BT가 다시 이동/추적 판단을 할 수 있게 해준다.

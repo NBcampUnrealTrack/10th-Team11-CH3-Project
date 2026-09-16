@@ -24,6 +24,8 @@ public:
 	void StartSearchTurn();
 	bool CheckSearchTurnVisibility(AActor* Target) const;
 	void OnAttackCooldownFinished();
+	UFUNCTION(BlueprintCallable)
+	void CheckSearchTurnSight();
 
 protected:
 	//이 AI 컨트롤러가 실제로 실행할 Behavior Tree 에셋 (에디터/블루프린트에서 BT_Zombie를 지정)
@@ -42,6 +44,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
 	float AttackCooldown;
 
+	FTimerHandle SearchTurnSightCheckTimerHandle;
 	FTimerHandle AttackCooldownTimerHandle;
 
 	//하드코딩 방지를 위한 Blackboard Key 상의 정의
@@ -60,5 +63,5 @@ protected:
 	void OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulus);
 	UFUNCTION()
 	void OnPerceptionForgotten(AActor* Actor);
-
+	
 };

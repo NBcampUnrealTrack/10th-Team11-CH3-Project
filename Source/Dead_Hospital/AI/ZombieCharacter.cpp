@@ -12,7 +12,7 @@
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Perception/AIPerceptionComponent.h"
-#include "Perception/AISenseConfig_Sight.h"
+#include "Perception/AISense_Sight.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -103,14 +103,8 @@ void AZombieCharacter::OnAttackOverlap(UPrimitiveComponent* OverlappedComp, AAct
 		return;
 	}
 
-	//Blackboard에 "공격 범위 안이다"라고 기록한다.
-	if (AAIController* AIController = Cast<AAIController>(GetController()))
-	{
-		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
-		{
-			BlackboardComp->SetValueAsBool(BBKey_InAttackRange, true);
-		}
-	}
+	// 현재 ChaseTarget이 공격 범위 안에 있는지 다시 계산
+	RefreshAttackRange();
 }
 
 //오버랩 끝나면 상태를 Chase로 변경되고 다시 플레이어를 쫓아간다.
@@ -125,20 +119,18 @@ void AZombieCharacter::OnAttackEndOverlap(UPrimitiveComponent* OverlappedComp, A
 		return;
 	}
 
-	//Blackboard에 "공격 범위 밖이다"라고 기록한다.
-	if (AAIController* AIController = Cast<AAIController>(GetController()))
-	{
-		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
-		{
-			BlackboardComp->SetValueAsBool(BBKey_InAttackRange, false);
-		}
-	}
+	// 현재 ChaseTarget이 공격 범위 안에 있는지 다시 계산
+	RefreshAttackRange();
 }
 
 
 //받은 데미지 계산
 float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+	if (DamageAmount <= 0.0f)
+	{
+		return 0.0f;
+	}
 
 	// 이미 죽은 상태라면 추가 데미지를 받지 않는다.
 	if (CurrentState == EZombieState::Dead)
@@ -186,6 +178,15 @@ void AZombieCharacter::Die()
 	//AI 컨트롤러 정지 및 UnPossess 처리로 뇌(Brain) 정지
 	if (AAIController* AIController = Cast<AAIController>(GetController()))
 	{
+		if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
+		{
+			BlackboardComp->SetValueAsBool(TEXT("InAttackRange"), false);
+			BlackboardComp->SetValueAsBool(TEXT("IsAttacking"), false);
+			BlackboardComp->SetValueAsBool(TEXT("bCanSeeTarget"), false);
+			BlackboardComp->SetValueAsBool(TEXT("bInvestigatingNoise"), false);
+			BlackboardComp->ClearValue(TEXT("ChaseTarget"));
+		}
+
 		AIController->StopMovement();
 
 		//비헤이비어 트리(brain) 완전히 정지
@@ -197,7 +198,7 @@ void AZombieCharacter::Die()
 		if (UAIPerceptionComponent* PerceptionComp = AIController->GetAIPerceptionComponent())
 		{
 			PerceptionComp->ForgetAll();
-			PerceptionComp->SetSenseEnabled(UAISenseConfig_Sight::StaticClass(), false);
+			PerceptionComp->SetSenseEnabled(UAISense_Sight::StaticClass(), false);
 		}
 
 		AIController->UnPossess();
@@ -329,7 +330,11 @@ void AZombieCharacter::Attack()
 //체력 값 직접 설정 - 외부(아이템, 디버그, 치트 등)에서 체력을 강제로 바꿔야 할 때 사용
 void AZombieCharacter::SetHealth(float NewHealth)
 {
-	Health = NewHealth;
+	Health = FMath::Clamp(NewHealth, 0.0f, MaxHealth);
+	if (Health <= 0.0f && CurrentState != EZombieState::Dead)
+	{
+		Die();
+	}
 }
 
 
@@ -396,10 +401,23 @@ void AZombieCharacter::PlayAttackMontage()
 {
 	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
 
-	if (AnimInstance && AttackMontage)
+	if (!AnimInstance || !AttackMontage)
 	{
-		AnimInstance->Montage_Play(AttackMontage);
+		OnAttackAnimationFinished();
+		return;
 	}
+
+	const float Duration = AnimInstance->Montage_Play(AttackMontage);
+
+	if (Duration <= 0.0f)
+	{
+		OnAttackAnimationFinished();
+		return;
+	}
+
+	FOnMontageEnded EndDelegate;
+	EndDelegate.BindUObject(this, &AZombieCharacter::OnAttackMontageEnded);
+	AnimInstance->Montage_SetEndDelegate(EndDelegate, AttackMontage);
 }
 
 void AZombieCharacter::PlaySearchTurnMontage()
@@ -431,6 +449,11 @@ void AZombieCharacter::OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInt
 	}
 }
 
+void AZombieCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	OnAttackAnimationFinished();
+}
+
 void AZombieCharacter::OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
 	if (CurrentState == EZombieState::Dead)
@@ -445,6 +468,23 @@ void AZombieCharacter::OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrup
 			Brain->RestartLogic();
 		}
 	}
+}
+
+void AZombieCharacter::RefreshAttackRange()
+{
+	AAIController* AIController = Cast<AAIController>(GetController());
+	UBlackboardComponent* BlackboardComp = AIController ? AIController->GetBlackboardComponent() : nullptr;
+
+	if (!BlackboardComp || !AttackRangeComp)
+	{
+		return;
+	}
+
+	AActor* TargetChase = Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget));
+
+	const bool bTargetInAttackRange = IsValid(TargetChase) && AttackRangeComp->IsOverlappingActor(TargetChase);
+
+	BlackboardComp->SetValueAsBool(BBKey_InAttackRange, bTargetInAttackRange);
 }
 
 void AZombieCharacter::ToggleSearchTurnDirection()
@@ -496,9 +536,19 @@ void AZombieCharacter::EnterFakeDead()
 
 	if (AAIController* AICon = Cast<AAIController>(GetController()))
 	{
+		AICon->StopMovement();
+
 		if (UBrainComponent* Brain = AICon->GetBrainComponent())
 		{
 			Brain->StopLogic(TEXT("FakeDead"));
 		}
+	}
+}
+
+void AZombieCharacter::CheckSearchTurnSight()
+{
+	if (AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController()))
+	{
+		ZombieController->CheckSearchTurnSight();
 	}
 }

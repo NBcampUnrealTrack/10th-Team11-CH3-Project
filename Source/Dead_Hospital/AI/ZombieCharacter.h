@@ -115,6 +115,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "JumpScare")
 	void EnterFakeDead();
 	void OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void RefreshAttackRange();
+	UFUNCTION(BlueprintCallable)
+	void CheckSearchTurnSight();
 
 protected:
 	virtual void BeginPlay() override;
@@ -141,4 +144,5 @@ protected:
 	//델리게이트 바인딩용 함수 - UFUNCTION 필수
 	UFUNCTION()
 	void OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+	void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 };
