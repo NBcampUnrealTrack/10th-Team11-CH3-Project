@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "DeadHospitalGameMode.h"
 
@@ -473,7 +473,7 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 
 	// InventoryComponent는 팀원 코드를 수정하지 않고 공개된 데이터와 함수만 사용합니다.
 	NewCheckpoint.HasInventorySnapshot = true;
-	NewCheckpoint.InventoryItems = Inventory->Items;
+	//NewCheckpoint.InventoryItems = Inventory->Items;
 	NewCheckpoint.EquippedWeaponId = Inventory->GetEquippedWeaponID();
 
 	// 모든 자료를 채운 뒤 마지막 기록을 교체합니다. MoveTemp는 배열처럼
@@ -560,7 +560,7 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 
 		// 이미 존재하는 팀원 InventoryComponent의 공개 자료와 함수를 사용합니다.
 		// 장착할 무기가 기록되어 있다면 EquipWeapon 성공까지 확인하고 넘어갑니다.
-		Inventory->Items = LastCheckpoint.InventoryItems;
+		//Inventory->Items = LastCheckpoint.InventoryItems;
 		if (!LastCheckpoint.EquippedWeaponId.IsNone()
 			&& !Inventory->EquipWeapon(LastCheckpoint.EquippedWeaponId))
 		{

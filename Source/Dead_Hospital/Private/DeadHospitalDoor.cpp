@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #include "DeadHospitalDoor.h"
 
@@ -226,11 +226,11 @@ bool ADeadHospitalDoor::TryUnlockWithKey(AActor* Interactor)
 	const bool ShouldConsumeKey = ConsumeKeyWhenUnlocked && !IsProtectedKey;
 	// ? : 는 조건에 따라 둘 중 하나를 고르는 문법입니다. Key 소비가 필요한 경우만
 	// 제거 전 목록을 복사해 두고, 문 해제가 실패하면 그대로 돌려놓습니다.
-	const TArray<FItemData> InventoryBeforeUnlock = ShouldConsumeKey ? Inventory->Items : TArray<FItemData>();
+	/*const TArray<FItemData> InventoryBeforeUnlock = ShouldConsumeKey ? Inventory->Items : TArray<FItemData>();
 	if (ShouldConsumeKey && !Inventory->RemoveItem(RequiredKeyItemId, 1))
 	{
 		return false;
-	}
+	}*/
 
 	if (UnlockDoor())
 	{
@@ -239,10 +239,10 @@ bool ADeadHospitalDoor::TryUnlockWithKey(AActor* Interactor)
 
 	// 문 Event 예약/기록에 실패했다면, 잠금이 여전히 유지됩니다.
 	// 그때 Key만 사라지면 진행이 막히므로 제거 전 인벤토리 내용을 그대로 복구합니다.
-	if (ShouldConsumeKey)
+	/*if (ShouldConsumeKey)
 	{
 		Inventory->Items = InventoryBeforeUnlock;
-	}
+	}*/
 	return false;
 }
 

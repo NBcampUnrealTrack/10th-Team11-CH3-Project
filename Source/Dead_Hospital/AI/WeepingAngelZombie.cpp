@@ -6,6 +6,8 @@
 AWeepingAngelZombie::AWeepingAngelZombie()
 {
     PrimaryActorTick.bCanEverTick = true;
+
+    ChaseSpeed = 800.0f;
 }
 
 // 공격 불가
