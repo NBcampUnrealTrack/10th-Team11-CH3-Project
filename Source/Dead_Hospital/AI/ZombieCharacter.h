@@ -33,6 +33,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	bool bAggroOnSpawn;
 
+
 protected:
 	// 컴포넌트 및 타이머
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
@@ -138,6 +139,8 @@ public:
 	void RefreshAttackRange();
 	UFUNCTION(BlueprintCallable)
 	void CheckSearchTurnSight();
+	UFUNCTION(BlueprintPure, Category = "Search")
+	bool bIsSearchTurnMirrored() const;
 	bool GetNextPatrolLocation(FVector& OutLocation);
 
 protected:

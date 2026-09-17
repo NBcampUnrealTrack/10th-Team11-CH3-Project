@@ -396,6 +396,7 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		GetCharacterMovement()->bOrientRotationToMovement = true;
 		break;
 	case EZombieState::Search:
+		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 		GetCharacterMovement()->RotationRate = FRotator(0.0f, 1080.0f, 0.0f);
 		GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -477,6 +478,20 @@ void AZombieCharacter::OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInt
 		// NextTick 대신 0.1초의 최소 지연 시간을 부여하여 몽타주 실패 시의 무한 재귀 및 프레임 부하를 완벽히 차단
 		GetWorldTimerManager().SetTimer(SearchTimerHandle, this, &AZombieCharacter::PlaySearchTurnMontage, 0.1f, false);
 	}
+
+
+	if (!bInterrupted && CurrentState == EZombieState::Search)
+	{
+		ToggleSearchTurnDirection();
+
+		GetWorldTimerManager().SetTimer(
+			SearchTimerHandle,
+			this,
+			&AZombieCharacter::PlaySearchTurnMontage,
+			0.1f,
+			false
+		);
+	}
 }
 
 void AZombieCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
@@ -521,24 +536,12 @@ void AZombieCharacter::ToggleSearchTurnDirection()
 {
 	bSearchTurnMirrored = !bSearchTurnMirrored;
 
-	if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
-	{
-		//AnimBP에 선언된 "SearchTurnMirrored" bool 변수를 리플렉션으로 찾아서 세팅
-		//변수 이름 표시상 공백이 있어도, 내부적으로는 보통 공백 없이 저장됨)
-		static const FName SearchMirroredPropName(TEXT("SearchTurnMirrored"));
-		FBoolProperty* BoolProp = FindFProperty<FBoolProperty>(AnimInstance->GetClass(), SearchMirroredPropName);
-
-		if (BoolProp)
-		{
-			BoolProp->SetPropertyValue_InContainer(AnimInstance, bSearchTurnMirrored);
-		}
-#if WITH_EDITOR
-		else
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("AnimBP에 SearchTrunMirrored 변수를 못 찾음!"));
-		}
-#endif
-	}
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("SearchTurnMirrored: %s"),
+		bSearchTurnMirrored ? TEXT("TRUE") : TEXT("FALSE")
+	);
 }
 
 void AZombieCharacter::AggroOnSpawn()
@@ -622,6 +625,11 @@ void AZombieCharacter::CheckSearchTurnSight()
 	{
 		ZombieController->CheckSearchTurnSight();
 	}
+}
+
+bool AZombieCharacter::bIsSearchTurnMirrored() const
+{
+	return bSearchTurnMirrored;
 }
 
 bool AZombieCharacter::GetNextPatrolLocation(FVector& OutLocation)
