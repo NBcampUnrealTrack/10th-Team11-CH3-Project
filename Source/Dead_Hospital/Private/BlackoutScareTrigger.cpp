@@ -1,4 +1,4 @@
-#include "BlackoutScareTrigger.h"
+ï»¿#include "BlackoutScareTrigger.h"
 #include "Components/BoxComponent.h"
 #include "TimerManager.h"
 #include "../AI/ZombieCharacter.h"
@@ -28,21 +28,21 @@ void ABlackoutScareTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, 
     APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
     if (Player != nullptr && GhostClass != nullptr)
     {
-        // Áßº¹ ½ÇÇà ¹æÁö¸¦ À§ÇØ ÄÝ¸®Àü ²ô±â
+        // ì¤‘ë³µ ì‹¤í–‰ ë°©ì§€ë¥¼ ìœ„í•´ ì½œë¦¬ì „ ë„ê¸°
         TriggerBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-        // ±Í½ÅÀ» ¹Ì¸® ÇÑ ¹ø¸¸ ¼ÒÈ¯ÇØ µÎ°í Åõ¸íÇÏ°Ô ¼û±è
+        // ê·€ì‹ ì„ ë¯¸ë¦¬ í•œ ë²ˆë§Œ ì†Œí™˜í•´ ë‘ê³  íˆ¬ëª…í•˜ê²Œ ìˆ¨ê¹€
         FActorSpawnParameters SpawnParams;
         SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
         SpawnedGhost = GetWorld()->SpawnActor<AZombieCharacter>(GhostClass, FarPoint->GetComponentLocation(), FarPoint->GetComponentRotation(), SpawnParams);
 
         if (SpawnedGhost)
         {
-            SpawnedGhost->SetActorHiddenInGame(true); // ¾È º¸ÀÌ°Ô ¼û±è
-            SpawnedGhost->SetActorEnableCollision(false); // Ãæµ¹Ã¼ ²ô±â
+            SpawnedGhost->SetActorHiddenInGame(true); // ì•ˆ ë³´ì´ê²Œ ìˆ¨ê¹€
+            SpawnedGhost->SetActorEnableCollision(false); // ì¶©ëŒì²´ ë„ê¸°
         }
 
-        // ¿¬Ãâ »óÅÂ ¸Ó½Å ½ÃÀÛ
+        // ì—°ì¶œ ìƒíƒœ ë¨¸ì‹  ì‹œìž‘
         CurrentStage = 0;
         AdvanceScareSequence();
     }
@@ -55,13 +55,13 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
     switch (CurrentStage)
     {
     case 0:
-        // [ºÒ ²¨Áü] Ã¹ Á¤Àü
+        // [ë¶ˆ êº¼ì§] ì²« ì •ì „
         OnToggleLights(false);
         NextDelay = LightOffDuration;
         break;
 
     case 1:
-        // [ºÒ ÄÑÁü] ¸Ö¸®¼­ ±Í½Å µîÀå
+        // [ë¶ˆ ì¼œì§] ë©€ë¦¬ì„œ ê·€ì‹  ë“±ìž¥
         OnToggleLights(true);
         if (SpawnedGhost)
         {
@@ -72,14 +72,14 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
         break;
 
     case 2:
-        // [ºÒ ²¨Áü]
+        // [ë¶ˆ êº¼ì§]
         OnToggleLights(false);
         if (SpawnedGhost) SpawnedGhost->SetActorHiddenInGame(true);
         NextDelay = LightOffDuration;
         break;
 
     case 3:
-        // [ºÒ ÄÑÁü] Áß°£ °Å¸® ±Í½Å µîÀå
+        // [ë¶ˆ ì¼œì§] ì¤‘ê°„ ê±°ë¦¬ ê·€ì‹  ë“±ìž¥
         OnToggleLights(true);
         if (SpawnedGhost)
         {
@@ -90,41 +90,41 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
         break;
 
     case 4:
-        // [ºÒ ²¨Áü]
+        // [ë¶ˆ êº¼ì§]
         OnToggleLights(false);
         if (SpawnedGhost) SpawnedGhost->SetActorHiddenInGame(true);
         NextDelay = LightOffDuration;
         break;
 
     case 5:
-        // [ºÒ ÄÑÁü] ÄÚ¾Õ ±Í½Å µîÀå
+        // [ë¶ˆ ì¼œì§] ì½”ì•ž ê·€ì‹  ë“±ìž¥
         OnToggleLights(true);
         if (SpawnedGhost)
         {
             SpawnedGhost->SetActorLocationAndRotation(ClosePoint->GetComponentLocation(), ClosePoint->GetComponentRotation());
             SpawnedGhost->SetActorHiddenInGame(false);
 
-            // »ç¿îµå ºÎÂø °¡´É (¸¶Áö¸· ±Í½Å ³ªÅ¸³¯ ¶§)
+            // ì‚¬ìš´ë“œ ë¶€ì°© ê°€ëŠ¥ (ë§ˆì§€ë§‰ ê·€ì‹  ë‚˜íƒ€ë‚  ë•Œ)
         }
         NextDelay = LightOnDuration;
         break;
 
     case 6:
-        // [ºÒ ²¨Áü] ±Í½Å ¼Ò¸ê
+        // [ë¶ˆ êº¼ì§] ê·€ì‹  ì†Œë©¸
         OnToggleLights(false);
-        if (SpawnedGhost) SpawnedGhost->Destroy(); // ¿¬ÃâÀÌ ³¡³µÀ¸¹Ç·Î ¿ÏÀü »èÁ¦
+        if (SpawnedGhost) SpawnedGhost->Destroy(); // ì—°ì¶œì´ ëë‚¬ìœ¼ë¯€ë¡œ ì™„ì „ ì‚­ì œ
         NextDelay = LightOffDuration;
         break;
 
     case 7:
-        // [ºÒ ÄÑÁü] »óÈ² Á¾·á, Æ®¸®°Å ÀÚÃ¼ ÆÄ±«
+        // [ë¶ˆ ì¼œì§] ìƒí™© ì¢…ë£Œ, íŠ¸ë¦¬ê±° ìžì²´ íŒŒê´´
         OnToggleLights(true);
         Destroy();
-        return; // Å¸ÀÌ¸Ó Á¾·á
+        return; // íƒ€ì´ë¨¸ ì¢…ë£Œ
     }
 
     CurrentStage++;
 
-    // °è»êµÈ Áö¿¬ ½Ã°£ ÈÄ¿¡ ´ÙÀ½ ´Ü°è¸¦ ÀÚµ¿À¸·Î ½ÇÇà
+    // ê³„ì‚°ëœ ì§€ì—° ì‹œê°„ í›„ì— ë‹¤ìŒ ë‹¨ê³„ë¥¼ ìžë™ìœ¼ë¡œ ì‹¤í–‰
     GetWorld()->GetTimerManager().SetTimer(SequenceTimerHandle, this, &ABlackoutScareTrigger::AdvanceScareSequence, NextDelay, false);
 }

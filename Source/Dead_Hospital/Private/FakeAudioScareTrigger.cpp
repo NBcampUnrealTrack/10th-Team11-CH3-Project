@@ -1,4 +1,4 @@
-#include "FakeAudioScareTrigger.h"
+ï»¿#include "FakeAudioScareTrigger.h"
 #include "Components/BoxComponent.h"
 #include "Components/AudioComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -8,23 +8,23 @@ AFakeAudioScareTrigger::AFakeAudioScareTrigger()
 {
     PrimaryActorTick.bCanEverTick = false;
 
-    // ¼Ò¸® ¹ß»ıÁö ¼¼ÆÃ
+    // ì†Œë¦¬ ë°œìƒì§€ ì„¸íŒ…
     SoundOrigin = CreateDefaultSubobject<USceneComponent>(TEXT("SoundOrigin"));
     RootComponent = SoundOrigin;
 
-    // ¼Ò¸® ½ÃÀÛ Æ®¸®°Å ¼¼ÆÃ
+    // ì†Œë¦¬ ì‹œì‘ íŠ¸ë¦¬ê±° ì„¸íŒ…
     PlayTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("PlayTrigger"));
     PlayTrigger->SetupAttachment(RootComponent);
     PlayTrigger->SetCollisionProfileName(TEXT("Trigger"));
     PlayTrigger->OnComponentBeginOverlap.AddDynamic(this, &AFakeAudioScareTrigger::OnPlayTriggerOverlap);
 
-    // ¼Ò¸® Á¾·á Æ®¸®°Å ¼¼ÆÃ
+    // ì†Œë¦¬ ì¢…ë£Œ íŠ¸ë¦¬ê±° ì„¸íŒ…
     StopTrigger = CreateDefaultSubobject<UBoxComponent>(TEXT("StopTrigger"));
     StopTrigger->SetupAttachment(RootComponent);
     StopTrigger->SetCollisionProfileName(TEXT("Trigger"));
     StopTrigger->OnComponentBeginOverlap.AddDynamic(this, &AFakeAudioScareTrigger::OnStopTriggerOverlap);
 
-    // ¿Àµğ¿À ÄÄÆ÷³ÍÆ® ¼¼ÆÃ
+    // ì˜¤ë””ì˜¤ ì»´í¬ë„ŒíŠ¸ ì„¸íŒ…
     AudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("AudioComp"));
     AudioComp->SetupAttachment(RootComponent);
     AudioComp->bAutoActivate = false;
@@ -37,21 +37,21 @@ void AFakeAudioScareTrigger::OnPlayTriggerOverlap(UPrimitiveComponent* Overlappe
     {
         if (bIsOneShot)
         {
-            // Äç ÇÏ´Â ´Ü¹ß¼º ¼Ò¸® (¹® ´İÈû)
+            // ì¾… í•˜ëŠ” ë‹¨ë°œì„± ì†Œë¦¬ (ë¬¸ ë‹«í˜)
             UGameplayStatics::PlaySoundAtLocation(this, ScareSound, SoundOrigin->GetComponentLocation());
 
-            Destroy(); // ÇÑ ¹ø ³î·¡Å°°í ¾×ÅÍ »èÁ¦
+            Destroy(); // í•œ ë²ˆ ë†€ë˜í‚¤ê³  ì•¡í„° ì‚­ì œ
         }
         else
         {
-            // Äà³ë·¡Ã³·³ °è¼Ó µé¸®´Â ¼Ò¸®
+            // ì½§ë…¸ë˜ì²˜ëŸ¼ ê³„ì† ë“¤ë¦¬ëŠ” ì†Œë¦¬
             if (!AudioComp->IsPlaying())
             {
                 AudioComp->SetSound(ScareSound);
                 AudioComp->Play();
             }
 
-            // ¼Ò¸®¸¦ Ä×À¸´Ï ½ÃÀÛ Æ®¸®°Å¸¸ ²ô°í(Áßº¹ ½ÇÇà ¹æÁö), ²ô´Â Æ®¸®°Å´Â ³²°ÜµÒ
+            // ì†Œë¦¬ë¥¼ ì¼°ìœ¼ë‹ˆ ì‹œì‘ íŠ¸ë¦¬ê±°ë§Œ ë„ê³ (ì¤‘ë³µ ì‹¤í–‰ ë°©ì§€), ë„ëŠ” íŠ¸ë¦¬ê±°ëŠ” ë‚¨ê²¨ë‘ 
             PlayTrigger->SetCollisionEnabled(ECollisionEnabled::NoCollision);
         }
     }
@@ -62,7 +62,7 @@ void AFakeAudioScareTrigger::OnStopTriggerOverlap(UPrimitiveComponent* Overlappe
     APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
     if (Player != nullptr && !bIsOneShot)
     {
-        // ºó ¹æ¿¡ µµÂøÇßÀ» ¶§: Äà³ë·¡ ¼Ò¸®¸¦ 1ÃÊ¿¡ °ÉÃÄ Á¡Á¡ ÁÙ¿©¼­ ²¨¹ö¸²
+        // ë¹ˆ ë°©ì— ë„ì°©í–ˆì„ ë•Œ: ì½§ë…¸ë˜ ì†Œë¦¬ë¥¼ 1ì´ˆì— ê±¸ì³ ì ì  ì¤„ì—¬ì„œ êº¼ë²„ë¦¼
         if (AudioComp->IsPlaying())
         {
             AudioComp->FadeOut(1.0f, 0.0f);
@@ -70,7 +70,7 @@ void AFakeAudioScareTrigger::OnStopTriggerOverlap(UPrimitiveComponent* Overlappe
 
         StopTrigger->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-        // ÆäÀÌµå¾Æ¿ô ³¡³¯ ½Ã°£(1.5ÃÊ) ¿©À¯¸¦ ÁÖ°í ¾×ÅÍ ÆÄ±«
+        // í˜ì´ë“œì•„ì›ƒ ëë‚  ì‹œê°„(1.5ì´ˆ) ì—¬ìœ ë¥¼ ì£¼ê³  ì•¡í„° íŒŒê´´
         SetLifeSpan(1.5f);
     }
 }

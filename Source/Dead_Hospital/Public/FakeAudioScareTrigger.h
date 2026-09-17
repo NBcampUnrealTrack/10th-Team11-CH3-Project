@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -17,27 +17,27 @@ public:
     AFakeAudioScareTrigger();
 
 protected:
-    // ¼Ò¸®°¡ ½ÇÁ¦·Î µé·Á¿Ã À§Ä¡ (¹®Â¦, È¤Àº ºó ¹æÀÇ ±¸¼®)
+    // ì†Œë¦¬ê°€ ì‹¤ì œë¡œ ë“¤ë ¤ì˜¬ ìœ„ì¹˜ (ë¬¸ì§, í˜¹ì€ ë¹ˆ ë°©ì˜ êµ¬ì„)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Components")
     USceneComponent* SoundOrigin;
 
-    // ¹âÀ¸¸é ¼Ò¸®°¡ ½ÃÀÛµÊ
+    // ë°Ÿìœ¼ë©´ ì†Œë¦¬ê°€ ì‹œì‘ë¨
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Components")
     UBoxComponent* PlayTrigger;
 
-    // ¹âÀ¸¸é ¼Ò¸®°¡ ¸ØÃã (ºó ¹æ¿¡ µµÂøÇßÀ» ¶§)
+    // ë°Ÿìœ¼ë©´ ì†Œë¦¬ê°€ ë©ˆì¶¤ (ë¹ˆ ë°©ì— ë„ì°©í–ˆì„ ë•Œ)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Components")
     UBoxComponent* StopTrigger;
 
-    // Äà³ë·¡Ã³·³ °è¼Ó Àç»ıÇÒ ¶§ »ç¿ëÇÒ ¿Àµğ¿À ÄÄÆ÷³ÍÆ®
+    // ì½§ë…¸ë˜ì²˜ëŸ¼ ê³„ì† ì¬ìƒí•  ë•Œ ì‚¬ìš©í•  ì˜¤ë””ì˜¤ ì»´í¬ë„ŒíŠ¸
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Components")
     UAudioComponent* AudioComp;
 
-    // Àç»ıÇÒ °øÆ÷ »ç¿îµå
+    // ì¬ìƒí•  ê³µí¬ ì‚¬ìš´ë“œ
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Settings")
     USoundBase* ScareSound;
 
-    // true¸é Äç ¼Ò¸® ÇÑ ¹ø¸¸ Àç»ı(¹® ´İÈû), false¸é ·çÇÁ Àç»ı(Äà³ë·¡)
+    // trueë©´ ì¾… ì†Œë¦¬ í•œ ë²ˆë§Œ ì¬ìƒ(ë¬¸ ë‹«í˜), falseë©´ ë£¨í”„ ì¬ìƒ(ì½§ë…¸ë˜)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Settings")
     bool bIsOneShot = true;
 

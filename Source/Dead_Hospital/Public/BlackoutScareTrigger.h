@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -16,11 +16,11 @@ public:
     ABlackoutScareTrigger();
 
 protected:
-    // ÇÃ·¹ÀÌ¾î°¡ ¹âÀ» Æ®¸®°Å
+    // í”Œë ˆì´ì–´ê°€ ë°Ÿì„ íŠ¸ë¦¬ê±°
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Component")
     UBoxComponent* TriggerBox;
 
-    // ±Í½ÅÀÌ ³ªÅ¸³¯ 3°¡Áö À§Ä¡ (¿¡µğÅÍ¿¡¼­ È­»ìÇ¥·Î Á÷°üÀû ¹èÄ¡ °¡´É)
+    // ê·€ì‹ ì´ ë‚˜íƒ€ë‚  3ê°€ì§€ ìœ„ì¹˜ (ì—ë””í„°ì—ì„œ í™”ì‚´í‘œë¡œ ì§ê´€ì  ë°°ì¹˜ ê°€ëŠ¥)
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Component")
     USceneComponent* FarPoint;
 
@@ -30,19 +30,19 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Component")
     USceneComponent* ClosePoint;
 
-    // ¼ÒÈ¯ÇÒ ±Í½Å(Á»ºñ) Å¬·¡½º
+    // ì†Œí™˜í•  ê·€ì‹ (ì¢€ë¹„) í´ë˜ìŠ¤
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Setting")
     TSubclassOf<AZombieCharacter> GhostClass;
 
-    // ºÒÀÌ ÄÑÁ® ÀÖ´Â ½Ã°£ (±âº» 0.4ÃÊ)
+    // ë¶ˆì´ ì¼œì ¸ ìˆëŠ” ì‹œê°„ (ê¸°ë³¸ 0.4ì´ˆ)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Setting")
     float LightOnDuration = 0.4f;
 
-    // ºÒÀÌ ²¨Á® ÀÖ´Â ½Ã°£ (±âº» 0.2ÃÊ)
+    // ë¶ˆì´ êº¼ì ¸ ìˆëŠ” ì‹œê°„ (ê¸°ë³¸ 0.2ì´ˆ)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Setting")
     float LightOffDuration = 0.2f;
 
-    // ºí·çÇÁ¸°Æ®¿¡¼­ Á¶¸í ²ô°í ÄÑ±â¸¦ ±¸ÇöÇÒ ÀÌº¥Æ®
+    // ë¸”ë£¨í”„ë¦°íŠ¸ì—ì„œ ì¡°ëª… ë„ê³  ì¼œê¸°ë¥¼ êµ¬í˜„í•  ì´ë²¤íŠ¸
     UFUNCTION(BlueprintImplementableEvent, Category = "JumpScare|Event")
     void OnToggleLights(bool bTurnOn);
 
@@ -50,7 +50,7 @@ private:
     UFUNCTION()
     void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
-    // ¿¬Ãâ ´Ü°è¸¦ ÁøÇàÇÏ´Â ÇÙ½É ÇÔ¼ö
+    // ì—°ì¶œ ë‹¨ê³„ë¥¼ ì§„í–‰í•˜ëŠ” í•µì‹¬ í•¨ìˆ˜
     void AdvanceScareSequence();
 
     FTimerHandle SequenceTimerHandle;
