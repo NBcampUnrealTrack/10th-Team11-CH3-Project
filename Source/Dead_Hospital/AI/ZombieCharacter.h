@@ -41,6 +41,9 @@ protected:
 	FTimerHandle SearchTimerHandle;
 	FTimerHandle DisappearTimerHandle;
 
+	UPROPERTY(EditInstanceOnly, Category = "LocationPoint")
+	TArray<AActor*> PatrolPoints;
+
 	//캐릭터 스탯
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
 	float Health;//현재체력
@@ -56,6 +59,9 @@ protected:
 	float PatrolSpeed;//순찰(걷는) 속도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float ChaseSpeed;//추적 속도
+	int32 CurrentPatrolIndex = 0;
+
+	bool bPatrolForward = true;
 
 	//상태 관련
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
@@ -121,6 +127,7 @@ public:
 	void RefreshAttackRange();
 	UFUNCTION(BlueprintCallable)
 	void CheckSearchTurnSight();
+	bool GetNextPatrolLocation(FVector& OutLocation);
 
 protected:
 	virtual void BeginPlay() override;

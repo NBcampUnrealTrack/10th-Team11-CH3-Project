@@ -14,13 +14,11 @@
 #include "Perception/AISense_Sight.h"
 #include "Perception/AISenseConfig_Hearing.h"
 
+const FName AZombieAIController::BBKey_bInvestigatingHideSpot(TEXT("bInvestigatingHideSpot"));
 const FName AZombieAIController::BBKey_ChaseTarget(TEXT("ChaseTarget"));
-const FName AZombieAIController::BBKey_bCanSeeTarget(TEXT("bCanSeeTarget"));
-const FName AZombieAIController::BBKey_LastKnownLocation(TEXT("LastKnownLocation"));
-const FName AZombieAIController::BBKey_IsAttacking(TEXT("IsAttacking"));
-const FName AZombieAIController::BBKey_bInvestigatingNoise(TEXT("bInvestigatingNoise"));
 const FName AZombieAIController::BBKey_InAttackRange(TEXT("InAttackRange"));
 const FName AZombieAIController::BBKey_KnownHideSpotLocation(TEXT("KnownHideSpotLocation"));
+const FName AZombieAIController::BBKey_LastKnownLocation(TEXT("LastKnownLocation"));
 const FName AZombieAIController::BBKey_State(TEXT("State"));
 
 AZombieAIController::AZombieAIController()
@@ -111,12 +109,6 @@ void AZombieAIController::OnUnPossess()
 {
 	GetWorldTimerManager().ClearTimer(AttackCooldownTimerHandle);
 
-	if (UBlackboardComponent* BlackboardComp = GetBlackboardComponent())
-	{
-		BlackboardComp->SetValueAsBool(BBKey_IsAttacking, false);
-		BlackboardComp->SetValueAsBool(BBKey_bCanSeeTarget, false);
-	}
-
 	Super::OnUnPossess();
 }
 
@@ -140,11 +132,11 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 	}
 
 	//죽은 플레이어가 낸 소리/모습에 반응하지 않도록 설정
-	/*APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(Actor);
-	if (APlayerCharacter && PlayerTarget->IsDead())
+	APlayerCharacter* PlayerTarget = Cast<APlayerCharacter>(Actor);
+	if (PlayerTarget && PlayerTarget->IsDead())
 	{
 		return;
-	}*/
+	}
 
 	if (Stimulus.Type == UAISense::GetSenseID<UAISense_Hearing>())
 	{
@@ -273,7 +265,6 @@ void AZombieAIController::SetZombieState(EZombieState NewState)
 }
 
 
-//매 프레임마다 호출된다. 현재 타겟이 시야에 보이는 동안(bCanSeeTarget == true)
 //계속 LastKnownLocation을 갱신해서, 시야를 놓쳤을 때 그 마지막 위치로
 //이동해 수색하는 등의 행동에 쓸 수 있게 해준다.
 void AZombieAIController::Tick(float DeltaTime)
@@ -299,7 +290,7 @@ void AZombieAIController::Tick(float DeltaTime)
 		BlackboardComp->ClearValue(BBKey_ChaseTarget);
 		SetZombieState(EZombieState::Patrol);
 		//Player 사망 시 HideSpot 수색도 같이 종료
-		//BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), false);
+		BlackboardComp->SetValueAsBool(BBKey_bInvestigatingHideSpot, false);
 		bWasPlayerHidingLastFrame = false;
 
 		return;	
@@ -315,18 +306,18 @@ void AZombieAIController::Tick(float DeltaTime)
 
 	//HideSpot(은신) 감지 - "목격된 상태로 숨는 순간"을 포착 
 	//player연결해야함
-	//if (PlayerCharacter)
-	//{
-	//	AActor* HideSpot = PlayerCharacter->GetCurrentHidingSpot();
-	//	bool bIsHidingNow = (HideSpot != nullptr);
+	if (PlayerCharacter)
+	{
+		AActor* HideSpot = PlayerCharacter->GetCurrentHidingSpot();
+		bool bIsHidingNow = (HideSpot != nullptr);
 
-	//	if (bIsHidingNow && !bWasPlayerHidingLastFrame && bCanSeeTarget)
-	//	{
-	//		BlackboardComp->SetValueAsVector(BBKey_KnownHideSpotLocation, HideSpot->GetActorLocation());
-	//		BlackboardComp->SetValueAsBool(TEXT("bInvestigateHideSpot"), true);
-	//	}
-	//	bWasPlayerHidingLastFrame = bIsHidingNow;
-	//}
+		if (bIsHidingNow && !bWasPlayerHidingLastFrame && bIsChasing)
+		{
+			BlackboardComp->SetValueAsVector(BBKey_KnownHideSpotLocation, HideSpot->GetActorLocation());
+			BlackboardComp->SetValueAsBool(BBKey_bInvestigatingHideSpot, true);
+		}
+		bWasPlayerHidingLastFrame = bIsHidingNow;
+	}
 }
 
 bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
@@ -410,12 +401,12 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	//Params.AddIgnoredActor(Target);
 
 	//좀비의 모든 자식 컴포넌트(메시, 콜리전 등)도 무시 대상에 추가
-	//TArray<UPrimitiveComponent*> ZombieComponents;
-	//Zombie->GetComponents<UPrimitiveComponent>(ZombieComponents);
-	//for (UPrimitiveComponent* Comp : ZombieComponents)
-	//{
-	//	Params.AddIgnoredComponent(Comp);
-	//}
+	TArray<UPrimitiveComponent*> ZombieComponents;
+	Zombie->GetComponents<UPrimitiveComponent>(ZombieComponents);
+	for (UPrimitiveComponent* Comp : ZombieComponents)
+	{
+		Params.AddIgnoredComponent(Comp);
+	}
 
 	bool bHit = GetWorld()->LineTraceSingleByChannel(
 		Hit,
@@ -493,4 +484,3 @@ void AZombieAIController::StartSearchTurn()
 	}
 
 }
-

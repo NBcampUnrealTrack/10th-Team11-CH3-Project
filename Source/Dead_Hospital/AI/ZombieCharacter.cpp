@@ -291,6 +291,8 @@ void AZombieCharacter::HandleItemDrop()
 		SpawnParams
 	);
 
+	FItemData* FoundItemData = ItemDataTable->FindRow<FItemData>(SelectedEntry->ItemID, TEXT("HandleItemDrop"));
+
 	if (!SpawnedPickup)
 	{
 		UE_LOG(LogTemp, Error, TEXT("[%s] HandleItemDrop: ItemPickup 스폰 실패(ItemID: %s)"),
@@ -298,12 +300,20 @@ void AZombieCharacter::HandleItemDrop()
 		return;
 	}
 
-	//FItemData NewItemData = *FoundItemData;
-	//NewItemData.Quantity = SelectedEntry->DropQuantity;
-	//SpawnedPickup->SetItemData(NewItemData);
+	if (!FoundItemData)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: ItemDataTable에서 ItemID(%s)를 찾지 못함"),
+			*GetName(), *SelectedEntry->ItemID.ToString());
+		SpawnedPickup->K2_DestroyActor();
+		return;
+	}
 
-	//UE_LOG(LogTemp, Log, TEXT("[%s] HandleItemDrop: %s x %d 드랍됨"),
-	//	*GetName(), *SelectedEntry->ItemID.ToString(), SelectedEntry->DropQuantity);
+	FItemData NewItemData = *FoundItemData;
+	NewItemData.Quantity = SelectedEntry->DropQuantity;
+	SpawnedPickup->SetItemData(NewItemData);
+
+	UE_LOG(LogTemp, Log, TEXT("[%s] HandleItemDrop: %s x %d 드랍됨"),
+		*GetName(), *SelectedEntry->ItemID.ToString(), SelectedEntry->DropQuantity);
 
 }
 
@@ -568,4 +578,62 @@ void AZombieCharacter::CheckSearchTurnSight()
 	{
 		ZombieController->CheckSearchTurnSight();
 	}
+}
+
+bool AZombieCharacter::GetNextPatrolLocation(FVector& OutLocation)
+{
+	if (PatrolPoints.Num() == 0)
+	{
+		return false;
+	}
+
+	//순찰 지점이 1개뿐이면 그 자리 반환, 인덱스 갱신은 불필요
+	if (PatrolPoints.Num() == 1)
+	{
+		if (AActor* OnlyPoint = PatrolPoints[0])
+		{
+			OutLocation = OnlyPoint->GetActorLocation();
+			return true;
+		}
+		return false;
+	}
+
+	//배열에 빈 슬롯(nullptr)이 있을 수 있으니 방어
+	AActor* TargetPoint = PatrolPoints[CurrentPatrolIndex];
+	if (!TargetPoint)
+	{
+		return false;
+	}
+
+	OutLocation = TargetPoint->GetActorLocation();
+
+	//다음 인덱스 계산(왕복)
+	const int32 LastIndex = PatrolPoints.Num() - 1;
+
+	if (bPatrolForward)
+	{
+		if (CurrentPatrolIndex >= LastIndex)
+		{
+			bPatrolForward = false;
+			CurrentPatrolIndex--;
+		}
+		else
+		{
+			CurrentPatrolIndex++;
+		}
+	}
+	else
+	{
+		if (CurrentPatrolIndex <= 0)
+		{
+			bPatrolForward = true;
+			CurrentPatrolIndex++;
+		}
+		else
+		{
+			CurrentPatrolIndex--;
+		}
+	}
+
+	return true;
 }

@@ -36,13 +36,11 @@ protected:
 	FTimerHandle AttackCooldownTimerHandle;
 public:
 	//하드코딩 방지를 위한 Blackboard Key 상의 정의
+	static const FName BBKey_bInvestigatingHideSpot;
 	static const FName BBKey_ChaseTarget;
-	static const FName BBKey_bCanSeeTarget;
-	static const FName BBKey_LastKnownLocation;
-	static const FName BBKey_IsAttacking;
-	static const FName BBKey_bInvestigatingNoise;
 	static const FName BBKey_InAttackRange;
 	static const FName BBKey_KnownHideSpotLocation;
+	static const FName BBKey_LastKnownLocation;
 	static const FName BBKey_State;
 
 public:
