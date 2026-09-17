@@ -37,6 +37,8 @@ protected:
 	// 컴포넌트 및 타이머
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
 	USphereComponent* AttackRangeComp;
+	UPROPERTY(VisibleAnywhere)
+	class UArrowComponent* DebugArrow;
 
 	FTimerHandle SearchTimerHandle;
 	FTimerHandle DisappearTimerHandle;
@@ -131,6 +133,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const override;
 
 	UFUNCTION()
 	void OnAttackOverlap(

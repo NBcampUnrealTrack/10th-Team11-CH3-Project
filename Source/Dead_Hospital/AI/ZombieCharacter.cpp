@@ -8,6 +8,7 @@
 #include "Components/SphereComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/ArrowComponent.h"
 #include "Engine/DataTable.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -66,6 +67,10 @@ AZombieCharacter::AZombieCharacter()
 	GetCharacterMovement()->SetGroupsToAvoid(1);//회피할 그룹(자기 그룹, 즉 다른 좀비들을 피함)
 	GetCharacterMovement()->SetGroupsToIgnore(0);//무시할 그룹(없음)
 
+	DebugArrow = CreateDefaultSubobject<UArrowComponent>(TEXT("DebugArrow"));
+	DebugArrow->SetupAttachment(RootComponent);
+	DebugArrow->ArrowSize = 2.0f;
+	DebugArrow->SetHiddenInGame(false);
 }
 
 void AZombieCharacter::BeginPlay()
@@ -75,7 +80,6 @@ void AZombieCharacter::BeginPlay()
 	//좀비 실제 이동속도를 PatrolSpeed로 변경해준다.
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 	//좀비가 이동방향으로 몸을 돌릴때 회전을 부드럽게 해주기 위해 사용
-	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
 
 	bUseControllerRotationYaw = false;
@@ -88,6 +92,12 @@ void AZombieCharacter::BeginPlay()
 	{
 		AggroOnSpawn();
 	}
+}
+
+void AZombieCharacter::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const
+{
+	OutLocation = GetActorLocation() + FVector(0, 0, BaseEyeHeight);
+	OutRotation = GetActorRotation();
 }
 
 
@@ -373,12 +383,18 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 	case EZombieState::Attacking:
 		GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 		GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
+		GetCharacterMovement()->bOrientRotationToMovement = true;
 		break;
 	case EZombieState::Chase:
-	case EZombieState::Search:
 	case EZombieState::Investigating:
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 		GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+		GetCharacterMovement()->bOrientRotationToMovement = true;
+		break;
+	case EZombieState::Search:
+		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
+		GetCharacterMovement()->RotationRate = FRotator(0.0f, 1080.0f, 0.0f);
+		GetCharacterMovement()->bOrientRotationToMovement = false;
 		break;
 	default:
 		break;

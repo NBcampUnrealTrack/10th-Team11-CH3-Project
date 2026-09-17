@@ -14,6 +14,8 @@
 #include "Perception/AISense_Sight.h"
 #include "Perception/AISenseConfig_Hearing.h"
 
+#include "Navigation/PathFollowingComponent.h"
+
 const FName AZombieAIController::BBKey_bInvestigatingHideSpot(TEXT("bInvestigatingHideSpot"));
 const FName AZombieAIController::BBKey_ChaseTarget(TEXT("ChaseTarget"));
 const FName AZombieAIController::BBKey_InAttackRange(TEXT("InAttackRange"));
@@ -277,6 +279,16 @@ void AZombieAIController::Tick(float DeltaTime)
 		return;
 	}
 
+	if (AZombieCharacter* DebugZombie = Cast<AZombieCharacter>(GetPawn()))
+	{
+#if WITH_EDITOR
+		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Cyan,
+			FString::Printf(TEXT("ActorYaw: %.1f"), DebugZombie->GetActorRotation().Yaw));
+		GEngine->AddOnScreenDebugMessage(101, 0.0f, FColor::Green,
+			FString::Printf(TEXT("ControlYaw: %.1f"), GetControlRotation().Yaw));
+#endif
+	}
+
 	AActor* ChaseTarget = Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget));
 
 	if (!IsValid(ChaseTarget))
@@ -342,7 +354,7 @@ bool AZombieAIController::CheckSearchTurnVisibility(AActor* Target) const
 	const float SearchTurnOffsetDeg = 90.0f;//실제 애니메이션이 도는 각도에 맞춰 조정 가능
 	const float SignedOffset = Zombie->bSearchTurnMirrored ? -SearchTurnOffsetDeg : SearchTurnOffsetDeg;
 
-	FRotator LookRotation = Zombie->GetMesh() ? Zombie->GetMesh()->GetComponentRotation() : Zombie->GetActorRotation();
+	FRotator LookRotation = Zombie->GetActorRotation();
 	LookRotation.Yaw = FRotator::NormalizeAxis(LookRotation.Yaw + SignedOffset);
 	LookRotation.Pitch = 0.0f;
 	LookRotation.Roll = 0.0f;
@@ -477,9 +489,21 @@ void AZombieAIController::FinishAttack()
 
 void AZombieAIController::StartSearchTurn()
 {
+	//1. AI의 이동 명령을 즉시 강제 종료(캡슐 회전 고정 해제)
+	StopMovement();
+
+	if (UPathFollowingComponent* PFComp = GetPathFollowingComponent())
+	{
+		PFComp->AbortMove(*this, FPathFollowingResultFlags::UserAbort);
+	}
+
+	//2. 바라보고 있던 타겟 Focus 제거
+	ClearFocus(EAIFocusPriority::Gameplay);
+
 	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
 	if (Zombie)
 	{
+		SetZombieState(EZombieState::Search);
 		Zombie->PlaySearchTurnMontage();
 	}
 
