@@ -2,12 +2,19 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "PlayerCharacter.h"
+#include "Components/AudioComponent.h"
 
 AWeepingAngelZombie::AWeepingAngelZombie()
 {
     PrimaryActorTick.bCanEverTick = true;
 
     ChaseSpeed = 800.0f;
+
+    // 오디오 컴포넌트 생성 및 부착
+    MovementAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("MovementAudioComp"));
+    MovementAudioComp->SetupAttachment(RootComponent);
+    // 게임 시작 시에는 기본적으로 소리가 나지 않게 설정
+    MovementAudioComp->bAutoActivate = false;
 }
 
 // 공격 불가
@@ -33,12 +40,24 @@ void AWeepingAngelZombie::Tick(float DeltaTime)
             // [얼음] 플레이어가 쳐다볼 때: 발을 묶고 애니메이션을 멈춤
             GetCharacterMovement()->MaxWalkSpeed = 0.0f;
             GetMesh()->bPauseAnims = true;
+
+            // 움직임이 멈추면 돌 갈리는 소리 정지
+            if (MovementAudioComp->IsPlaying())
+            {
+                MovementAudioComp->Stop();
+            }
         }
         else
         {
             // [땡] 시야에서 벗어났을 때: 돌진하며 애니메이션 재생
             GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
             GetMesh()->bPauseAnims = false;
+
+            // 시야에서 벗어나 움직이기 시작하면 돌 갈리는 소리 재생
+            if (!MovementAudioComp->IsPlaying())
+            {
+                MovementAudioComp->Play();
+            }
         }
 
         bWasSeenLastFrame = bIsSeenNow;
@@ -83,4 +102,33 @@ bool AWeepingAngelZombie::CheckIfSeenByPlayer()
         }
     }
     return false;
+}
+
+void AWeepingAngelZombie::NotifyActorBeginOverlap(AActor* OtherActor)
+{
+    Super::NotifyActorBeginOverlap(OtherActor);
+
+    // 닿은 대상이 플레이어인지 확인
+    APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
+
+    // 플레이어가 유효하고, 아직 죽지 않은 상태라면
+    if (Player != nullptr && !Player->IsDead())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("우는 천사에게 붙잡혔습니다! 즉사 발동."));
+
+        // 데미지를 주기 직전에 사운드 재생
+        if (CatchSound)
+        {
+            UGameplayStatics::PlaySoundAtLocation(this, CatchSound, GetActorLocation());
+        }
+
+        // 플레이어에게 99999의 압도적인 데미지를 가해 기존 사망 로직(Die)을 강제로 실행시킴
+        UGameplayStatics::ApplyDamage(
+            Player,
+            99999.0f, // 즉사 데미지
+            GetController(),
+            this,
+            UDamageType::StaticClass()
+        );
+    }
 }
