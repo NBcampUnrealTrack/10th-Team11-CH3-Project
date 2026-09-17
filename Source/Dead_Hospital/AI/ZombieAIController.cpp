@@ -8,6 +8,7 @@
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "GameFramework/Pawn.h"
+#include "Components/CapsuleComponent.h"
 
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
@@ -289,6 +290,18 @@ void AZombieAIController::Tick(float DeltaTime)
 #endif
 	}
 
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+
+	if (Zombie && Zombie->GetCurrentState() == EZombieState::Search)
+	{
+		FRotator CurrentRot = Zombie->GetActorRotation();
+
+		if (!FMath::IsNearlyZero(CurrentRot.Pitch) || !FMath::IsNearlyZero(CurrentRot.Roll))
+		{
+			Zombie->SetActorRotation(FRotator(0.0f, CurrentRot.Yaw, 0.0f));
+		}
+	}
+
 	AActor* ChaseTarget = Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget));
 
 	if (!IsValid(ChaseTarget))
@@ -308,7 +321,6 @@ void AZombieAIController::Tick(float DeltaTime)
 		return;	
 	}
 
-	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
 	bool bIsChasing = (Zombie && Zombie->GetCurrentState() == EZombieState::Chase);	
 
 	if (bIsChasing)

@@ -44,6 +44,7 @@ protected:
 	FTimerHandle DisappearTimerHandle;
 
 	FRotator DefaultMeshRelativeRotation;
+	FVector DefaultMeshRelativeLocation;
 
 	UPROPERTY(EditInstanceOnly, Category = "LocationPoint")
 	TArray<AActor*> PatrolPoints;
@@ -105,6 +106,7 @@ public:
 	FORCEINLINE FString GetZombieName() const { return ZombieName; }
 	FORCEINLINE float GetSearchBaseYaw() const { return SearchBaseYaw; }
 	FORCEINLINE FRotator GetDefaultMeshRelativeRotation() const { return DefaultMeshRelativeRotation; }
+	FORCEINLINE FVector GetDefaultMeshRelativeLocation() const { return DefaultMeshRelativeLocation; }
 
 	void SetHealth(float NewHealth);
 	void SetCurrentState(EZombieState NewState);

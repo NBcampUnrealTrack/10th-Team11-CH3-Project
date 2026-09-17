@@ -13,12 +13,12 @@ public:
 	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
 	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
 
-protected:
-	//회전 속도 (값이 높을 수록 빠르게 회전
-	UPROPERTY(EditAnywhere, Category = "Rotation")
-	float SwingOffsetDegrees = 0.0f;
-
-private:
-	float NotifyElapsedTime = 0.0f;
-	float NotifyTotalDuration = 1.0f;
+//protected:
+//	//회전 속도 (값이 높을 수록 빠르게 회전
+//	UPROPERTY(EditAnywhere, Category = "Rotation")
+//	FName RootBoneName = "Hips";
+//
+//private:
+//	FRotator PreviousBoneRotation;
+//	bool bHasPreviousRotation = false;
 };

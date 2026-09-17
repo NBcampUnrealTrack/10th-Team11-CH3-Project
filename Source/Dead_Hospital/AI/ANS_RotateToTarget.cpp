@@ -1,6 +1,5 @@
 ﻿#include "ANS_RotateToTarget.h"
 #include "ZombieCharacter.h"
-#include "AIController.h"
 #include "GameFramework/Character.h"
 
 
@@ -8,38 +7,35 @@ void UANS_RotateToTarget::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSeq
 {
 	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
 
-	NotifyElapsedTime = 0.0f;
-	NotifyTotalDuration = FMath::Max(TotalDuration, 0.01f);
+	//bHasPreviousRotation = false;
 }
 
 void UANS_RotateToTarget::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
 
-	if (!MeshComp) return;
+	//if (!MeshComp) return;
 
-	AZombieCharacter* Zombie = Cast<AZombieCharacter>(MeshComp->GetOwner());
-	if (!Zombie) return;
+	//AActor* Owner = MeshComp->GetOwner();
+	//if (!Owner) return;
 
-	NotifyElapsedTime += FrameDeltaTime;
-	const float Alpha = FMath::Clamp(NotifyElapsedTime / NotifyTotalDuration, 0.0f, 1.0f);
+	////현재 프레임의 본 회전값(월드 기준)을 가져온다.
+	//FRotator CurrentBoneRotation = MeshComp->GetBoneQuaternion(RootBoneName, EBoneSpaces::ComponentSpace).Rotator();
 
-	//좌우 대칭이면 -1, 아니면 1
-	const float SignedOffset = Zombie->bSearchTurnMirrored ? -SwingOffsetDegrees : SwingOffsetDegrees;
+	//if (!bHasPreviousRotation)
+	//{
+	//	PreviousBoneRotation = CurrentBoneRotation;
+	//	bHasPreviousRotation = true;
+	//	return;
+	//}
 
-	//0~1 진행률에 맞춰 BaseYaw에서 목표 오프셋 각도까지 부드럽게 이동(Sin 곡선으로 자연스럽게)
-	const float SmoothAlpha = FMath::Sin(Alpha * PI * 0.5f);
-	const float NewYaw = Zombie->GetSearchBaseYaw() + SignedOffset * SmoothAlpha;
+	////이번 프레임에 애니메이션이 실제로 돈 각도(Yaw)만 델타로 추출
+	//float DeltaYaw = FRotator::NormalizeAxis(CurrentBoneRotation.Yaw - PreviousBoneRotation.Yaw);
 
-	FRotator NewRot(0.0f, NewYaw, 0.0f);
+	//if (!FMath::IsNearlyZero(DeltaYaw))
+	//{
+	//	Owner->AddActorWorldRotation(FRotator(0.0f, DeltaYaw, 0.0f));
+	//}
 
-	if (USceneComponent* RootComp = Zombie->GetRootComponent())
-	{
-		RootComp->SetWorldRotation(NewRot, false, nullptr, ETeleportType::TeleportPhysics);
-	}
-
-	if (USkeletalMeshComponent* MeshCompToFix = Zombie->GetMesh())
-	{
-		MeshCompToFix->SetRelativeRotation(Zombie->GetDefaultMeshRelativeRotation());
-	}
+	//PreviousBoneRotation = CurrentBoneRotation;
 }

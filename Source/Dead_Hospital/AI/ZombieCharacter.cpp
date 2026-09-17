@@ -84,6 +84,7 @@ void AZombieCharacter::BeginPlay()
 	//좀비가 이동방향으로 몸을 돌릴때 회전을 부드럽게 해주기 위해 사용
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
 	DefaultMeshRelativeRotation = GetMesh()->GetRelativeRotation();
+	DefaultMeshRelativeLocation = GetMesh()->GetRelativeLocation();
 
 	bUseControllerRotationYaw = false;
 
@@ -519,6 +520,25 @@ void AZombieCharacter::RefreshAttackRange()
 void AZombieCharacter::ToggleSearchTurnDirection()
 {
 	bSearchTurnMirrored = !bSearchTurnMirrored;
+
+	if (UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr)
+	{
+		//AnimBP에 선언된 "SearchTurnMirrored" bool 변수를 리플렉션으로 찾아서 세팅
+		//변수 이름 표시상 공백이 있어도, 내부적으로는 보통 공백 없이 저장됨)
+		static const FName SearchMirroredPropName(TEXT("SearchTurnMirrored"));
+		FBoolProperty* BoolProp = FindFProperty<FBoolProperty>(AnimInstance->GetClass(), SearchMirroredPropName);
+
+		if (BoolProp)
+		{
+			BoolProp->SetPropertyValue_InContainer(AnimInstance, bSearchTurnMirrored);
+		}
+#if WITH_EDITOR
+		else
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("AnimBP에 SearchTrunMirrored 변수를 못 찾음!"));
+		}
+#endif
+	}
 }
 
 void AZombieCharacter::AggroOnSpawn()
