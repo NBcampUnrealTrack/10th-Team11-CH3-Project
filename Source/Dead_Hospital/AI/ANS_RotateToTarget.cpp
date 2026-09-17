@@ -1,83 +1,45 @@
 ﻿#include "ANS_RotateToTarget.h"
+#include "ZombieCharacter.h"
 #include "AIController.h"
-#include "BehaviorTree/BlackboardComponent.h"
-#include "GameFramework/Actor.h"
 #include "GameFramework/Character.h"
-#include "GameFramework/CharacterMovementComponent.h"
+
+
+void UANS_RotateToTarget::NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference)
+{
+	Super::NotifyBegin(MeshComp, Animation, TotalDuration, EventReference);
+
+	NotifyElapsedTime = 0.0f;
+	NotifyTotalDuration = FMath::Max(TotalDuration, 0.01f);
+}
 
 void UANS_RotateToTarget::NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference)
 {
 	Super::NotifyTick(MeshComp, Animation, FrameDeltaTime, EventReference);
 
-
 	if (!MeshComp) return;
 
-	AActor* Owner = MeshComp->GetOwner();
-	if (!Owner) return;
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(MeshComp->GetOwner());
+	if (!Zombie) return;
 
-	if (ACharacter* Char = Cast<ACharacter>(Owner))
-	{
-		UCharacterMovementComponent* MoveComp = Char->GetCharacterMovement();
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Orange,
-			FString::Printf(TEXT("Orient: %d / Desired: %d / Mode: %d"),
-				MoveComp->bOrientRotationToMovement,
-				MoveComp->bUseControllerDesiredRotation,
-				(int32)MoveComp->MovementMode));
-	}
+	NotifyElapsedTime += FrameDeltaTime;
+	const float Alpha = FMath::Clamp(NotifyElapsedTime / NotifyTotalDuration, 0.0f, 1.0f);
 
-	APawn* OwnerPawn = Cast<APawn>(Owner);
-	if (!OwnerPawn) return;
+	//좌우 대칭이면 -1, 아니면 1
+	const float SignedOffset = Zombie->bSearchTurnMirrored ? -SwingOffsetDegrees : SwingOffsetDegrees;
 
+	//0~1 진행률에 맞춰 BaseYaw에서 목표 오프셋 각도까지 부드럽게 이동(Sin 곡선으로 자연스럽게)
+	const float SmoothAlpha = FMath::Sin(Alpha * PI * 0.5f);
+	const float NewYaw = Zombie->GetSearchBaseYaw() + SignedOffset * SmoothAlpha;
 
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Magenta,
-			FString::Printf(TEXT("bUseControllerRotationYaw: %s"),
-				OwnerPawn->bUseControllerRotationYaw ? TEXT("true") : TEXT("false")));
+	FRotator NewRot(0.0f, NewYaw, 0.0f);
 
-
-	//AAIController 및 Blackboard 가져오기
-	AAIController* AIController = Cast<AAIController>(OwnerPawn->GetController());
-	if (!AIController) 
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, TEXT("ANS:AIController null!"));
-		return;
-	}
-
-	UBlackboardComponent* BBComp = AIController->GetBlackboardComponent();
-	if (!BBComp) return;
-
-	//블랙보드에서 목표 위치 가져오기
-	FVector TargetLocation = BBComp->GetValueAsVector(TargetLocationKeyName);
-	if (TargetLocation.IsZero()) return;
-
-	//Pitch/Roll은 고정하고 Yaw(Z축 회전)만 계산
-	FVector CurrentLocation = Owner->GetActorLocation();
-	FVector TargetDir = (TargetLocation - CurrentLocation).GetSafeNormal2D();
-	
-	GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Yellow, FString::Printf(TEXT("ANS TargetLoc: %s"), *TargetLocation.ToString()));
-
-	if (TargetDir.IsNearlyZero()) return;
-
-	FRotator CurrentRot = Owner->GetActorRotation();
-	FRotator TargetRot = TargetDir.Rotation();
-
-	//TargetTor 방향으로 액터를 부드럽게 Interp 회전
-	FRotator NewRot = FMath::RInterpTo(CurrentRot, TargetRot, FrameDeltaTime, RotationSpeed);
-	  
-	if (USceneComponent* RootComp = Owner->GetRootComponent())
+	if (USceneComponent* RootComp = Zombie->GetRootComponent())
 	{
 		RootComp->SetWorldRotation(NewRot, false, nullptr, ETeleportType::TeleportPhysics);
 	}
 
-	
-	if (ACharacter* OwnerCharacter = Cast<ACharacter>(Owner))
+	if (USkeletalMeshComponent* MeshCompToFix = Zombie->GetMesh())
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Magenta,
-			FString::Printf(TEXT("OrientToMovement: %s"),
-				OwnerCharacter->GetCharacterMovement()->bOrientRotationToMovement ? TEXT("true") : TEXT("false")));
+		MeshCompToFix->SetRelativeRotation(Zombie->GetDefaultMeshRelativeRotation());
 	}
-
-#if WITH_EDITOR
-	GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Cyan, FString::Printf(TEXT("Set Rot: %s / Actual Rot After Set: %s"),
-		*NewRot.ToString(), *Owner->GetActorRotation().ToString()));
-#endif
 }

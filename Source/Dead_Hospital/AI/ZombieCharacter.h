@@ -43,6 +43,8 @@ protected:
 	FTimerHandle SearchTimerHandle;
 	FTimerHandle DisappearTimerHandle;
 
+	FRotator DefaultMeshRelativeRotation;
+
 	UPROPERTY(EditInstanceOnly, Category = "LocationPoint")
 	TArray<AActor*> PatrolPoints;
 
@@ -61,7 +63,9 @@ protected:
 	float PatrolSpeed;//순찰(걷는) 속도
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
 	float ChaseSpeed;//추적 속도
-	int32 CurrentPatrolIndex = 0;
+	int32 CurrentPatrolIndex;
+	UPROPERTY()
+	float SearchBaseYaw;
 
 	bool bPatrolForward = true;
 
@@ -99,9 +103,12 @@ public:
 	FORCEINLINE float GetHealth() const { return Health; }
 	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 	FORCEINLINE FString GetZombieName() const { return ZombieName; }
+	FORCEINLINE float GetSearchBaseYaw() const { return SearchBaseYaw; }
+	FORCEINLINE FRotator GetDefaultMeshRelativeRotation() const { return DefaultMeshRelativeRotation; }
 
 	void SetHealth(float NewHealth);
 	void SetCurrentState(EZombieState NewState);
+	FORCEINLINE void SetSearchBaseYaw(float NewYaw);
 	FORCEINLINE EZombieState GetCurrentState() const { return CurrentState; }
 
 	UFUNCTION(BlueprintCallable, Category = "Attack")

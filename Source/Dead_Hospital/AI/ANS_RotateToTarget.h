@@ -10,13 +10,15 @@ class DEAD_HOSPITAL_API UANS_RotateToTarget : public UAnimNotifyState
 	GENERATED_BODY()
 
 public:
+	virtual void NotifyBegin(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float TotalDuration, const FAnimNotifyEventReference& EventReference) override;
 	virtual void NotifyTick(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation, float FrameDeltaTime, const FAnimNotifyEventReference& EventReference) override;
 
 protected:
 	//회전 속도 (값이 높을 수록 빠르게 회전
 	UPROPERTY(EditAnywhere, Category = "Rotation")
-	float RotationSpeed = 10.0f;
+	float SwingOffsetDegrees = 0.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Rotation")
-	FName TargetLocationKeyName = "LastKnownLocation";
+private:
+	float NotifyElapsedTime = 0.0f;
+	float NotifyTotalDuration = 1.0f;
 };

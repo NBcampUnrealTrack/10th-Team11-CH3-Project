@@ -504,6 +504,7 @@ void AZombieAIController::StartSearchTurn()
 	if (Zombie)
 	{
 		SetZombieState(EZombieState::Search);
+		Zombie->SetSearchBaseYaw(Zombie->GetActorRotation().Yaw);//집입 시점 각도를 기준으로 고정
 		Zombie->PlaySearchTurnMontage();
 	}
 

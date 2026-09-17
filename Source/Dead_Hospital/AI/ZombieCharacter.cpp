@@ -46,6 +46,8 @@ AZombieCharacter::AZombieCharacter()
 	CurrentState = EZombieState::Patrol;
 	//좀비 어그로
 	bAggroOnSpawn = false;
+	CurrentPatrolIndex = 0;
+	SearchBaseYaw = 0.0f;
 
 	//좀비 공격 범위 콜리전
 	AttackRangeComp = CreateDefaultSubobject<USphereComponent>(TEXT("AttackRangeComp"));
@@ -81,6 +83,7 @@ void AZombieCharacter::BeginPlay()
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 	//좀비가 이동방향으로 몸을 돌릴때 회전을 부드럽게 해주기 위해 사용
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
+	DefaultMeshRelativeRotation = GetMesh()->GetRelativeRotation();
 
 	bUseControllerRotationYaw = false;
 
@@ -399,6 +402,11 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 	default:
 		break;
 	}
+}
+
+void AZombieCharacter::SetSearchBaseYaw(float NewYaw)
+{
+	SearchBaseYaw = NewYaw;
 }
 
 //공격 애니메이션이 끝나는 순간 호출된다.
