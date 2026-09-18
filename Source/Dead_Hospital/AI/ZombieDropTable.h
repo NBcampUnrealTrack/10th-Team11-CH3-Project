@@ -18,4 +18,7 @@ struct DEAD_HOSPITAL_API FZombieDropEntry : public FTableRowBase
 	//드랍될 수량(권총 탄약 10발, 붕대 1개, 화약 1개 등 항목마다 다르게 지정)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drop")
 	int32 DropQuantity = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drop")
+	TSubclassOf<class AItemPickup> PickupClass;
 };

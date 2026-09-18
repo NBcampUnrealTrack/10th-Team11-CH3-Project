@@ -118,8 +118,6 @@ protected:
 	UDataTable* ZombieDropTable;//드랍 아이템/확률(가중치)/수량 정의 테이블
 	UPROPERTY(EditDefaultsOnly, Category = "Drop")
 	UDataTable* ItemDataTable;//아이템 상세 정보 테이블. ZombieDropTable의 ItemID로 여기서 조회
-	UPROPERTY(EditDefaultsOnly, Category = "Drop")
-	TSubclassOf<class AItemPickup> ItemPickupClass;//드랍 아이템을 월드에 표현할 픽업 액터 클래스
 
 public:
 	AZombieCharacter();

@@ -320,9 +320,9 @@ void AZombieCharacter::OnDeathTimerExpired()
 
 void AZombieCharacter::HandleItemDrop()
 {
-	if (!ZombieDropTable || !ItemDataTable || !ItemPickupClass)
+	if (!ZombieDropTable || !ItemDataTable)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: DropTable/ItemDataTable/PickupClass 설정 누락"), *GetName());
+		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: DropTable/ItemDataTable 설정 누락"), *GetName());
 		return;
 	}
 
@@ -377,32 +377,40 @@ void AZombieCharacter::HandleItemDrop()
 		return;
 	}
 
+	//ItemID로 ItemDataTable에서 실제 아이템 상세 데이터 조회
+	FItemData* FoundItemData = ItemDataTable->FindRow<FItemData>(SelectedEntry->ItemID, TEXT("HandleItemDrop"));
+
+	if (!FoundItemData)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: ItemDataTable에서 ItemID(%s)를 찾지 못함"),
+			*GetName(), *SelectedEntry->ItemID.ToString());
+		return;
+	}
+
+	// 이 드롭 항목에 연결된 Pickup BP가 없으면 종료
+	if (!SelectedEntry->PickupClass)
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[%s] HandleItemDrop: PickupClass가 비어 있음(ItemID: %s)"),
+			*GetName(), *SelectedEntry->ItemID.ToString());
+		return;
+	}
+
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	AItemPickup* SpawnedPickup = GetWorld()->SpawnActor<AItemPickup>(
-		ItemPickupClass,
+		SelectedEntry->PickupClass,
 		GetActorLocation(),
 		GetActorRotation(),
 		SpawnParams
 	);
 
-	//ItemID로 ItemDataTable에서 실제 아이템 상세 데이터 조회
-	FItemData* FoundItemData = ItemDataTable->FindRow<FItemData>(SelectedEntry->ItemID, TEXT("HandleItemDrop"));
-
 	if (!SpawnedPickup)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[%s] HandleItemDrop: ItemPickup 스폰 실패(ItemID: %s)"),
+		UE_LOG(LogTemp, Error,
+			TEXT("[%s] HandleItemDrop: ItemPickup 스폰 실패(ItemID: %s)"),
 			*GetName(), *SelectedEntry->ItemID.ToString());
-		return;
-	}
-
-	//데이터를 못 찾으면 스폰된 픽업을 파괴하고 종료(설정 실수 가능성)
-	if (!FoundItemData)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[%s] HandleItemDrop: ItemDataTable에서 ItemID(%s)를 찾지 못함"),
-			*GetName(), *SelectedEntry->ItemID.ToString());
-		SpawnedPickup->K2_DestroyActor();
 		return;
 	}
 
