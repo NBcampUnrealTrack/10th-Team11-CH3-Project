@@ -60,6 +60,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Checkpoint")
 	FName CheckpointId = NAME_None;
 
+	/**
+	 * 이 체크포인트가 놓인 진행 구역의 이름입니다. 예: Hospital_B2, Ward_1F.
+	 * 비워 두면 이전에 기록된 구역을 사용하고, 그것도 없으면 CheckpointId를 임시 구역 ID로 사용합니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Checkpoint")
+	FName AreaId = NAME_None;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Checkpoint")
 	bool StartsEnabled = true;
 

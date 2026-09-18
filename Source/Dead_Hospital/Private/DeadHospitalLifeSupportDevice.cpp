@@ -236,6 +236,13 @@ void ADeadHospitalLifeSupportDevice::PerformEscapeTeleport()
 		return;
 	}
 
+	// 지하 2층 이동과 Escape 단계 전환이 모두 성공했으므로 현재 진행 구역도 함께 갱신합니다.
+	// 다음 체크포인트는 이 값을 저장해 Respawn 뒤 UI/진행 로직이 병원 복귀 구역임을 알 수 있습니다.
+	if (!EscapeDestinationAreaId.IsNone())
+	{
+		GameMode->SetCurrentAreaId(EscapeDestinationAreaId);
+	}
+
 	if (!GameMode->CompleteOneTimeEvent(DeadHospitalLifeSupportEventIds::ShutdownSequence))
 	{
 		// 이 지점은 이동과 Escape 전환이 모두 성공한 뒤이므로 게임 진행은 유지합니다.

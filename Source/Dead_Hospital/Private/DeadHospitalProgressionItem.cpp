@@ -159,7 +159,16 @@ void ADeadHospitalProgressionItem::Interact_Implementation(AActor* Interactor)
 	if (!WasProgressRecorded)
 	{
 		// 기록에 실패하면 인벤토리에 방금 넣은 물건도 취소하고 다시 E를 누를 수 있게 합니다.
-		Inventory->RemoveItem(ItemData.ItemID, ItemData.Quantity);
+		// Key와 Painting은 일반 삭제가 금지되어 RemoveItem()이 거절합니다. 이 경우에만
+		// ConsumeKeyItem()으로 실패한 지급을 되돌리고, Magnum 같은 일반 보상은 RemoveItem()을 사용합니다.
+		if (Inventory->IsProtectedItem(ItemData.ItemID))
+		{
+			Inventory->ConsumeKeyItem(ItemData.ItemID, ItemData.Quantity);
+		}
+		else
+		{
+			Inventory->RemoveItem(ItemData.ItemID, ItemData.Quantity);
+		}
 		GameMode->CancelOneTimeEvent(PickupEventId);
 		OnItemCollectionFailed();
 		return;

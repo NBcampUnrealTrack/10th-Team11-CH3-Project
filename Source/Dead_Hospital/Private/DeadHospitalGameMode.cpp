@@ -2,6 +2,7 @@
 
 #include "DeadHospitalGameMode.h"
 
+#include "DocumentComponent.h"
 #include "InventoryComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -17,12 +18,13 @@ ADeadHospitalGameMode::ADeadHospitalGameMode()
 	FinalObjectiveText = FText::FromString(TEXT("생명유지장치를 종료하라"));
 	EscapeObjectiveText = FText::FromString(TEXT("제한시간 안에 병원을 탈출하라"));
 
-	// 보호할 진행 아이템의 고유 ID 목록입니다. 인벤토리 파트는
-	// IsProtectedKeyItem(ItemId)을 물어보고 폐기/소비 버튼을 막을 수 있습니다.
-	// 이 목록을 만든 것만으로 팀원 인벤토리 UI가 자동으로 달라지지는 않습니다.
+	// DT_ItemData와 팀원 InventoryComponent에서 확정한 진행 아이템 ID를 그대로 사용합니다.
+	// Key와 Painting은 플레이어가 인벤토리에서 임의로 버리는 일반 삭제를 막아야 합니다.
+	// 단, 잠긴 문이 Key를 정상적으로 사용하는 상황은 일반 삭제가 아니므로
+	// Door에서 InventoryComponent::ConsumeKeyItem()을 호출해 Key 한 개를 소비합니다.
 	ProtectedKeyItemIds = {
-		TEXT("PZ02_HiddenKey"),
-		TEXT("PZ02_MiddleAgedManPainting")
+		TEXT("Key"),
+		TEXT("Painting")
 	};
 }
 
@@ -71,6 +73,7 @@ bool ADeadHospitalGameMode::StartGame()
 	ActivatedCheckpointIds.Reset();
 	CountedEnemies.Reset();
 	LastCheckpoint = FDeadHospitalCheckpointData();
+	CurrentAreaId = NAME_None;
 
 	// 기록을 초기화한 다음 일반 탐색으로 넘어가 첫 목표와 1초 타이머를 설정합니다.
 	// Broadcast는 UI 등 On... 이벤트에 연결된 외부 동작에 변경 사실을 알립니다.
@@ -415,10 +418,24 @@ bool ADeadHospitalGameMode::IsProtectedKeyItem(FName ItemId) const
 	return !ItemId.IsNone() && ProtectedKeyItemIds.Contains(ItemId);
 }
 
+bool ADeadHospitalGameMode::SetCurrentAreaId(FName AreaId)
+{
+	// None은 "이름이 정해지지 않았다"는 뜻이므로 현재의 정상적인 구역 값을 지우지 않습니다.
+	// Teleport와 Checkpoint가 같은 함수를 사용하면 구역 이름을 한 곳에서 일관되게 관리할 수 있습니다.
+	if (AreaId.IsNone())
+	{
+		return false;
+	}
+
+	CurrentAreaId = AreaId;
+	return true;
+}
+
 bool ADeadHospitalGameMode::SaveCheckpoint(
 	FName CheckpointId,
 	AActor* PlayerActor,
-	const FTransform& RespawnTransform)
+	const FTransform& RespawnTransform,
+	FName AreaId)
 {
 	// ReturningToHospital은 성불 Sequence와 순간이동이 진행 중인 불안정한 단계입니다.
 	// 이 순간을 저장하면 복구 후 Sequence를 이어갈 주체가 없어질 수 있으므로 체크포인트를 만들지 않습니다.
@@ -460,6 +477,12 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 	NewCheckpoint.IsValid = true;
 	NewCheckpoint.CheckpointId = CheckpointId;
 	NewCheckpoint.PlayerRespawnTransform = RespawnTransform;
+	// Checkpoint Actor에 AreaId가 있으면 그 값을 가장 먼저 사용합니다.
+	// 비어 있다면 마지막 Teleport가 기록한 CurrentAreaId를 사용하고, 둘 다 없다면
+	// 최소한 현재 체크포인트 지점을 구별할 수 있도록 CheckpointId를 대신 저장합니다.
+	NewCheckpoint.SavedAreaId = !AreaId.IsNone()
+		? AreaId
+		: (!CurrentAreaId.IsNone() ? CurrentAreaId : CheckpointId);
 	NewCheckpoint.SavedGamePhase = CurrentGamePhase;
 	NewCheckpoint.SavedObjective = CurrentObjective;
 	NewCheckpoint.SavedPlayTimeSeconds = ElapsedPlayTimeSeconds;
@@ -485,9 +508,29 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 	}
 	NewCheckpoint.EquippedWeaponId = Inventory->GetEquippedWeaponID();
 
+	// 문서는 Inventory Item이 아니므로 별도의 DocumentComponent에서 따로 복사합니다.
+	// 팀원 컴포넌트의 GetDocuments()는 읽기 전용 공개 함수이므로 내부 배열을 직접 수정하지 않습니다.
+	const UDocumentComponent* DocumentComponent = PlayerActor->FindComponentByClass<UDocumentComponent>();
+	if (IsValid(DocumentComponent))
+	{
+		NewCheckpoint.HasDocumentSnapshot = true;
+		NewCheckpoint.Documents = DocumentComponent->GetDocuments();
+	}
+	else
+	{
+		// 아직 Player Blueprint에 DocumentComponent가 연결되지 않은 개발 상태에서도
+		// 위치와 인벤토리 체크포인트는 저장합니다. 문서 기능을 사용하려면 컴포넌트를 연결해야 합니다.
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Checkpoint %s saved without Documents: Player has no DocumentComponent."),
+			*CheckpointId.ToString());
+	}
+
 	// 모든 자료를 채운 뒤 마지막 기록을 교체합니다. MoveTemp는 배열처럼
 	// 내부 데이터를 복사하지 않고 새 저장 기록으로 넘기기 위한 도구입니다.
 	LastCheckpoint = MoveTemp(NewCheckpoint);
+	CurrentAreaId = LastCheckpoint.SavedAreaId;
 	ActivatedCheckpointIds.Add(CheckpointId);
 	OnCheckpointSaved.Broadcast(LastCheckpoint.CheckpointId);
 	return true;
@@ -604,6 +647,50 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 			}
 			UE_LOG(LogTemp, Error, TEXT("Checkpoint restart failed: equipped weapon could not be restored."));
 			return false;
+		}
+	}
+
+	if (LastCheckpoint.HasDocumentSnapshot)
+	{
+		UDocumentComponent* DocumentComponent = NewPlayerPawn->FindComponentByClass<UDocumentComponent>();
+		if (!IsValid(DocumentComponent))
+		{
+			// 저장 당시에는 문서 컴포넌트가 있었는데 새 Pawn에서 사라졌다면 문서를 복구할 수 없습니다.
+			// 일부 자료가 빠진 상태로 진행하지 않고 새 Pawn을 제거한 뒤 기존 Pawn으로 돌아갑니다.
+			PlayerController->UnPossess();
+			NewPlayerPawn->Destroy();
+			if (IsValid(OldPawn))
+			{
+				PlayerController->Possess(OldPawn);
+			}
+			UE_LOG(LogTemp, Error, TEXT("Checkpoint restart failed: new Pawn has no DocumentComponent."));
+			return false;
+		}
+
+		// DocumentComponent에는 별도의 공개 복원 함수가 없으므로 저장된 문서를 한 개씩 AddDocument()로 넣습니다.
+		// 새 Pawn의 문서 목록은 비어 있는 것이 정상이지만, 이미 같은 ID가 있다면 중복 추가 없이 넘어갑니다.
+		for (const FDocumentData& SavedDocument : LastCheckpoint.Documents)
+		{
+			if (DocumentComponent->HasDocument(SavedDocument.DocumentID))
+			{
+				continue;
+			}
+
+			if (!DocumentComponent->AddDocument(SavedDocument))
+			{
+				PlayerController->UnPossess();
+				NewPlayerPawn->Destroy();
+				if (IsValid(OldPawn))
+				{
+					PlayerController->Possess(OldPawn);
+				}
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("Checkpoint restart failed: Document %s could not be restored."),
+					*SavedDocument.DocumentID.ToString());
+				return false;
+			}
 		}
 	}
 
@@ -916,6 +1003,7 @@ void ADeadHospitalGameMode::RestoreInternalCheckpointState()
 	EscapeRemainingTimeSeconds = LastCheckpoint.SavedEscapeTimeSeconds;
 	LifeSupportShutdown = LastCheckpoint.SavedLifeSupportShutdown;
 	CurrentObjective = LastCheckpoint.SavedObjective;
+	CurrentAreaId = LastCheckpoint.SavedAreaId;
 	GameOverReason = EDeadHospitalGameOverReason::None;
 	ClearResultConfirmed = false;
 	FinalClearTimeSeconds = 0;

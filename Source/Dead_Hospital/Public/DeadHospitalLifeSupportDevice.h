@@ -72,6 +72,10 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Life Support|Teleport")
 	AActor* EscapeDestinationActor = nullptr;
 
+	/** 장치 종료 후 돌아오는 병원 구역 ID입니다. 체크포인트의 현재 구역 저장에 사용합니다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Life Support|Teleport")
+	FName EscapeDestinationAreaId = TEXT("Hospital_B2");
+
 	/** FVector(X,Y,Z)만큼 TargetPoint 위치에 더합니다. 기본 Z=20은 바닥 겹침을 줄입니다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Life Support|Teleport")
 	FVector DestinationOffset = FVector(0.0f, 0.0f, 20.0f);

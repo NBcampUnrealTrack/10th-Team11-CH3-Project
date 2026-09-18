@@ -32,6 +32,12 @@ class DEAD_HOSPITAL_API ADeadHospitalMagnumPuzzle : public ADeadHospitalPuzzleBa
 public:
 	ADeadHospitalMagnumPuzzle();
 
+	/**
+	 * 부모의 공통 퍼즐 완료 처리를 성공시킨 뒤, 연결된 MagnumPickup을 즉시 획득 처리합니다.
+	 * 따라서 정상적인 흐름은 "퍼즐 완료 -> Magnum 지급 -> Inventory AddItem" 순서가 됩니다.
+	 */
+	virtual bool TryCompletePuzzle(AActor* Interactor) override;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual bool CanCompletePuzzle(AActor* Interactor) const override;
@@ -45,11 +51,12 @@ protected:
 	ADeadHospitalProgressionItem* MagnumPickup = nullptr;
 
 	/**
-	 * 매그넘을 인벤토리에서 구분할 임시 ID입니다. 다른 팀원의 무기 ID가 확정되면
-	 * 그 ID와 반드시 일치시켜야 실제 매그넘 장착/전투와 연결됩니다.
+	 * 매그넘을 인벤토리에서 구분하는 최종 ID입니다.
+	 * DT_ItemData와 팀원 Inventory에서 사용하는 "Magnum"과 정확히 같아야
+	 * 퍼즐 보상으로 얻은 무기를 장착/전투 코드에서도 같은 아이템으로 찾을 수 있습니다.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Puzzle|Magnum")
-	FName MagnumItemId = TEXT("Weapon_Magnum");
+	FName MagnumItemId = TEXT("Magnum");
 
 	/** 한 번 집은 매그넘이 다시 나타나지 않도록 저장할 Event 이름입니다. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Puzzle|Magnum")

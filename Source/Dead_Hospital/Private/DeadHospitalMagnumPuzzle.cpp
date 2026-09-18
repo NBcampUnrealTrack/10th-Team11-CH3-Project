@@ -12,11 +12,42 @@ ADeadHospitalMagnumPuzzle::ADeadHospitalMagnumPuzzle()
 	InteractionText = FText::FromString(TEXT("E 키로 매그넘 보관함 퍼즐 조사"));
 }
 
+bool ADeadHospitalMagnumPuzzle::TryCompletePuzzle(AActor* Interactor)
+{
+	// Super는 부모 ADeadHospitalPuzzleBase의 함수를 뜻합니다.
+	// 먼저 공통 코드가 정답 조건 검사, 완료 기록, 보관함 문 잠금 해제를 모두 성공해야 합니다.
+	if (!Super::TryCompletePuzzle(Interactor))
+	{
+		return false;
+	}
+
+	// GameMode에 PZ-03 완료가 기록되면 MagnumPickup의 필요 조건도 충족됩니다.
+	// Execute_Interact는 플레이어가 매그넘에 E를 누른 것과 같은 안전한 획득 절차를 실행하므로,
+	// ProgressionItem 안의 InventoryComponent::AddItem()과 중복 지급 방지 기록을 그대로 사용합니다.
+	if (IsValid(MagnumPickup) && !MagnumPickup->HasBeenCollected())
+	{
+		IInteractable::Execute_Interact(MagnumPickup, Interactor);
+	}
+
+	// 인벤토리가 가득 찬 경우 AddItem()이 실패할 수 있습니다. 퍼즐 완료 자체는 이미 저장됐으므로
+	// false라고 거짓 보고하지 않고, 매그넘 Actor를 맵에 남겨 공간을 만든 뒤 다시 주울 수 있게 합니다.
+	if (!IsValid(MagnumPickup) || !MagnumPickup->HasBeenCollected())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("%s: PZ-03 completed, but Magnum could not be added to Inventory. The pickup remains available."), *GetName());
+	}
+
+	return true;
+}
+
 void ADeadHospitalMagnumPuzzle::BeginPlay()
 {
 	// BeginPlay는 게임에서 Actor가 등장해 플레이를 시작할 때 실행됩니다.
 	// Super::BeginPlay()는 부모 퍼즐의 초기 검사/상태 연결을 먼저 실행한다는 뜻입니다.
 	Super::BeginPlay();
+
+	// Blueprint나 기존 맵 Actor에 다른 값이 저장되어 있어도 실제 플레이에서는
+	// DT_ItemData와 팀원 Inventory가 사용하는 최종 ID "Magnum"으로 통일합니다.
+	MagnumItemId = TEXT("Magnum");
 
 	if (!IsValid(MagnumPickup))
 	{
