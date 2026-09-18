@@ -36,7 +36,7 @@ public:
 	 * 부모는 정답을 스스로 검사하지 않으니 이 함수를 아무 입력에서나 호출하면 안 됩니다.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Puzzle")
-	bool TryCompletePuzzle(AActor* Interactor);
+	virtual bool TryCompletePuzzle(AActor* Interactor);
 
 	/**
 	 * 아직 UI/정답 방식이 없는 개발용 맵에서 이후 동선이 막히지 않는지 검사합니다.

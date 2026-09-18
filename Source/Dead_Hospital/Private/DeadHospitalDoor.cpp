@@ -212,18 +212,18 @@ bool ADeadHospitalDoor::TryUnlockWithKey(AActor* Interactor)
 	}
 
 	UInventoryComponent* Inventory = Interactor->FindComponentByClass<UInventoryComponent>();
-	if (!IsValid(Inventory) || Inventory->GetItemQuantity(RequiredKeyItemId) <= 0)
+	// HasItem()은 팀원 InventoryComponent가 제공하는 공개 함수입니다.
+	// PZ-02 문에서는 RequiredKeyItemId를 "Key"로 설정하므로 HasItem("Key")를 검사하게 됩니다.
+	if (!IsValid(Inventory) || !Inventory->HasItem(RequiredKeyItemId))
 	{
 		return false;
 	}
 
-	// 기본값은 false이므로 PZ-02 같은 필수 Key는 인벤토리에 남습니다.
-	// 별도의 일회용 Key 문에서만 true로 설정하고, 실제 제거가 성공해야 잠금도 해제합니다.
-	const ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
-	const bool IsProtectedKey = IsValid(GameMode) && GameMode->IsProtectedKeyItem(RequiredKeyItemId);
-
-	// 에디터에서 ConsumeKeyWhenUnlocked를 실수로 켜도 보호 목록의 필수 Key는 절대 제거하지 않습니다.
-	const bool ShouldConsumeKey = ConsumeKeyWhenUnlocked && !IsProtectedKey;
+	// Key/Painting의 "보호"는 인벤토리에서 임의로 버리는 일반 삭제만 막는 규칙입니다.
+	// 문에서 정식으로 사용하는 Key는 ConsumeKeyItem()을 통해 소비할 수 있어야 합니다.
+	// PZ-02의 최종 ID "Key"는 기존 맵에 false가 저장되어 있어도 기획대로 반드시 한 개 소비합니다.
+	const bool IsPz02Key = RequiredKeyItemId == FName(TEXT("Key"));
+	const bool ShouldConsumeKey = IsPz02Key || ConsumeKeyWhenUnlocked;
 
 	// 일회용 Key라면 먼저 인벤토리 슬롯에서 같은 ItemID의 원본 자료를 한 개 찾아 둡니다.
 	// 문 잠금 해제 기록에 실패하면 아래에서 AddItem()으로 Key 한 개를 돌려줘야 하기 때문입니다.

@@ -84,6 +84,13 @@ protected:
 	EDeadHospitalTeleportPurpose TeleportPurpose = EDeadHospitalTeleportPurpose::RegularTransition;
 
 	/**
+	 * 이동이 성공한 뒤 GameMode에 기록할 도착 구역 이름입니다. 예: Ward_1F, FinalObjectiveArea.
+	 * 비워 두면 위치만 이동하고 현재 구역 ID는 바꾸지 않습니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Teleport")
+	FName DestinationAreaId = NAME_None;
+
+	/**
 	 * 기본 true는 가까운 곳에 준비된 바닥/Actor가 이미 있는 경우입니다.
 	 * World Partition 먼 지역이면 로딩이 시작되기 전에 false로 바꾸고
 	 * 실제 준비 완료를 확인한 시점에 SetDestinationReady(true)를 호출해야 합니다.
