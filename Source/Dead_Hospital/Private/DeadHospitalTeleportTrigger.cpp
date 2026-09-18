@@ -242,6 +242,13 @@ void ADeadHospitalTeleportTrigger::PerformTeleport()
 		return;
 	}
 
+	// 실제 위치 이동과 목적에 맞는 GamePhase 전환이 모두 성공한 뒤에만 현재 구역을 바꿉니다.
+	// 실패 전에 바꾸면 체크포인트/UI는 새 구역인데 Player는 이전 위치인 모순이 생길 수 있습니다.
+	if (!DestinationAreaId.IsNone())
+	{
+		GameMode->SetCurrentAreaId(DestinationAreaId);
+	}
+
 	if (OneUseOnly)
 	{
 		// 기록 실패는 Output Log에 남깁니다. 이 경우 체크포인트에서 사용 여부

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "DocumentData.h"
 #include "ItemData.h"
 #include "DeadHospitalGameMode.generated.h"
 
@@ -104,6 +105,14 @@ struct FDeadHospitalCheckpointData
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	FTransform PlayerRespawnTransform;
 
+	/**
+	 * 체크포인트를 저장한 진행 구역의 이름입니다.
+	 * 예: Hospital_B2, Ward_1F, FinalObjectiveArea.
+	 * 실제 부활 위치는 위 Transform이 담당하고, 이 ID는 UI와 진행 로직이 현재 구역을 구분할 때 사용합니다.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	FName SavedAreaId = NAME_None;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	EDeadHospitalGamePhase SavedGamePhase = EDeadHospitalGamePhase::Playing;
 
@@ -151,6 +160,21 @@ struct FDeadHospitalCheckpointData
 
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	FName EquippedWeaponId = NAME_None;
+
+	/**
+	 * 저장할 Player에게 DocumentComponent가 실제로 있었는지 표시합니다.
+	 * 문서는 인벤토리 아이템이 아니므로 HasInventorySnapshot과 별도로 관리합니다.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	bool HasDocumentSnapshot = false;
+
+	/**
+	 * 체크포인트 시점까지 획득한 문서의 전체 자료입니다.
+	 * DocumentID뿐 아니라 제목과 본문도 함께 보관하므로 Respawn 후 새 Pawn의
+	 * DocumentComponent에 AddDocument()로 원래 목록을 복원할 수 있습니다.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	TArray<FDocumentData> Documents;
 };
 
 /**
@@ -331,7 +355,11 @@ public:
 	 * 이전 세이브를 덮어쓰는 메모리 기록이며, 디스크 저장과는 다릅니다.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Checkpoint")
-	bool SaveCheckpoint(FName CheckpointId, AActor* PlayerActor, const FTransform& RespawnTransform);
+	bool SaveCheckpoint(
+		FName CheckpointId,
+		AActor* PlayerActor,
+		const FTransform& RespawnTransform,
+		FName AreaId);
 
 	/**
 	 * GameOver 화면의 재시작 버튼에서 호출합니다. 새 Pawn을 먼저 안전하게 만들고
@@ -396,6 +424,14 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Checkpoint")
 	FName GetActiveCheckpointId() const { return LastCheckpoint.CheckpointId; }
+
+	/** 현재 Player가 진행 중인 맵 구역 ID를 바꿉니다. None은 유효한 구역이 아니므로 거절합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Game Flow")
+	bool SetCurrentAreaId(FName AreaId);
+
+	/** 체크포인트 또는 Teleport가 마지막으로 기록한 현재 진행 구역을 읽습니다. */
+	UFUNCTION(BlueprintPure, Category = "Game Flow")
+	FName GetCurrentAreaId() const { return CurrentAreaId; }
 
 	/** 특정 체크포인트가 현재 플레이/복구 시점에 이미 활성화되었는지 확인합니다. */
 	UFUNCTION(BlueprintPure, Category = "Checkpoint")
@@ -526,7 +562,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Ranking", meta = (ClampMin = "1"))
 	int32 CRankMaximumTimeSeconds = 3600;
 
-	/** UI/Inventory 파트가 폐기와 소비를 막아야 하는 필수 KeyItem ID 목록입니다. */
+	/**
+	 * UI/Inventory에서 플레이어의 일반 폐기를 막아야 하는 진행 아이템 ID 목록입니다.
+	 * 문 퍼즐이 Key를 정상적으로 사용할 때는 일반 폐기가 아니므로 ConsumeKeyItem()으로 소비할 수 있습니다.
+	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Puzzle")
 	TArray<FName> ProtectedKeyItemIds;
 
@@ -568,6 +607,13 @@ private:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Objective", meta = (AllowPrivateAccess = "true"))
 	FDeadHospitalObjectiveState CurrentObjective;
+
+	/**
+	 * Player가 현재 어느 구역에 있는지 나타내는 논리적인 이름입니다.
+	 * 위치 좌표 자체가 아니라 Hospital_B2 같은 진행용 ID이며 체크포인트에 함께 저장됩니다.
+	 */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Game Flow", meta = (AllowPrivateAccess = "true"))
+	FName CurrentAreaId = NAME_None;
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Game Records", meta = (AllowPrivateAccess = "true"))
 	int32 KillCount = 0;

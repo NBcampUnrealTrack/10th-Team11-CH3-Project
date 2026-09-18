@@ -12,13 +12,14 @@
 ADeadHospitalPaintingPuzzle::ADeadHospitalPaintingPuzzle()
 {
 	// Actor 생성 시 기본 그림 아이템 데이터와 E 안내 글자를 만듭니다.
-	// 그림을 KeyItem으로 지정했지만 숨겨진 Key의 ItemID와는 전혀 다른 항목입니다.
+	// ItemID는 팀원 Inventory와 DT_ItemData에서 확정한 Row 이름 "Painting"을 사용합니다.
+	// 그림을 KeyItem으로 지정했지만 숨겨진 Key의 ItemID "Key"와는 서로 다른 항목입니다.
 	PrimaryActorTick.bCanEverTick = false;
 
 	PaintingMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PaintingMesh"));
 	SetRootComponent(PaintingMesh);
 
-	PaintingItemData.ItemID = TEXT("PZ02_MiddleAgedManPainting");
+	PaintingItemData.ItemID = TEXT("Painting");
 	PaintingItemData.ItemName = FText::FromString(TEXT("열쇠를 든 중년 남자 그림"));
 	PaintingItemData.ItemType = EItemType::KeyItem;
 	PaintingItemData.Quantity = 1;
@@ -31,6 +32,12 @@ void ADeadHospitalPaintingPuzzle::BeginPlay()
 	// 게임이 시작되면 그림과 숨겨진 열쇠의 연결을 확인하고, GameMode 저장 상태를
 	// 읽어 이미 그림을 뗀 체크포인트에서 다시 보이지 않도록 맞춥니다.
 	Super::BeginPlay();
+
+	// Blueprint나 기존 맵 Actor에 예전 임시 ID가 저장되어 있더라도 실제 플레이에서는
+	// DT_ItemData의 최종 ID를 사용하도록 다시 맞춥니다. 이렇게 해야 그림 획득 후
+	// Inventory의 HasItem("Painting") 검사와 일반 삭제 방지 기능이 같은 아이템을 찾습니다.
+	PaintingItemData.ItemID = TEXT("Painting");
+	HiddenKeyItemId = TEXT("Key");
 
 	if (!IsValid(HiddenKeyPickup))
 	{
@@ -114,7 +121,10 @@ void ADeadHospitalPaintingPuzzle::Interact_Implementation(AActor* Interactor)
 	// 따라서 실제 기록에 성공한 뒤에만 그림을 제거하고, 실패하면 지급한 그림도 취소합니다.
 	if (!GameMode->CompleteOneTimeEvent(PaintingRemovedEventId))
 	{
-		Inventory->RemoveItem(PaintingItemData.ItemID, PaintingItemData.Quantity);
+		// Painting은 팀원 인벤토리에서 일반 삭제가 금지된 진행 아이템입니다.
+		// 여기서는 플레이어가 버리는 것이 아니라 실패한 지급을 원상 복구하는 것이므로,
+		// 보호 아이템도 정해진 수량만 제거할 수 있는 ConsumeKeyItem()을 사용합니다.
+		Inventory->ConsumeKeyItem(PaintingItemData.ItemID, PaintingItemData.Quantity);
 		GameMode->CancelOneTimeEvent(PaintingRemovedEventId);
 		OnPaintingRemovalFailed();
 		return;

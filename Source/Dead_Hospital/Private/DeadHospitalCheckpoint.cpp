@@ -90,7 +90,11 @@ bool ADeadHospitalCheckpoint::ActivateCheckpoint(APawn* PlayerPawn)
 
 	ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
 	if (!IsValid(GameMode)
-		|| !GameMode->SaveCheckpoint(CheckpointId, PlayerPawn, RespawnPoint->GetComponentTransform()))
+		|| !GameMode->SaveCheckpoint(
+			CheckpointId,
+			PlayerPawn,
+			RespawnPoint->GetComponentTransform(),
+			AreaId))
 	{
 		OnCheckpointActivationFailed();
 		return false;

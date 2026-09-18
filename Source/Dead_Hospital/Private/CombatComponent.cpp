@@ -62,11 +62,11 @@ void UCombatComponent::PrimaryAttack()
     // 플레이어 캐릭터로 캐스팅
     APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
 
-    //// 플레이어가 없거나, 죽었거나, 숨어있으면 즉시 차단
-    //if (PlayerCharacter == nullptr || PlayerCharacter->IsDead() || PlayerCharacter->IsHiding())
-    //{
-    //    return;
-    //}
+    // 플레이어가 없거나, 현재 행동 불가 상태(사망, 은신 등)라면 즉시 차단
+    if (PlayerCharacter == nullptr || !PlayerCharacter->CanPerformAction())
+    {
+        return;
+    }
 
     // 전투 컴포넌트 내부 상태 검사 (쿨타임, 장전 중)
     if (bCanPrimaryAttack == false || bIsReloading == true)
@@ -94,17 +94,15 @@ void UCombatComponent::PrimaryAttack()
     FWeaponData* CurrentWeaponData = WeaponDataMap.Find(CurrentWeaponID);
     if (CurrentWeaponData == nullptr) return;
 
-    /*if (CurrentWeaponData->CurrentAmmo <= 0)
+    if (CurrentWeaponData->CurrentAmmo <= 0)
     {
         UE_LOG(LogTemp, Warning, TEXT("(탄약이 없습니다)"));
         if (EmptySound) UGameplayStatics::PlaySoundAtLocation(this, EmptySound, GetOwner()->GetActorLocation());
         OnAmmoEmptyWarning();
 
-        if (PlayerCharacter->IsHiding()) return;
-
         ReloadWeapon();
         return;
-    }*/
+    }
 
     // 조건 충족 시: 상태 변경 및 탄약 차감
     bCanPrimaryAttack = false;
@@ -236,11 +234,11 @@ void UCombatComponent::ReloadWeapon()
     // 플레이어 캐릭터로 캐스팅
     APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
 
-    //// 플레이어가 없거나, 죽었거나, 숨어있으면 즉시 차단
-    //if (PlayerCharacter == nullptr || PlayerCharacter->IsDead() || PlayerCharacter->IsHiding())
-    //{
-    //    return;
-    //}
+    // 플레이어가 없거나, 현재 행동 불가 상태(사망, 은신 등)라면 즉시 차단
+    if (PlayerCharacter == nullptr || !PlayerCharacter->CanPerformAction())
+    {
+        return;
+    }
 
     // 전투 컴포넌트 내부 상태 검사 (쿨타임, 장전 중)
     if (bCanPrimaryAttack == false || bIsReloading == true)
@@ -309,6 +307,15 @@ void UCombatComponent::ReloadWeapon()
 
 void UCombatComponent::FinishReload()
 {
+    // 장전 도중에 인벤토리를 열었거나, 캐비닛에 숨었거나, 죽었다면 장전 취소
+    APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
+    if (PlayerCharacter == nullptr || !PlayerCharacter->CanPerformAction())
+    {
+        bIsReloading = false;
+        UE_LOG(LogTemp, Warning, TEXT("장전 도중 행동 불가 상태가 되어 장전이 취소되었습니다."));
+        return;
+    }
+
     // 인벤토리 컴포넌트와 무기 장착 여부 확인
     UInventoryComponent* InventoryComponent = GetOwner()->FindComponentByClass<UInventoryComponent>();
     if (InventoryComponent == nullptr || !InventoryComponent->HasEquippedWeapon())

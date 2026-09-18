@@ -1,7 +1,5 @@
 #include "DocumentPickup.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/SphereComponent.h"
-#include "GameFramework/Character.h"
 #include "DocumentComponent.h"
 #include "Engine/DataTable.h"
 
@@ -9,26 +7,20 @@ ADocumentPickup::ADocumentPickup(){
 	// 매 프레임 Tick이 필요하지 않으므로 비활성화
 	PrimaryActorTick.bCanEverTick = false;
 
-	// 플레이어가 문서 근처에 왔는지 확인할 충돌 영역 생성
-	InteractionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("InteractionSphere"));
-
-	// 충돌 영역을 RootComponent로 설정
-	RootComponent = InteractionSphere;
-
-	// 상호작용 범위 설정
-	InteractionSphere->SetSphereRadius(150.0f);
-
 	// 월드에서 보일 문서 Mesh 생성
 	DocumentMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("DocumentMesh"));
 
-	// Mesh를 충돌 영역에 부착
-	DocumentMesh->SetupAttachment(RootComponent);
+	// DocumentMesh를 RootComponent로 사용
+	RootComponent = DocumentMesh;
 
-	// 문서 Mesh 자체의 충돌은 사용하지 않음
-	DocumentMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// Player의 상호작용 Sweep이 문서를 감지할 수 있도록 Query 충돌 활성화
+	DocumentMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 
-	// 처음에는 상호작용 중인 플레이어가 없음
-	InteractingActor = nullptr;
+	// 다른 충돌 채널은 무시
+	DocumentMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+
+	// Player가 사용하는 Visibility 채널에는 반응
+	DocumentMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 }
 
 void ADocumentPickup::BeginPlay()
@@ -39,65 +31,13 @@ void ADocumentPickup::BeginPlay()
 	if (DocumentDataTable && !DocumentRowName.IsNone()){
 		LoadDocumentDataFromTable();
 	}
-
-	// 플레이어가 상호작용 범위에 들어왔을 때 이벤트 연결
-	InteractionSphere->OnComponentBeginOverlap.AddDynamic(this, &ADocumentPickup::OnSphereBeginOverlap);
-
-	// 플레이어가 상호작용 범위에서 나갔을 때 이벤트 연결
-	InteractionSphere->OnComponentEndOverlap.AddDynamic(this, &ADocumentPickup::OnSphereEndOverlap);
-}
-
-// 플레이어가 문서의 상호작용 범위 안에 들어왔을 때
-void ADocumentPickup::OnSphereBeginOverlap(
-	UPrimitiveComponent* OverlappedComponent,
-	AActor* OtherActor,
-	UPrimitiveComponent* OtherComp,
-	int32 OtherBodyIndex,
-	bool bFromSweep,
-	const FHitResult& SweepResult)
-{
-	// 들어온 Actor가 플레이어 Character인지 확인
-	ACharacter* Player = Cast<ACharacter>(OtherActor);
-
-	if (Player && Player->IsPlayerControlled()){
-
-		// 현재 상호작용 가능한 플레이어 저장
-		InteractingActor = Player;
-
-		UE_LOG(LogTemp, Warning, TEXT("Player entered DocumentPickup range"));
-	}
-}
-
-
-// 플레이어가 문서의 상호작용 범위에서 나갔을 때
-void ADocumentPickup::OnSphereEndOverlap(
-	UPrimitiveComponent* OverlappedComponent,
-	AActor* OtherActor,
-	UPrimitiveComponent* OtherComp,
-	int32 OtherBodyIndex)
-{
-	// 범위를 나간 Actor가 현재 저장된 플레이어라면 초기화
-	if (OtherActor == InteractingActor){
-
-		InteractingActor = nullptr;
-
-		UE_LOG(LogTemp, Warning, TEXT("Player left DocumentPickup range"));
-	}
 }
 
 // 플레이어가 문서와 상호작용
-void ADocumentPickup::Interact(AActor* PlayerActor){
+void ADocumentPickup::Interact_Implementation(AActor* PlayerActor){
 
 	// 전달받은 Actor가 없다면 실패
 	if (!PlayerActor){
-		return;
-	}
-
-	// 현재 상호작용 범위 안에 있는 플레이어인지 확인
-	if (PlayerActor != InteractingActor){
-
-		UE_LOG(LogTemp, Warning, TEXT("DocumentPickup: Player is not in interaction range"));
-
 		return;
 	}
 
@@ -127,6 +67,51 @@ void ADocumentPickup::Interact(AActor* PlayerActor){
 		// 획득 성공 후 월드의 문서 제거
 		Destroy();
 	}
+}
+
+// 현재 문서와 상호작용할 수 있는지 확인
+bool ADocumentPickup::CanInteract_Implementation(AActor* Interactor) const{
+
+	// 상호작용하려는 Actor가 없으면 불가능
+	if (!Interactor){
+		return false;
+	}
+
+	// 문서 데이터가 정상적이지 않으면 상호작용 불가능
+	if (DocumentData.DocumentID.IsNone()){
+		return false;
+	}
+
+	return true;
+}
+
+
+// 은신 중에는 문서 획득을 허용하지 않음
+bool ADocumentPickup::IsAllowedWhileHiding_Implementation() const{
+	return false;
+}
+
+
+// 플레이어 화면에 표시할 상호작용 문구
+FText ADocumentPickup::GetInteractionText_Implementation(AActor* Interactor) const{
+
+	if (!DocumentData.DocumentTitle.IsEmpty())
+	{
+		return FText::Format(NSLOCTEXT("DocumentPickup", "PickupDocument", "Read {0}"), DocumentData.DocumentTitle);
+	}
+
+	return NSLOCTEXT(
+		"DocumentPickup",
+		"ReadDocument",
+		"Read document"
+	);
+}
+
+
+// 강제로 상호작용을 해제할 때 호출
+void ADocumentPickup::ForceRelease_Implementation(AActor* Interactor){
+	// DocumentPickup은 한 번 상호작용하면 획득되는 방식이므로
+	// 별도로 해제할 상태가 없음
 }
 
 // DataTable의 Row Name을 이용해 DocumentData를 설정

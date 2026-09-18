@@ -65,16 +65,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Door|Puzzle")
 	FName RequiredPuzzleId = NAME_None;
 
-	/** 퍼즐 문이면 None, Key 문이면 필요한 아이템 ID를 정확히 입력합니다. */
+	/** 퍼즐 문이면 None, PZ-02 Key 문이면 DT_ItemData의 최종 ID인 "Key"를 입력합니다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Door|Key")
 	FName RequiredKeyItemId = NAME_None;
 
 	/**
-	 * false면 문을 연 뒤에도 Key를 인벤토리에 남깁니다. PZ-02 필수 Key는 보호 대상이라
-	 * true로 실수 설정해도 이 문에서는 소비하지 않습니다.
+	 * true면 잠금을 해제할 때 Key 한 개를 ConsumeKeyItem()으로 소비합니다.
+	 * PZ-02의 최종 ID "Key"는 기존 맵 Actor에 이 값이 false로 저장되어 있어도 반드시 소비합니다.
+	 * Key의 일반 삭제 금지는 플레이어가 임의로 버리는 것만 막으며, 정상적인 문 사용은 허용합니다.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Door|Key")
-	bool ConsumeKeyWhenUnlocked = false;
+	bool ConsumeKeyWhenUnlocked = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction")
 	FText LockedInteractionText;
