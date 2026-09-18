@@ -764,7 +764,7 @@ void APlayerCharacter::UseQuickSlot(int32 SlotIndex)
 
 	if (InventoryComp)
 	{
-		//InventoryComp->UseQuickSlot(SlotIndex);
+		InventoryComp->UseQuickSlot(SlotIndex);
 	}
 }
 
