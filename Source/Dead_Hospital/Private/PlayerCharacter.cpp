@@ -1,6 +1,8 @@
 ﻿#include "PlayerCharacter.h"
 #include "PlayerCharacterController.h"
-//#include "InventoryComponent.h"
+#include "InventoryComponent.h"
+#include "DocumentComponent.h"
+#include "CombatComponent.h"
 #include "PlayerInterface.h"
 #include "EnhancedInputComponent.h"
 #include "Camera/CameraComponent.h"
@@ -8,6 +10,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Perception/AISense_Hearing.h"
 
 
 APlayerCharacter::APlayerCharacter()
@@ -32,13 +35,25 @@ APlayerCharacter::APlayerCharacter()
 	CameraComp->bUsePawnControlRotation = false;
 
 	// 인벤토리 컴포넌트 생성
-	//InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+
+	// 문서 컴포넌트 생성 (문서 전용 별도 칸 - 인벤토리 자리 부족으로 분리)
+	DocumentComp = CreateDefaultSubobject<UDocumentComponent>(TEXT("DocumentComponent"));
+
+	// 전투 컴포넌트 생성 (사격/재장전/피격 처리 - 전투 파트)
+	CombatComp = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 
 	//NormalSpeed = 600.0f;
 	//SprintSpeedMultiplier = 1.5f; //3줄다 주석 지우지 마세요!!
 	//SprintSpeed = NormalSpeed * SprintSpeedMultiplier;
 
 	GetCharacterMovement()->MaxWalkSpeed = NormalSpeed;
+
+	// 내장 Crouch(앉기) 시스템 사용 설정. 이동 중 캡슐 리사이즈/천장 체크를
+	// 엔진이 안전하게 처리해줘서 수동 SetCapsuleHalfHeight 방식보다 안정적이다.
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = SitSpeed;
+	GetCharacterMovement()->CrouchedHalfHeight = CrouchedHalfHeight;
 
 	// HP/Stamina 초기값은 Max값으로 시작
 	CurrentHP = MaxHP;
@@ -55,7 +70,7 @@ void APlayerCharacter::BeginPlay()
 	CurrentHP = MaxHP;
 	CurrentStamina = MaxStamina;
 
-	DefaultCapsuleHalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+	
 }
 
 void APlayerCharacter::Tick(float DeltaTime)
@@ -65,6 +80,7 @@ void APlayerCharacter::Tick(float DeltaTime)
 	if (!bIsDead)
 	{
 		UpdateStamina(DeltaTime);
+		UpdateMovementNoise(DeltaTime);
 	}
 
 	UpdateInteractionPrompt();
@@ -93,6 +109,16 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 			{
 				EnhancedInput->BindAction(
 					CharacterController->SitAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnSitPressed
+				);
+			}
+
+			/*if (CharacterController->SitAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->SitAction,
 					ETriggerEvent::Triggered,
 					this,
 					&APlayerCharacter::StartSit
@@ -104,7 +130,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 					this,
 					&APlayerCharacter::StopSit
 				);
-			}
+			}*/
 
 			if (CharacterController->LookAction)
 			{
@@ -164,14 +190,78 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 					&APlayerCharacter::OnInventoryPressed
 				);
 			}
+
+			// J키 (DocumentAction) 바인딩
+			if (CharacterController->DocumentAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->DocumentAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnDocumentPressed
+				);
+			}
+
+			// 1/2/3키 (QuickSlot1/2/3Action) 바인딩
+			if (CharacterController->QuickSlot1Action)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->QuickSlot1Action,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnQuickSlot1Pressed
+				);
+			}
+
+			if (CharacterController->QuickSlot2Action)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->QuickSlot2Action,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnQuickSlot2Pressed
+				);
+			}
+
+			if (CharacterController->QuickSlot3Action)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->QuickSlot3Action,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnQuickSlot3Pressed
+				);
+			}
+
+			// R키 (ReloadAction) 바인딩
+			if (CharacterController->ReloadAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->ReloadAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnReloadPressed
+				);
+			}
+
+			// 마우스 좌클릭 (FireAction) 바인딩
+			if (CharacterController->FireAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->FireAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnFirePressed
+				);
+			}
 		}
 	}
 }
 
 void APlayerCharacter::Move(const FInputActionValue& value)
 {
-	// 은신 중에는 일반 이동 불가 (은신 장소에서 나오는 것만 E로 허용)
-	if (!Controller || bIsHiding) return;
+	// 은신 중이거나 인벤토리 등 UI가 열려 있으면 일반 이동 불가 (은신 장소에서 나오는 것만 E로 허용)
+	if (!Controller || bIsHiding || bIsUIOpen) return;
 
 	const FVector2D MoveInput = value.Get<FVector2D>();
 
@@ -186,7 +276,32 @@ void APlayerCharacter::Move(const FInputActionValue& value)
 	}
 }
 
-void APlayerCharacter::StartSit(const FInputActionValue& value)
+// 앉기 키 입력 -> 앉기/일어서기 토글
+void APlayerCharacter::OnSitPressed(const FInputActionValue& value)
+{
+	ToggleSit();
+}
+
+void APlayerCharacter::ToggleSit()
+{
+	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked || bIsUIOpen)
+	{
+		return;
+	}
+
+	if (bIsSitting)
+	{
+		// UnCrouch()는 엔진이 자체적으로 천장/장애물 체크를 해서, 공간이 없으면
+		// 알아서 크라우치 상태를 유지한다 (수동 스윕 체크보다 안정적).
+		UnCrouch();
+	}
+	else
+	{
+		Crouch();
+	}
+}
+
+/*void APlayerCharacter::StartSit(const FInputActionValue& value)
 {
 	if (value.Get<bool>())
 	{
@@ -197,56 +312,28 @@ void APlayerCharacter::StartSit(const FInputActionValue& value)
 void APlayerCharacter::StopSit(const FInputActionValue& value)
 {
 	StopSitting();
-}
+}*/
 
-void APlayerCharacter::Sit()
+
+// 내장 Crouch 시작 완료 시점. bIsSitting 동기화 + 블루프린트 연출 지점 제공용
+void APlayerCharacter::OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
-	if (bIsSitting) return;
+	Super::OnStartCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 	bIsSitting = true;
-
-	DefaultMaxSpeed = GetCharacterMovement()->MaxWalkSpeed;
-	GetCharacterMovement()->MaxWalkSpeed = SitSpeed;
-
-	GetCapsuleComponent()->SetCapsuleHalfHeight(CrouchedHalfHeight);
 }
 
-void APlayerCharacter::StopSitting()
+// 내장 Crouch 종료(기상) 완료 시점. bIsSitting 동기화 + 블루프린트 연출 지점 제공용
+void APlayerCharacter::OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust)
 {
-	if (!bIsSitting) return;
-
-	// 머리 위가 막혀 있으면 일어서기 불가 -> 앉은 상태 유지
-	const float HeightDiff = DefaultCapsuleHalfHeight - CrouchedHalfHeight;
-	const FVector Start = GetActorLocation();
-	const FVector End = Start + FVector(0.f, 0.f, HeightDiff);
-
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(this);
-
-	FHitResult Hit;
-	const bool bBlocked = GetWorld()->SweepSingleByChannel(
-		Hit,
-		Start,
-		End,
-		FQuat::Identity,
-		ECC_Pawn,
-		GetCapsuleComponent()->GetCollisionShape(),
-		Params
-	);
-
-	if (bBlocked)
-	{
-		// 아직 일어설 공간이 없음. 앉은 상태 유지 (Ctrl/C를 다시 떼는 시점에 재시도됨)
-		return;
-	}
-	
-
+	Super::OnEndCrouch(HalfHeightAdjust, ScaledHalfHeightAdjust);
 	bIsSitting = false;
-	GetCharacterMovement()->MaxWalkSpeed = DefaultMaxSpeed;
-	GetCapsuleComponent()->SetCapsuleHalfHeight(DefaultCapsuleHalfHeight);
 }
 
 void APlayerCharacter::Look(const FInputActionValue& value)
 {
+	// 인벤토리 등 UI가 열려 있으면 카메라 조작 불가
+	if (bIsUIOpen) return;
+	
 	FVector2D LookInput = value.Get<FVector2D>();
 
 	AddControllerYawInput(LookInput.X);
@@ -256,7 +343,7 @@ void APlayerCharacter::Look(const FInputActionValue& value)
 void APlayerCharacter::StartSprint(const FInputActionValue& value)
 {
 	// 은신중이거나 사망 상태, 스테미너 최소치보다 적으면 달리기 자체를 못하게 막음
-	if (bIsDead || bIsHiding || (bUseStaminaSystem && CurrentStamina < MinStaminaToSprint))
+	if (bIsDead || bIsHiding || bIsUIOpen || (bUseStaminaSystem && (bStaminaDepleted || CurrentStamina < MinStaminaToSprint)))
 	{
 		return;
 	}
@@ -293,6 +380,7 @@ void APlayerCharacter::UpdateStamina(float DeltaTime)
 		if (CurrentStamina <= 0.0f)
 		{
 			bIsSprinting = false;
+			bStaminaDepleted = true;
 			if (GetCharacterMovement())
 			{
 				GetCharacterMovement()->MaxWalkSpeed = NormalSpeed;
@@ -304,7 +392,49 @@ void APlayerCharacter::UpdateStamina(float DeltaTime)
 		CurrentStamina = FMath::Clamp(CurrentStamina + StaminaRegenRate * DeltaTime, 0.0f, MaxStamina);
 	}
 
+	if (bStaminaDepleted && CurrentStamina >= MaxStamina)
+	{
+		bStaminaDepleted = false;
+	}
+
 	OnStaminaChanged(CurrentStamina, MaxStamina);
+}
+
+// 이동 상태(앉기/걷기/뛰기)에 따라 다른 크기/빈도로 소음을 발생시킨다 (AI 청각 감지용).
+// 앉아서 이동할 때는 MakeNoise 자체를 호출하지 않아 사실상 소리/범위가 없다.
+void APlayerCharacter::UpdateMovementNoise(float DeltaTime)
+{
+	if (bIsDead || bIsHiding || bIsSitting)
+	{
+		NoiseTimer = 0.0f;
+		return;
+	}
+
+	const float Speed = GetVelocity().Size2D();
+	if (Speed < 10.0f)
+	{
+		NoiseTimer = 0.0f;
+		return;
+	}
+
+	const float Loudness = bIsSprinting ? SprintNoiseLoudness : WalkNoiseLoudness;
+	const float Interval = bIsSprinting ? SprintNoiseInterval : WalkNoiseInterval;
+
+	NoiseTimer += DeltaTime;
+	if (NoiseTimer >= Interval)
+	{
+		NoiseTimer = 0.0f;
+
+		// Loudness가 클수록 AI Hearing Sense가 감지하는 범위도 넓어짐 (AISenseConfig_Hearing 설정 기준)
+		UAISense_Hearing::ReportNoiseEvent(
+			GetWorld(),
+			GetActorLocation(),
+			Loudness,
+			this,
+			0.0f,      // MaxRange (0이면 AI의 Hearing Sense Config에 설정된 HearingRange를 그대로 사용)
+			NAME_None
+		);
+	}
 }
 
 float APlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
@@ -331,7 +461,7 @@ float APlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 
 void APlayerCharacter::Heal(float HealAmount)
 {
-	// 사망 / 음신 중에는 회복 불가
+	// 사망 / 은신 중에는 회복 불가
 	if (bIsDead || bIsHiding || HealAmount <= 0.0f) return;
 
 	CurrentHP = FMath::Clamp(CurrentHP + HealAmount, 0.0f, MaxHP);
@@ -370,11 +500,15 @@ void APlayerCharacter::Die()
 		ResetHidingState();
 	}
 
-	// 앉기 상태 정리
-	bIsSitting = false;
+	// 앉기 상태 정리 (내장 Crouch 강제 해제. OnEndCrouch에서 bIsSitting도 같이 정리됨)
+	if (bIsCrouched)
+	{
+		UnCrouch();
+	}
 
 	// 스프린트 상태 정리
 	bIsSprinting = false;
+	bStaminaDepleted = false;
 
 	// 손전등 강제 소등
 	if (bFlashlightOn)
@@ -385,6 +519,7 @@ void APlayerCharacter::Die()
 
 	// 인벤토리 강제로 닫음
 	CloseInventory();
+	CloseDocument();
 
 	// 상호작용 연타 방지용 값 정리
 	LastInteractActor.Reset();
@@ -470,6 +605,58 @@ void APlayerCharacter::OnInventoryPressed(const FInputActionValue& value)
 	ToggleInventory();
 }
 
+// J키 입력 -> 문서창 토글
+void APlayerCharacter::OnDocumentPressed(const FInputActionValue& value)
+{
+	ToggleDocument();
+}
+
+// 1/2/3 입력 -> 해당 인덱스의 퀵슬롯 아이템 사용
+void APlayerCharacter::OnQuickSlot1Pressed(const FInputActionValue& value)
+{
+	UseQuickSlot(0);
+}
+
+void APlayerCharacter::OnQuickSlot2Pressed(const FInputActionValue& value)
+{
+	UseQuickSlot(1);
+}
+
+void APlayerCharacter::OnQuickSlot3Pressed(const FInputActionValue& value)
+{
+	UseQuickSlot(2);
+}
+
+// R키 -> 전투 파트 CombatComponent의 ReloadWeapon 호출
+void APlayerCharacter::OnReloadPressed(const FInputActionValue& value)
+{
+	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked || bIsUIOpen)
+	{
+		return;
+	}
+
+	if (CombatComp)
+	{
+		CombatComp->ReloadWeapon();
+	}
+}
+
+
+// 마우스 좌클릭 -> 전투 파트 CombatComponent의 PrimaryAttack 호출
+void APlayerCharacter::OnFirePressed(const FInputActionValue& value)
+{
+	// 사망 / 은신(연출 포함) / 입력 잠금 / 인벤토리 등 UI Open 상태면 무시
+	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked || bIsUIOpen)
+	{
+		return;
+	}
+
+	if (CombatComp)
+	{
+		CombatComp->PrimaryAttack();
+	}
+}
+
 void APlayerCharacter::AcquireFlashlight()
 {
 	bHasFlashlight = true;
@@ -484,7 +671,7 @@ void APlayerCharacter::ToggleFlashlight()
 	}
 
 	// 사망 / 은신 중 / 입력 잠금(엔딩·컷씬 등) -> F 무시
-	if (bIsDead || bIsHiding || bIsInputLocked)
+	if (bIsDead || bIsHiding || bIsInputLocked || bIsUIOpen)
 	{
 		return;
 	}
@@ -533,6 +720,52 @@ void APlayerCharacter::CloseInventory()
 	bIsInventoryOpen = false;
 	SetUIOpen(false);
 	OnInventoryToggled(false);
+}
+
+// J 입력 -> 문서창 토글. 실제 문서 위젯 표시/숨김은 문서 파트에서
+// OnDocumentToggled 이벤트를 받아 처리한다. (Player 쪽은 상태 관리 + 입력 차단만 담당)
+void APlayerCharacter::ToggleDocument()
+{
+	// 사망 / 은신(연출포함) / 입력 잠금 상태면 무시
+	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked)
+	{
+		return;
+	}
+
+	bIsDocumentOpen = !bIsDocumentOpen;
+
+	// 문서창이 열리면 일반 상호작용 프롬프트도 같이 숨겨야 하므로 UI 오픈 플래그를 재사용
+	SetUIOpen(bIsDocumentOpen);
+
+	OnDocumentToggled(bIsDocumentOpen);
+}
+
+// 문서 UI 쪽(ESC, X버튼 등)에서 호출. 이미 닫혀 있으면 아무 동작 안 함.
+void APlayerCharacter::CloseDocument()
+{
+	if (!bIsDocumentOpen)
+	{
+		return;
+	}
+
+	bIsDocumentOpen = false;
+	SetUIOpen(false);
+	OnDocumentToggled(false);
+}
+
+// 1/2/3 입력 -> 해당 인덱스의 퀵슬롯 아이템 사용
+// TODO: InventoryComponent에 실제로 있는 함수 이름/시그니처에 맞게 아래 내부 구현을 교체해야 한다.
+void APlayerCharacter::UseQuickSlot(int32 SlotIndex)
+{
+	if (!CanPerformAction() || bIsUIOpen)
+	{
+		return;
+	}
+
+	if (InventoryComp)
+	{
+		//InventoryComp->UseQuickSlot(SlotIndex);
+	}
 }
 
 // 카메라 전방으로 스피어 트레이스 쏴서 맞은 액터 확인
