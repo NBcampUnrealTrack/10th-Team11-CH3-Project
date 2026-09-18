@@ -1,5 +1,6 @@
 #include "InventoryComponent.h"
 #include "PlayerCharacter.h"
+#include "Engine/DataTable.h"
 
 // Sets default values for this component's properties
 UInventoryComponent::UInventoryComponent()
@@ -8,6 +9,9 @@ UInventoryComponent::UInventoryComponent()
 
 	//처음에는 장착된 무기가 없음
 	EquippedWeaponID = NAME_None;
+
+	// 퀵슬롯 3칸 생성
+	QuickSlots.SetNum(3);
 }
 
 // Called when the game starts
@@ -390,7 +394,10 @@ bool UInventoryComponent::HasItem(FName ItemID) const
 // 진행에 필요한 보호 아이템인지 확인
 bool UInventoryComponent::IsProtectedItem(FName ItemID) const
 {
-	return ItemID == FName(TEXT("Key")) || ItemID == FName(TEXT("Painting"));
+	return ItemID == FName(TEXT("CardKeyA")) ||
+		ItemID == FName(TEXT("CardKeyB")) ||
+		ItemID == FName(TEXT("MasterCardKey")) ||
+		ItemID == FName(TEXT("Painting"));
 }
 
 // 해당 아이템을 인벤토리에서 버릴 수 있는지 확인
@@ -463,24 +470,13 @@ bool UInventoryComponent::UseItem(FName ItemID){
 		return false;
 	}
 
-	// Player가 죽어 있으면 아이템 사용 불가
-	if (Player->IsDead()){
+	// 사망, 은신, 은신 전환 중에는 아이템 사용 불가
+	if (!Player->CanPerformAction()){
 
-		UE_LOG(LogTemp, Warning, TEXT("Cannot use item: Player is dead"));
-
-		return false;
-	}
-
-	// Player가 은신 중이면 아이템 사용 불가
-	// Player 담당자가 IsHiding()을 추가하면 주석 해제
-	/*
-	if (Player->IsHiding()){
-
-		UE_LOG(LogTemp, Warning, TEXT("Cannot use item while hiding"));
+		UE_LOG(LogTemp, Warning, TEXT("Cannot use item: Player cannot perform action"));
 
 		return false;
 	}
-	*/
 
 	// Grid Inventory에서 사용할 아이템 찾기
 	for (const FInventorySlot& Slot : InventorySlots){
@@ -837,4 +833,293 @@ bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
 const TArray<FInventorySlot>& UInventoryComponent::GetInventorySlots() const
 {
 	return InventorySlots;
+}
+
+// 해당 아이템을 제작할 수 있는지 확인
+bool UInventoryComponent::CanCraftItem(FName ResultItemID) const
+{
+	// HandGunAmmo 제작
+	// 화약이 2개 이상 있으면 제작 가능
+	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
+
+		return GetItemQuantity(FName(TEXT("Gunpowder"))) >= 2;
+	}
+
+	// MasterCardKey 제작
+	// CardKeyA와 CardKeyB를 각각 1개 이상 가지고 있어야 제작 가능
+	if (ResultItemID == FName(TEXT("MasterCardKey"))){
+
+		return GetItemQuantity(FName(TEXT("CardKeyA"))) >= 1 && GetItemQuantity(FName(TEXT("CardKeyB"))) >= 1;
+	}
+
+	// 등록되지 않은 제작 아이템
+	return false;
+}
+
+// 재료를 소비하고 아이템을 실제로 제작
+bool UInventoryComponent::CraftItem(FName ResultItemID){
+
+	// 제작 가능한 재료를 가지고 있는지 확인
+	if (!CanCraftItem(ResultItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Not enough materials. ResultItemID = %s"), *ResultItemID.ToString());
+
+		return false;
+	}
+
+	// ItemDataTable이 연결되어 있는지 확인
+	if (!ItemDataTable){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: ItemDataTable is not set"));
+
+		return false;
+	}
+
+	// DT_ItemData에서 제작 결과 아이템 정보 가져오기
+	const FItemData* ResultItemData = ItemDataTable->FindRow<FItemData>(ResultItemID, TEXT("CraftItem"));
+
+	// DataTable에 해당 아이템이 없는 경우
+	if (!ResultItemData){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Item data not found. ResultItemID = %s"), *ResultItemID.ToString());
+
+		return false;
+	}
+
+	// 결과 아이템이 인벤토리에 들어갈 수 있는지 먼저 확인
+	if (!CanAddItem(*ResultItemData)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Inventory is full"));
+
+		return false;
+	}
+
+	// HandGunAmmo 제작
+	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
+
+		// 화약 2개 소비
+		if (!RemoveItem(FName(TEXT("Gunpowder")), 2)){
+
+			return false;
+		}
+
+		// 제작된 탄약 추가
+		if (!AddItem(*ResultItemData)){
+
+			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add HandGunAmmo"));
+
+			return false;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("Craft success: HandGunAmmo"));
+
+		return true;
+	}
+
+	// MasterCardKey 제작
+	if (ResultItemID == FName(TEXT("MasterCardKey"))){
+
+		// CardKeyA 1개 소비
+		if (!ConsumeKeyItem(FName(TEXT("CardKeyA")), 1)){
+
+			return false;
+		}
+
+		// CardKeyB 1개 소비
+		if (!ConsumeKeyItem(FName(TEXT("CardKeyB")), 1)){
+
+			return false;
+		}
+
+		// 제작된 MasterCardKey 추가
+		if (!AddItem(*ResultItemData)){
+
+			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add MasterCardKey"));
+
+			return false;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("Craft success: MasterCardKey"));
+
+		return true;
+	}
+
+	return false;
+}
+
+// 아이템을 지정한 퀵슬롯에 등록
+bool UInventoryComponent::SetQuickSlot(int32 QuickSlotIndex, FName ItemID){
+
+	// 퀵슬롯 번호가 0~2 범위를 벗어나면 실패
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Invalid quick slot index"));
+		return false;
+	}
+
+	// 실제 인벤토리에 없는 아이템이면 등록 불가
+	if (!HasItem(ItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Item not found. ItemID = %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// 인벤토리에서 해당 아이템의 정보를 찾음
+	const FInventorySlot* FoundSlot = nullptr;
+
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		if (!Slot.bIsEmpty && Slot.ItemData.ItemID == ItemID){
+
+			FoundSlot = &Slot;
+			break;
+		}
+	}
+
+	if (!FoundSlot){
+
+		return false;
+	}
+
+	// 무기 또는 소비 아이템만 퀵슬롯 등록 가능
+	if (FoundSlot->ItemData.ItemType != EItemType::Weapon && FoundSlot->ItemData.ItemType != EItemType::Consumable){
+
+		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Item cannot be registered. ItemID = %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// 퀵슬롯에 ItemID 저장
+	QuickSlots[QuickSlotIndex] = ItemID;
+
+	// 퀵슬롯이 변경되었다고 UI에 알림
+	OnQuickSlotChanged.Broadcast(QuickSlotIndex, ItemID);
+
+	UE_LOG(LogTemp, Log,
+		TEXT("QuickSlot %d = %s"),
+		QuickSlotIndex + 1,
+		*ItemID.ToString());
+
+	return true;
+}
+
+// 지정한 퀵슬롯에 등록된 아이템 ID 반환
+FName UInventoryComponent::GetQuickSlotItem(int32 QuickSlotIndex) const{
+
+	// 잘못된 퀵슬롯 번호면 None 반환
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		return NAME_None;
+	}
+
+	// 해당 퀵슬롯에 저장된 아이템 ID 반환
+	return QuickSlots[QuickSlotIndex];
+}
+
+// 지정한 퀵슬롯에 등록된 아이템 사용
+bool UInventoryComponent::UseQuickSlot(int32 QuickSlotIndex){
+
+	// 잘못된 퀵슬롯 번호인지 확인
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: Invalid quick slot index"));
+
+		return false;
+	}
+
+	// 퀵슬롯에 등록된 아이템 ID 가져오기
+	const FName ItemID = QuickSlots[QuickSlotIndex];
+
+	// 퀵슬롯이 비어있으면 사용 불가
+	if (ItemID.IsNone()){
+
+		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: QuickSlot %d is empty"), QuickSlotIndex + 1);
+
+		return false;
+	}
+
+	// 등록된 아이템을 현재 가지고 있는지 확인
+	if (!HasItem(ItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: Item not found. ItemID = %s"), *ItemID.ToString());
+
+		// 더 이상 가지고 있지 않으면 퀵슬롯도 비워줌
+		QuickSlots[QuickSlotIndex] = NAME_None;
+
+		// 자동으로 비워졌다고 UI에 알림
+		OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+
+		return false;
+	}
+
+	// 인벤토리에서 아이템 정보 찾기
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		if (!Slot.bIsEmpty && Slot.ItemData.ItemID == ItemID){
+
+			// 소비 아이템이면 기존 UseItem 사용
+			if (Slot.ItemData.ItemType == EItemType::Consumable){
+
+				// 기존 아이템 사용 함수 호출
+				const bool bUsed = UseItem(ItemID);
+
+				// 아이템 사용에 실패했다면 종료
+				if (!bUsed){
+
+					return false;
+				}
+
+				// 사용 후 해당 아이템을 더 이상 가지고 있지 않으면
+				// 퀵슬롯에서도 자동으로 제거
+				if (!HasItem(ItemID)){
+
+					QuickSlots[QuickSlotIndex] = NAME_None;
+
+					// 퀵슬롯이 비워졌다고 UI에 알림
+					OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+				}
+
+				return true;
+			}
+
+			// 무기면 기존 EquipWeapon 사용
+			if (Slot.ItemData.ItemType == EItemType::Weapon){
+
+				return EquipWeapon(ItemID);
+			}
+
+			return false;
+		}
+	}
+
+	return false;
+}
+
+// 지정한 퀵슬롯의 등록 아이템 해제
+bool UInventoryComponent::ClearQuickSlot(int32 QuickSlotIndex){
+
+	// 잘못된 퀵슬롯 번호인지 확인
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("ClearQuickSlot failed: Invalid quick slot index"));
+
+		return false;
+	}
+
+	// 이미 비어있는 퀵슬롯이면 해제할 필요 없음
+	if (QuickSlots[QuickSlotIndex].IsNone()){
+
+		return false;
+	}
+
+	// 퀵슬롯 비우기
+	QuickSlots[QuickSlotIndex] = NAME_None;
+
+	// 퀵슬롯이 비워졌다고 UI에 알림
+	OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+
+	UE_LOG(LogTemp, Log, TEXT("QuickSlot %d cleared"), QuickSlotIndex + 1);
+
+	return true;
 }

@@ -3,19 +3,34 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "ItemData.h"
+#include "PlayerInterface.h"
 #include "VendingMachine.generated.h"
 
 class UInventoryComponent;
 class UStaticMeshComponent;
 class UDataTable;
 
+// 자판기와 상호작용했을 때 UI에게 알려주는 이벤트
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVendingMachineOpened, AVendingMachine*, VendingMachine);
+
 UCLASS()
-class DEAD_HOSPITAL_API AVendingMachine : public AActor
+class DEAD_HOSPITAL_API AVendingMachine : public AActor, public IPlayerInterface
 {
 	GENERATED_BODY()
 
 public:
 	AVendingMachine();
+
+	// PlayerInterface 상호작용
+	virtual void Interact_Implementation(AActor* Interactor) override;
+	virtual bool CanInteract_Implementation(AActor* Interactor) const override;
+	virtual bool IsAllowedWhileHiding_Implementation() const override;
+	virtual FText GetInteractionText_Implementation(AActor* Interactor) const override;
+	virtual void ForceRelease_Implementation(AActor* Interactor) override;
+
+	// 자판기 UI를 열어야 할 때 발생하는 이벤트
+	UPROPERTY(BlueprintAssignable, Category = "Shop")
+	FOnVendingMachineOpened OnVendingMachineOpened;
 
 	// 자판기에서 판매하는 상품 목록
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shop")
