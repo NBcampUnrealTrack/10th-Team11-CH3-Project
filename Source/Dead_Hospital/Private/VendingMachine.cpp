@@ -12,6 +12,15 @@ AVendingMachine::AVendingMachine()
 
 	// 자판기 Mesh를 이 Actor의 Root Component로 사용
 	RootComponent = VendingMachineMesh;
+
+	// Player의 상호작용 Sweep이 자판기를 감지할 수 있도록 Query 충돌 활성화
+	VendingMachineMesh->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+	// 기본적으로 다른 충돌 채널은 무시
+	VendingMachineMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+
+	// Player가 상호작용 검사에 사용하는 Visibility 채널에는 반응
+	VendingMachineMesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 }
 
 void AVendingMachine::BeginPlay()
@@ -22,6 +31,51 @@ void AVendingMachine::BeginPlay()
 	if (ItemDataTable){
 		LoadShopItemsFromTable();
 	}
+}
+
+// 플레이어가 자판기와 상호작용
+void AVendingMachine::Interact_Implementation(AActor* Interactor){
+
+	if (!Interactor){
+		return;
+	}
+
+	// UI에게 자판기 상호작용이 발생했음을 알림
+	OnVendingMachineOpened.Broadcast(this);
+
+	UE_LOG(LogTemp, Warning, TEXT("VendingMachine Interacted"));
+}
+
+
+// 현재 자판기와 상호작용할 수 있는지 확인
+bool AVendingMachine::CanInteract_Implementation(AActor* Interactor) const{
+	if (!Interactor){
+		return false;
+	}
+
+	return true;
+}
+
+
+// 은신 중에는 자판기를 사용할 수 없음
+bool AVendingMachine::IsAllowedWhileHiding_Implementation() const{
+	return false;
+}
+
+
+// 플레이어 화면에 표시할 상호작용 문구
+FText AVendingMachine::GetInteractionText_Implementation(AActor* Interactor) const{
+	return NSLOCTEXT(
+		"VendingMachine",
+		"UseVendingMachine",
+		"Use vending machine"
+	);
+}
+
+
+// 강제로 상호작용을 해제할 때 호출
+void AVendingMachine::ForceRelease_Implementation(AActor* Interactor){
+	// 실제 자판기 UI 닫기 처리는 UI 연동 단계에서 연결
 }
 
 // ShopItems의 Row Name을 이용해 DT_ItemData에서 상품 데이터를 불러옴

@@ -15,6 +15,15 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 	int32, AcquiredQuantity
 );
 
+// 퀵슬롯 내용이 변경되었을 때 UI에 알려주는 이벤트
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FOnQuickSlotChanged,
+	int32, QuickSlotIndex,
+	FName, ItemID
+);
+
+class UDataTable;
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class DEAD_HOSPITAL_API UInventoryComponent : public UActorComponent
 {
@@ -30,6 +39,10 @@ public:
 	// 아이템 획득에 성공했을 때 발생하는 이벤트
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnItemAcquired OnItemAcquired;
+
+	// 퀵슬롯이 변경되면 UI에서 받아서 갱신
+	UPROPERTY(BlueprintAssignable, Category = "QuickSlot")
+	FOnQuickSlotChanged OnQuickSlotChanged;
 
 	// Grid Inventory용 슬롯 배열
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
@@ -120,11 +133,52 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	bool HasEquippedWeapon() const;
 
+	// 필요한 재료를 가지고 있는지 확인
+	UFUNCTION(BlueprintCallable, Category = "Crafting")
+	bool CanCraftItem(FName ResultItemID) const;
+
+	// 재료를 소비하고 아이템을 실제로 제작
+	UFUNCTION(BlueprintCallable, Category = "Crafting")
+	bool CraftItem(FName ResultItemID);
+
+	// 아이템을 지정한 퀵슬롯에 등록
+	// QuickSlotIndex : 0 = 1번키, 1 = 2번키, 2 = 3번키
+	UFUNCTION(BlueprintCallable, Category = "QuickSlot")
+	bool SetQuickSlot(int32 QuickSlotIndex, FName ItemID);
+
+	// 지정한 퀵슬롯에 등록된 아이템 ID 반환
+	// QuickSlotIndex : 0 = 1번키, 1 = 2번키, 2 = 3번키
+	UFUNCTION(BlueprintPure, Category = "QuickSlot")
+	FName GetQuickSlotItem(int32 QuickSlotIndex) const;
+
+	// 지정한 퀵슬롯에 등록된 아이템 사용
+	// 소비 아이템이면 사용하고, 무기면 장착
+	UFUNCTION(BlueprintCallable, Category = "QuickSlot")
+	bool UseQuickSlot(int32 QuickSlotIndex);
+
+	// 지정한 퀵슬롯의 등록 아이템 해제
+	UFUNCTION(BlueprintCallable, Category = "QuickSlot")
+	bool ClearQuickSlot(int32 QuickSlotIndex);
+
 protected:
 	virtual void BeginPlay() override;
+
+	// 아이템 정보를 가져올 DataTable
+	// 에디터에서 DT_ItemData를 연결해서 사용
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Crafting")
+	UDataTable* ItemDataTable;
 
 private:
 
 	//현재 장착 중인 무기 ID
 	FName EquippedWeaponID;
+
+	// 퀵슬롯에 등록된 아이템 ID
+	// 0번 = 키보드 1번
+	// 1번 = 키보드 2번
+	// 2번 = 키보드 3번
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "QuickSlot",
+		meta = (AllowPrivateAccess = "true"))
+	TArray<FName> QuickSlots;
+
 };
