@@ -42,6 +42,28 @@ public:
 	// I키 인벤토리용 액션
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* InventoryAction;
+	
+	// J키 문서창용 액션
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* DocumentAction;
+
+	// 1/2/3키 퀵슬롯용 액션
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* QuickSlot1Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* QuickSlot2Action;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* QuickSlot3Action;
+
+	// R키 재장전용 액션
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* ReloadAction;
+
+	// 마우스 좌클릭 총발사(전투)용 액션
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* FireAction;
 
 	virtual void BeginPlay() override;
 	

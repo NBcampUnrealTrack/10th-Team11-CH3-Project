@@ -6,7 +6,9 @@
 
 class USpringArmComponent;
 class UCameraComponent;
-//class UInventoryComponent;
+class UInventoryComponent;
+class UDocumentComponent;
+class UCombatComponent;
 struct FInputActionValue;
 
 UCLASS()
@@ -74,6 +76,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void CloseInventory();
 
+	// 문서창이 열려 있는지 확인 (UI/다른 시스템에서 조회용)
+	UFUNCTION(BlueprintCallable, Category = "Document")
+	bool IsDocumentOpen() const { return bIsDocumentOpen; }
+
+	// 문서 UI 쪽(ESC, X버튼 등)에서 호출. 이미 닫혀 있으면 아무 동작 안 함.
+	// 상태를 false로 바꾸고 OnDocumentToggled(false)를 발생시킨다.
+	UFUNCTION(BlueprintCallable, Category = "Document")
+	void CloseDocument();
+
 	// Ending, 컷씬, 강제 연출 등 F 입력 자체를 막아야 할 때 외부에서 호출
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetInputLocked(bool bNewLocked) { bIsInputLocked = bNewLocked; }
@@ -90,7 +101,7 @@ public:
 	// 공격/아이템 사용 등 다른 핵션 시스템에서
 	// 함수 맨 앞에 "if (!CanPerformAction()) return;" 형태로 가져다 쓰면 된다
 	UFUNCTION(BlueprintCallable, Category = "Action")
-	bool CanPerformAction() const { return !bIsDead && !bIsHiding && !bIsHideTransitioning; }
+	bool CanPerformAction() const { return !bIsDead && !bIsHiding && !bIsHideTransitioning && !bIsUIOpen; }
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	float GetEyeHeight() const { return EyeHeight; }
@@ -124,18 +135,26 @@ protected:
 	UCameraComponent* CameraComp;
 
 	// Inventory
-	//UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "Inventory")
-	//UInventoryComponent* InventoryComp;
+	UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "Inventory")
+	UInventoryComponent* InventoryComp;
+
+	// Document ( 문서 전용 별도 칸 - 인벤토리 자리 부족으로 분리)
+	UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "Document")
+	UDocumentComponent* DocumentComp;
+
+	// Combat 사격/재장전/피격 처리 등은 이 컴포넌트 내부에서 담당
+	UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "Combat")
+	UCombatComponent* CombatComp;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera")
 	float EyeHeight = 64.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
-	float NormalSpeed = 180.0f; //걷기
+	float NormalSpeed = 240.0f; //걷기
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	//float SprintSpeedMultiplier; //주석뺴지 마세요!!
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
-	float SprintSpeed = 240.0f; //뛰기
+	float SprintSpeed = 400.0f; //뛰기
 
 	// 연타 방지용
 	TWeakObjectPtr<AActor> LastInteractActor;
@@ -191,6 +210,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Inventory")
 	bool bIsInventoryOpen = false;
 
+	// J키로 문서창이 연리 있는지 여부
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Document")
+	bool bIsDocumentOpen = false;
+
 	// Ending, 컷씬 등 외부 연출이 강제로 모든 입력을 막을 때 true
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
 	bool bIsInputLocked = false;
@@ -202,7 +225,6 @@ protected:
 	// 지금 들어가 있는 HidingSpot(Cabinet, Desk 등).숨어 있지 않을 때는 비어 있음.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Hiding")
 	TWeakObjectPtr<AActor> CurrentHidingSpot;
-
 
 	// 스테미너
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stamina")
@@ -227,7 +249,25 @@ protected:
 	float MinStaminaToSprint = 5.0f;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stamina")
+	bool bStaminaDepleted = false;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stamina")
 	bool bIsSprinting = false;
+
+	// 소음(AI 청각 감지용) - 앉기는 소리 / 범위 없음, 걷기 / 뛰기는 크기와 간격을 다르게 적용
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
+	float WalkNoiseLoudness = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
+	float SprintNoiseLoudness = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
+	float WalkNoiseInterval = 0.5f; // 발소리 간격(초)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
+	float SprintNoiseInterval = 0.3f;
+
+	float NoiseTimer = 0.0f;
 
 	// Jump 기능 미사용 (이번 게임에서 사용 안 함)
 	virtual bool CanJumpInternal_Implementation() const override { return false;  }
@@ -236,13 +276,23 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
+	// 내장 Crouch 시스템 훅. 앉기/서기 완료 시점에 상태 동기화(bIsSitting)와
+	// 블루프린트 연출 붙일 지점을 제공한다. 이동 중 캡슐 리사이즈/천장 체크를
+	// 엔진이 안전하게 처리해주므로 수동 SetCapsuleHalfHeight 방식보다 안정적이다.
+	// ACharacter의 평범한 virtual 함수라 _Implementation 없이 그대로 오버라이드한다.
+	virtual void OnStartCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+	virtual void OnEndCrouch(float HalfHeightAdjust, float ScaledHalfHeightAdjust) override;
+
 
 	UFUNCTION()
 	void Move(const FInputActionValue& value);
+	// 앉기 키 입력 핸들러 (누를 때마다 앉기/일어서기 토글)
 	UFUNCTION()
+	void OnSitPressed(const FInputActionValue& value);
+	/*UFUNCTION()
 	void StartSit(const FInputActionValue& value);
 	UFUNCTION()
-	void StopSit(const FInputActionValue& value);
+	void StopSit(const FInputActionValue& value);*/
 	UFUNCTION()
 	void Look(const FInputActionValue& value);
 	UFUNCTION()
@@ -262,8 +312,31 @@ protected:
 	UFUNCTION()
 	void OnInventoryPressed(const FInputActionValue& value);
 
-	void Sit();
-	void StopSitting();
+	// J키 입력 핸들러 (문서창 토글)
+	UFUNCTION()
+	void OnDocumentPressed(const FInputActionValue& value);
+
+	// 1/2/3 퀵슬롯 입력 핸들러 
+	UFUNCTION()
+	void OnQuickSlot1Pressed(const FInputActionValue& value);
+	UFUNCTION()
+	void OnQuickSlot2Pressed(const FInputActionValue& value);
+	UFUNCTION()
+	void OnQuickSlot3Pressed(const FInputActionValue& value);
+
+	// R키 입력 핸들러 -> 전투 파트 CombatComponent의 ReloadWeapon 호출
+	UFUNCTION()
+	void OnReloadPressed(const FInputActionValue& value);
+
+	// 마우스 우클릭 입력 핸들러 -> 전투 파트 CombatComponent의 PrimaryAttack 호출
+	UFUNCTION()
+	void OnFirePressed(const FInputActionValue& value);
+
+	// Sit 키 입력 -> 앉기/일어서기 토글. 사망/은신/입력잠금 상태면 무시된다
+	void ToggleSit();
+
+	//void Sit();
+	//void StopSitting();
 
 	// 근처 아이템 줍기 탐색 + Interact 호출
 	void TryInteract();
@@ -273,6 +346,12 @@ protected:
 
 	// I 입력 -> 인벤토리 토글. 실제 UI 표시는 인벤토리 파트에서 OnInventoryToggled를 받아 처리한다
 	void ToggleInventory();
+
+	// J 입력 -> 문서창 토글. 실제 UI 표시는 문서 파트에서 OnDocumentToggled를 받아 처리한다
+	void ToggleDocument();
+
+	// 1/2/3 입력 -> 해당 인덱스의 퀵슬롯 아이템 사용
+	void UseQuickSlot(int32 SlotIndex);
 
 	// 지금 은신 중인 HidingSpot Actor가 Destroy될 때 호출됨 (SetHiding에서 구독)
 	UFUNCTION()
@@ -287,6 +366,9 @@ protected:
 
 	//  매 프레임 스테미너 소모/ 회복 처리
 	void UpdateStamina(float DeltaTime);
+
+	// 매 프레임 이동 상태(앉기/걷기/뛰기)에 따른 소음 처리 (AI 청각 감지용)
+	void UpdateMovementNoise(float DeltaTime);
 
 	// 사망 처리 (HP 0 이하일 때 1회 호출)
 	void Die();
@@ -316,6 +398,11 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Inventory")
 	void OnInventoryToggled(bool bNewOpen);
 
+	// 문서창 열림/닫힘 상태가 바뀔 떄 호출됨. 문서 파트에서 이 이벤트를 받아
+	// 실제 문서 위젯을 열고 닫으면 된다.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Document")
+	void OnDocumentToggled(bool bNewOpen);
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
 	bool bIsSitting = false;
@@ -325,10 +412,10 @@ protected:
 
 	// 앉기 시 Capsule 반높이
 	UPROPERTY(EditAnywhere, Category = "Movement")
-	float CrouchedHalfHeight = 55.0f;
+	float CrouchedHalfHeight = 30.0f;
 
 	// BeginPlay에서 캐싱되는 기본(서 있을 때) Capsule 반높이
-	float DefaultCapsuleHalfHeight = 0.0f;
+	//float DefaultCapsuleHalfHeight = 0.0f;
 
-	float DefaultMaxSpeed;
+	//float DefaultMaxSpeed;
 };
