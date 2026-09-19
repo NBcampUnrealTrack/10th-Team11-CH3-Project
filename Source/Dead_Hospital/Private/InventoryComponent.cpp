@@ -1,6 +1,7 @@
 #include "InventoryComponent.h"
 #include "PlayerCharacter.h"
 #include "Engine/DataTable.h"
+#include "CombatComponent.h"
 
 // Sets default values for this component's properties
 UInventoryComponent::UInventoryComponent()
@@ -207,7 +208,7 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 
 			// 장착 중인 무기를 전부 제거했다면 장착 상태도 해제
 			if (EquippedWeaponID == ItemID && GetItemQuantity(ItemID) <= 0){
-				EquippedWeaponID = NAME_None;
+				UnequipWeapon();
 			}
 
 			UE_LOG(LogTemp, Warning, TEXT("Item removed: %s / Amount: %d"), *ItemID.ToString(), RemoveQuantity);
@@ -601,6 +602,13 @@ bool UInventoryComponent::EquipWeapon(FName ItemID){
 
 		// 장착 무기가 변경되었음을 알림
 		OnInventoryChanged.Broadcast();
+
+		// CombatComponent에 무기 변경을 알려 UI 갱신
+		if (UCombatComponent* CombatComp = GetOwner()->FindComponentByClass<UCombatComponent>()){
+
+			CombatComp->NotifyWeaponChanged();
+		}
+
 		return true;
 	}
 
@@ -612,7 +620,9 @@ bool UInventoryComponent::EquipWeapon(FName ItemID){
 
 // 무기 해제 함수
 void UInventoryComponent::UnequipWeapon(){
+
 	if (EquippedWeaponID.IsNone()){
+
 		return;
 	}
 
@@ -622,6 +632,12 @@ void UInventoryComponent::UnequipWeapon(){
 
 	// 장착 무기가 변경되었음을 알림
 	OnInventoryChanged.Broadcast();
+
+	// CombatComponent에 무기 해제를 알려 UI 갱신
+	if (UCombatComponent* CombatComp = GetOwner()->FindComponentByClass<UCombatComponent>()){
+
+		CombatComp->NotifyWeaponChanged();
+	}
 }
 
 // 해당 아이템이 현재 장착 중인지 확인
