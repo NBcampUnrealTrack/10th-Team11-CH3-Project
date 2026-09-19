@@ -4,6 +4,8 @@
 #include "Engine/DataTable.h"
 #include "ItemData.generated.h"
 
+class UTexture2D;
+
 UENUM(BlueprintType)
 enum class EItemType : uint8
 {
@@ -34,6 +36,10 @@ struct FItemData : public FTableRowBase
 	// 화면에 표시할 아이템 이름
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FText ItemName;
+
+	// UI에 표시할 아이템 아이콘
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
+	UTexture2D* Icon = nullptr;
 
 	// 아이템 종류
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
