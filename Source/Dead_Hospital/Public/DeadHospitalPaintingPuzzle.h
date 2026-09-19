@@ -58,9 +58,9 @@ protected:
 
 	// EventId는 "그림을 이미 떼어냈다"를 체크포인트에서 기억할 이름입니다.
 
-	/** DT_ItemData와 팀원 Inventory에서 사용하는 그림 뒤 필수 아이템의 최종 ID인 "Key"입니다. */
+	/** 그림 퍼즐 완료 후 획득하는 카드키의 ItemID입니다. */
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Painting Puzzle")
-	FName HiddenKeyItemId = TEXT("Key");
+	FName HiddenKeyItemId = TEXT("CardKeyA");
 
 	/** Key를 실제로 획득했을 때 완료되는 PZ-02의 고유 Puzzle ID입니다. */
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Painting Puzzle")

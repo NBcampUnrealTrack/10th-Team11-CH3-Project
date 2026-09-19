@@ -78,6 +78,16 @@ public:
     UFUNCTION(BlueprintPure, Category = "Combat|UI")
     int32 GetCurrentAmmo() const;   // 총알 갯수
 
+    // 지정한 무기의 현재 탄창 수를 반환합니다.
+    // 체크포인트에서 HandGun / Magnum 탄창 상태를 저장할 때 사용합니다.
+    UFUNCTION(BlueprintPure, Category = "Combat|Ammo")
+    int32 GetWeaponCurrentAmmo(FName WeaponID) const;
+
+    // 지정한 무기의 현재 탄창 수를 설정합니다.
+    // 체크포인트에서 저장된 탄창 상태를 복원할 때 사용합니다.
+    UFUNCTION(BlueprintCallable, Category = "Combat|Ammo")
+    bool SetWeaponCurrentAmmo(FName WeaponID, int32 NewAmmo);
+
     UFUNCTION(BlueprintPure, Category = "Combat|UI")
     float GetWeaponDamage() const;  // 총 데미지
 
@@ -149,4 +159,9 @@ private:
 
     // 타이머 제어용 핸들 (총의 연사 속도(발사 딜레이))
     FTimerHandle TimerHandle_PrimaryCooldown;
+
+    // 재장전을 시작한 무기의 ID를 저장합니다.
+    // 재장전 도중 다른 무기로 변경되어도
+    // 처음 재장전을 시작한 무기를 기준으로 장전합니다.
+    FName ReloadingWeaponID = NAME_None;
 };

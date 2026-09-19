@@ -214,6 +214,21 @@ EPurchaseResult AVendingMachine::GetPurchaseResult(int32 ShopItemIndex, UInvento
 
 	// 상품 데이터가 잘못된 경우
 	if (ShopItem.ItemData.ItemID.IsNone() || ShopItem.ItemData.Quantity <= 0 || ShopItem.ItemData.MaxStack <= 0 || ShopItem.ItemData.Price < 0){
+
+		return EPurchaseResult::InvalidItem;
+	}
+
+	// 게임 진행에 사용되는 중요 아이템은 자판기에서 판매하지 않습니다.
+	// 카드키, 그림 같은 KeyItem이 상점 구매를 통해 획득되는 것을 방지합니다.
+	if (ShopItem.ItemData.ItemType == EItemType::KeyItem){
+
+		return EPurchaseResult::InvalidItem;
+	}
+
+	// Magnum은 퍼즐 보상으로만 획득하고,
+	// MagnumAmmo는 맵 탐색으로만 획득하므로 자판기에서 판매하지 않습니다.
+	if (ShopItem.ItemData.ItemID == FName(TEXT("Magnum")) || ShopItem.ItemData.ItemID == FName(TEXT("MagnumAmmo"))){
+
 		return EPurchaseResult::InvalidItem;
 	}
 

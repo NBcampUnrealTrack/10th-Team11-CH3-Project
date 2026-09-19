@@ -47,6 +47,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* DocumentAction;
 
+	// O키 - 조합창 열기 / 전환
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* CraftAction;
+
+	// ESC키 - 현재 열려 있는 메뉴 UI 닫기
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* CloseUIAction;
+
+	// P키 - 게임 일시정지 / 해제
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* PauseAction;
+
 	// 1/2/3키 퀵슬롯용 액션
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* QuickSlot1Action;

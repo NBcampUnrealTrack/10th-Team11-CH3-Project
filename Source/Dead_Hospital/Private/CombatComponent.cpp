@@ -29,19 +29,54 @@ void UCombatComponent::BeginPlay()
 
 // Getter 함수 구현
 
-int32 UCombatComponent::GetCurrentAmmo() const
-{
+int32 UCombatComponent::GetCurrentAmmo() const{
+
     // 인벤토리에서 장착된 무기가 있는지 확인
     UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
-    if (Inventory != nullptr && Inventory->HasEquippedWeapon())
-    {
+
+    if (Inventory != nullptr && Inventory->HasEquippedWeapon()){
+
         // 인벤토리에서 현재 무기 ID를 가져와서 맵에서 검색
-        if (const FWeaponData* Data = WeaponDataMap.Find(Inventory->GetEquippedWeaponID()))
-        {
+        if (const FWeaponData* Data = WeaponDataMap.Find(Inventory->GetEquippedWeaponID())){
             return Data->CurrentAmmo;
         }
     }
     return 0;
+}
+
+int32 UCombatComponent::GetWeaponCurrentAmmo(FName WeaponID) const
+{
+    // WeaponDataMap에서 해당 무기 데이터를 찾습니다.
+    const FWeaponData* WeaponData = WeaponDataMap.Find(WeaponID);
+
+    // 존재하지 않는 무기라면 0을 반환합니다.
+    if (WeaponData == nullptr)
+    {
+        return 0;
+    }
+
+    return WeaponData->CurrentAmmo;
+}
+
+bool UCombatComponent::SetWeaponCurrentAmmo(FName WeaponID, int32 NewAmmo)
+{
+    // WeaponDataMap에서 해당 무기 데이터를 찾습니다.
+    FWeaponData* WeaponData = WeaponDataMap.Find(WeaponID);
+
+    // 존재하지 않는 무기라면 복원할 수 없습니다.
+    if (WeaponData == nullptr)
+    {
+        return false;
+    }
+
+    // 탄창 수가 0보다 작거나 최대 탄창 수보다 커지지 않도록 제한합니다.
+    WeaponData->CurrentAmmo = FMath::Clamp(
+        NewAmmo,
+        0,
+        WeaponData->MagazineCapacity
+    );
+
+    return true;
 }
 
 float UCombatComponent::GetWeaponDamage() const
@@ -170,15 +205,21 @@ void UCombatComponent::PrimaryAttack()
 
         FName HitBoneName = HitResult.BoneName;
 
+        bool bIsHeadshot = false;
+
         // 뼈 이름이 "head", "Head", "neck" 등일 경우 데미지 2배 (권총/매그넘 공통)
         if (HitBoneName == FName("head") || HitBoneName == FName("Head") || HitBoneName == FName("neck"))
         {
             DamageToApply *= HeadshotMultiplier; // 2.0f 대신 헤더에서 선언한 변수 사용
+
+            // 헤드샷으로 판정
+            bIsHeadshot = true;
+
             UE_LOG(LogTemp, Warning, TEXT("헤드샷. 배수(%f) 적용됨 (적중 부위: %s)"), HeadshotMultiplier, *HitBoneName.ToString());
         }
 
         // 계산된 최종 데미지를 전달
-        ProcessHit(HitActor, DamageToApply);
+        ProcessHit(HitActor, DamageToApply, bIsHeadshot);
 
         // 타격 위치에 피 튀김/스파크 이펙트 생성
         if (HitEffect)
@@ -281,6 +322,11 @@ void UCombatComponent::ReloadWeapon()
 
     // 장전 상태 진입 (사격 불가)
     bIsReloading = true;
+
+    // 재장전을 시작한 무기의 ID를 저장
+    ReloadingWeaponID = CurrentWeaponID;
+
+
     UE_LOG(LogTemp, Warning, TEXT("재장전 중..."));
 
     // 재장전 사운드 및 애니메이션 재생
@@ -312,6 +358,8 @@ void UCombatComponent::FinishReload()
     if (PlayerCharacter == nullptr || !PlayerCharacter->CanPerformAction())
     {
         bIsReloading = false;
+        ReloadingWeaponID = NAME_None;
+
         UE_LOG(LogTemp, Warning, TEXT("장전 도중 행동 불가 상태가 되어 장전이 취소되었습니다."));
         return;
     }
@@ -321,16 +369,23 @@ void UCombatComponent::FinishReload()
     if (InventoryComponent == nullptr || !InventoryComponent->HasEquippedWeapon())
     {
         bIsReloading = false;
+        ReloadingWeaponID = NAME_None;
         return;
     }
 
-    // 인벤토리에서 무기 ID를 가져와서 데이터 조회
-    FName CurrentWeaponID = InventoryComponent->GetEquippedWeaponID();
-    FWeaponData* CurrentWeaponData = WeaponDataMap.Find(CurrentWeaponID);
-    if (CurrentWeaponData == nullptr) return;
+    // 재장전을 시작했던 무기의 데이터를 가져옵니다.
+    // 재장전 도중 장착 무기가 변경되어도
+    // 처음 재장전을 시작한 무기를 기준으로 처리합니다.
+    FWeaponData* CurrentWeaponData = WeaponDataMap.Find(ReloadingWeaponID);
 
-    // 소모할 인벤토리 탄약 이름 결정
-    FName AmmoItemName = (CurrentWeaponID == FName("HandGun")) ? FName("HandGunAmmo") : FName("MagnumAmmo");
+    if (CurrentWeaponData == nullptr){
+        bIsReloading = false;
+        ReloadingWeaponID = NAME_None;
+        return;
+    }
+
+    // 재장전을 시작했던 무기에 맞는 예비 탄약을 선택합니다.
+    FName AmmoItemName = (ReloadingWeaponID == FName(TEXT("HandGun"))) ? FName(TEXT("HandGunAmmo")) : FName(TEXT("MagnumAmmo"));
 
     // 탄창에 채워야 할 빈 공간 계산
     int32 NeededAmmo = CurrentWeaponData->MagazineCapacity - CurrentWeaponData->CurrentAmmo;
@@ -349,6 +404,8 @@ void UCombatComponent::FinishReload()
 
     // 장전 상태 해제
     bIsReloading = false;
+    ReloadingWeaponID = NAME_None;
+
     UE_LOG(LogTemp, Warning, TEXT("장전 완료. 현재 탄창: %d발"), CurrentWeaponData->CurrentAmmo);
 
     UpdateAmmoUI();
@@ -358,6 +415,7 @@ void UCombatComponent::FinishReload()
 void UCombatComponent::HandlePlayerDeath()
 {
     bIsReloading = false;
+    ReloadingWeaponID = NAME_None;
     bCanPrimaryAttack = false;
 
     // 장전 중이거나 쿨타임 대기 중 사망 시, 돌고 있던 언리얼 타이머를 없애서 추가 동작 방지
@@ -408,6 +466,7 @@ void UCombatComponent::CancelReload()
     // 돌고 있던 장전 타이머를 없애서 FinishReload가 실행되지 않게 막음
     GetWorld()->GetTimerManager().ClearTimer(TimerHandle_Reload);
     bIsReloading = false;
+    ReloadingWeaponID = NAME_None;
 
     UE_LOG(LogTemp, Warning, TEXT("장전이 취소되었습니다."));
 }

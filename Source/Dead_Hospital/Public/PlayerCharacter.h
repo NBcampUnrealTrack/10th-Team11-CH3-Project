@@ -85,6 +85,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Document")
 	void CloseDocument();
 
+	// 조합창이 열려 있는지 확인
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	bool IsCraftOpen() const { return bIsCraftOpen; }
+
+	// 조합 UI 쪽에서 ESC, X버튼 등으로 닫을 때 호출
+	UFUNCTION(BlueprintCallable, Category = "Craft")
+	void CloseCraft();
+
+	// 인벤토리 / 문서 / 조합창을 모두 닫습니다.
+	// ESC 입력에서 사용합니다.
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void CloseAllMenuUI();
+
 	// Ending, 컷씬, 강제 연출 등 F 입력 자체를 막아야 할 때 외부에서 호출
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	void SetInputLocked(bool bNewLocked) { bIsInputLocked = bNewLocked; }
@@ -101,7 +114,14 @@ public:
 	// 공격/아이템 사용 등 다른 핵션 시스템에서
 	// 함수 맨 앞에 "if (!CanPerformAction()) return;" 형태로 가져다 쓰면 된다
 	UFUNCTION(BlueprintCallable, Category = "Action")
-	bool CanPerformAction() const { return !bIsDead && !bIsHiding && !bIsHideTransitioning && !bIsUIOpen; }
+	bool CanPerformAction() const
+	{
+		return !bIsDead
+			&& !bIsHiding
+			&& !bIsHideTransitioning
+			&& !bIsInputLocked
+			&& !bIsUIOpen;
+	}
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	float GetEyeHeight() const { return EyeHeight; }
@@ -214,6 +234,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Document")
 	bool bIsDocumentOpen = false;
 
+	// O키로 조합창이 열려 있는지 여부
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Craft")
+	bool bIsCraftOpen = false;
+
+	// P키 일시정지 메뉴가 열려 있는지 확인
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	bool bIsPauseOpen = false;
+
 	// Ending, 컷씬 등 외부 연출이 강제로 모든 입력을 막을 때 true
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Input")
 	bool bIsInputLocked = false;
@@ -316,6 +344,17 @@ protected:
 	UFUNCTION()
 	void OnDocumentPressed(const FInputActionValue& value);
 
+	// O키 입력 핸들러 (조합창 토글)
+	UFUNCTION()
+	void OnCraftPressed(const FInputActionValue& value);
+
+	// ESC키 입력 핸들러 (현재 열려 있는 메뉴 UI 닫기)
+	UFUNCTION()
+	void OnCloseUIPressed(const FInputActionValue& value);
+
+	// P키 - 게임 일시정지 / 해제
+	void OnPausePressed(const FInputActionValue& Value);
+
 	// 1/2/3 퀵슬롯 입력 핸들러 
 	UFUNCTION()
 	void OnQuickSlot1Pressed(const FInputActionValue& value);
@@ -349,6 +388,12 @@ protected:
 
 	// J 입력 -> 문서창 토글. 실제 UI 표시는 문서 파트에서 OnDocumentToggled를 받아 처리한다
 	void ToggleDocument();
+
+	// O 입력 -> 조합창 토글
+	void ToggleCraft();
+
+	// 게임 일시정지 / 해제
+	void TogglePause();
 
 	// 1/2/3 입력 -> 해당 인덱스의 퀵슬롯 아이템 사용
 	void UseQuickSlot(int32 SlotIndex);
@@ -402,6 +447,15 @@ protected:
 	// 실제 문서 위젯을 열고 닫으면 된다.
 	UFUNCTION(BlueprintImplementableEvent, Category = "Document")
 	void OnDocumentToggled(bool bNewOpen);
+
+	// 조합창 열림/닫힘 상태가 바뀔 때 호출됩니다.
+	// UI Blueprint에서 이 이벤트를 받아 Craft 위젯을 열고 닫습니다.
+	UFUNCTION(BlueprintImplementableEvent, Category = "Craft")
+	void OnCraftToggled(bool bNewOpen);
+
+	// Pause UI 열기 / 닫기를 Blueprint에 알림
+	UFUNCTION(BlueprintImplementableEvent, Category = "UI")
+	void OnPauseToggled(bool bIsOpen);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement")
