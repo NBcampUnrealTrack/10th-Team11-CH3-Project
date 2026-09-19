@@ -11,6 +11,8 @@ class UDocumentComponent;
 class UCombatComponent;
 struct FInputActionValue;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryToggled, bool, bIsOpen);
+
 UCLASS()
 class DEAD_HOSPITAL_API APlayerCharacter : public ACharacter
 {
@@ -75,6 +77,9 @@ public:
 	// 이미 닫혀 있으면 아무 동작 안 함. 상태를 false로 바꾸고 OnInventoryToggled(false)를 발생시킨다.
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void CloseInventory();
+
+	UPROPERTY(BlueprintAssignable, Category = "Inventory")
+	FOnInventoryToggled OnInventoryToggled;
 
 	// 문서창이 열려 있는지 확인 (UI/다른 시스템에서 조회용)
 	UFUNCTION(BlueprintCallable, Category = "Document")
@@ -438,11 +443,6 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Flashlight")
 	void OnFlashlightStateChanged(bool bNewOn);
-
-	// 인벤토리 열림/닫힘 상태가 바뀔 때 호출됨. 인벤토리/UI 파트에서 이 이벤트를 받아
-	// 실제 인벤토리 위젯을 열고 닫으면 된다. (Player 쪽은 상태 관리와 입력 차단만 담당)
-	UFUNCTION(BlueprintImplementableEvent, Category = "Inventory")
-	void OnInventoryToggled(bool bNewOpen);
 
 	// 문서창 열림/닫힘 상태가 바뀔 떄 호출됨. 문서 파트에서 이 이벤트를 받아
 	// 실제 문서 위젯을 열고 닫으면 된다.

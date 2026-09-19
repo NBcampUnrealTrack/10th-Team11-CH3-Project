@@ -853,7 +853,7 @@ void APlayerCharacter::ToggleInventory()
 	);
 
 	// 실제 인벤토리 위젯 표시
-	OnInventoryToggled(true);
+	OnInventoryToggled.Broadcast(true);
 }
 
 // 인벤토리 UI 쪽(ESC, X버튼, 아이템 사용 후 자동 닫힘 등)에서 호출.
@@ -871,7 +871,7 @@ void APlayerCharacter::CloseInventory()
 	// UI 사용 중 상태는 계속 유지합니다.
 	SetUIOpen(bIsInventoryOpen || bIsDocumentOpen ||bIsCraftOpen);
 
-	OnInventoryToggled(false);
+	OnInventoryToggled.Broadcast(false);
 }
 
 // J 입력 -> 문서창 토글. 실제 문서 위젯 표시/숨김은 문서 파트에서
