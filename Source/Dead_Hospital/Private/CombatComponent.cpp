@@ -29,15 +29,15 @@ void UCombatComponent::BeginPlay()
 
 // Getter 함수 구현
 
-int32 UCombatComponent::GetCurrentAmmo() const{
+int32 UCombatComponent::GetCurrentAmmo() const {
 
     // 인벤토리에서 장착된 무기가 있는지 확인
     UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
 
-    if (Inventory != nullptr && Inventory->HasEquippedWeapon()){
+    if (Inventory != nullptr && Inventory->HasEquippedWeapon()) {
 
         // 인벤토리에서 현재 무기 ID를 가져와서 맵에서 검색
-        if (const FWeaponData* Data = WeaponDataMap.Find(Inventory->GetEquippedWeaponID())){
+        if (const FWeaponData* Data = WeaponDataMap.Find(Inventory->GetEquippedWeaponID())) {
             return Data->CurrentAmmo;
         }
     }
@@ -79,7 +79,7 @@ bool UCombatComponent::SetWeaponCurrentAmmo(FName WeaponID, int32 NewAmmo)
     return true;
 }
 
-float UCombatComponent::GetWeaponDamage() const
+float UCombatComponent::GetEquippedWeaponDamage() const
 {
     UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
     if (Inventory != nullptr && Inventory->HasEquippedWeapon())
@@ -147,10 +147,10 @@ void UCombatComponent::PrimaryAttack()
 
     // 쿨타임 타이머 시작 (공격 속도 시간만큼 대기 후 ResetPrimaryAttack 실행)
     GetWorld()->GetTimerManager().SetTimer(
-        TimerHandle_PrimaryCooldown, 
-        this, 
-        &UCombatComponent::ResetPrimaryAttack, 
-        CurrentWeaponData->AttackSpeed, 
+        TimerHandle_PrimaryCooldown,
+        this,
+        &UCombatComponent::ResetPrimaryAttack,
+        CurrentWeaponData->AttackSpeed,
         false
     );
 
@@ -211,7 +211,7 @@ void UCombatComponent::PrimaryAttack()
 
         // 어떤 액터를 맞췄는지, 데미지는 얼마를 줘야 하는지 계산해서 ProcessHit로 넘김
         AActor* HitActor = HitResult.GetActor();
-        float DamageToApply = GetWeaponDamage(); 
+        float DamageToApply = GetEquippedWeaponDamage();
 
         FName HitBoneName = HitResult.BoneName;
 
@@ -268,6 +268,12 @@ void UCombatComponent::ProcessHit(AActor* HitTarget, float AppliedDamage, bool b
 
         // 명중 신호 및 실제 적용된 데미지 UI로 발송 (벽을 맞추면 신호 안 감)
         OnEnemyHit.Broadcast(ActualDamage, bIsHeadshot);
+
+        // 타격 후 체력을 검사하여 이번 공격으로 죽었는지 확인
+        if (HitZombie->GetHealth() <= 0.0f)
+        {
+            OnEnemyKilled.Broadcast();
+        }
 
         UE_LOG(LogTemp, Warning, TEXT("타격 성공. 맞은 대상: %s, 최종 데미지: %f"), *HitTarget->GetName(), ActualDamage);
     }
@@ -388,7 +394,7 @@ void UCombatComponent::FinishReload()
     // 처음 재장전을 시작한 무기를 기준으로 처리합니다.
     FWeaponData* CurrentWeaponData = WeaponDataMap.Find(ReloadingWeaponID);
 
-    if (CurrentWeaponData == nullptr){
+    if (CurrentWeaponData == nullptr) {
         bIsReloading = false;
         ReloadingWeaponID = NAME_None;
         return;
@@ -447,12 +453,12 @@ void UCombatComponent::UpdateAmmoUI()
     FWeaponData* CurrentWeaponData = WeaponDataMap.Find(CurrentWeaponID);
     if (CurrentWeaponData == nullptr) return;
 
-    // 인벤토리에서 예비 탄약(ReserveAmmo) 수량 확인
-    FName AmmoItemName = (CurrentWeaponID == FName("HandGun")) ? FName("HandGunAmmo") : FName("MagnumAmmo");
-    int32 ReserveAmmo = InventoryComponent->GetItemQuantity(AmmoItemName);
+    //// 인벤토리에서 예비 탄약(ReserveAmmo) 수량 확인
+    //FName AmmoItemName = (CurrentWeaponID == FName("HandGun")) ? FName("HandGunAmmo") : FName("MagnumAmmo");
+    //int32 ReserveAmmo = InventoryComponent->GetItemQuantity(AmmoItemName);
 
-    // UI 블루프린트로 현재 탄창과 예비 총알 수량 전하기
-    OnAmmoChanged.Broadcast(CurrentWeaponData->CurrentAmmo, ReserveAmmo);
+    // UI 블루프린트로 현재 탄창(CurrentAmmo)과 최대 탄창 용량(MaxAmmo) 전달
+    OnAmmoChanged.Broadcast(CurrentWeaponData->CurrentAmmo, CurrentWeaponData->MagazineCapacity);
 }
 
 int32 UCombatComponent::GetMagazineCapacity() const
@@ -479,4 +485,23 @@ void UCombatComponent::CancelReload()
     ReloadingWeaponID = NAME_None;
 
     UE_LOG(LogTemp, Warning, TEXT("장전이 취소되었습니다."));
+}
+
+void UCombatComponent::NotifyWeaponChanged()
+{
+    UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
+    if (Inventory != nullptr && Inventory->HasEquippedWeapon())
+    {
+        FName WeaponID = Inventory->GetEquippedWeaponID();
+
+        if (FWeaponData* Data = WeaponDataMap.Find(WeaponID))
+        {
+            OnWeaponChanged.Broadcast(WeaponID, Data->BaseDamage, Data->CurrentAmmo, Data->MagazineCapacity);
+        }
+    }
+    else
+    {
+        // 무기를 해제한 상태일 때 크로스헤어 숨김 처리용
+        OnWeaponChanged.Broadcast(NAME_None, 0.0f, 0, 0);
+    }
 }

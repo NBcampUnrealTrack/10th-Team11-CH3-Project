@@ -35,16 +35,22 @@ public:
 };
 
 // 탄약 갱신 신호 (현재 탄창, 가방에 남은 예비 총알)
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAmmoChangedSignature, int32, CurrentAmmo, int32, ReserveAmmo);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAmmoChangedSignature, int32, CurrentAmmo, int32, MaxAmmo);
 
 // 적중 신호 (실제 들어간 데미지, 헤드샷 여부)
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEnemyHitSignature, float, DamageApplied, bool, bIsHeadshot);
 
+// 적 처치 신호 (해골 문양 표시용)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEnemyKilledSignature);
+
+// 무기 교체 신호 (UI 연동용)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnWeaponChangedSignature, FName, WeaponName, float, Damage, int32, CurrentAmmo, int32, MaxAmmo);
+
 // 전투 총괄 관리 컴포넌트
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class DEAD_HOSPITAL_API UCombatComponent : public UActorComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
     UCombatComponent();
@@ -55,10 +61,17 @@ protected:
 public:
     // 블루프린트에서 바인딩할 이벤트 변수
     UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+    FOnWeaponChangedSignature OnWeaponChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
     FOnAmmoChangedSignature OnAmmoChanged;
 
     UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
     FOnEnemyHitSignature OnEnemyHit;
+
+    // 블루프린트에서 바인딩할 적 처치 이벤트 변수
+    UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+    FOnEnemyKilledSignature OnEnemyKilled;
 
     // 탄약 UI 갱신을 한 번에 처리할 헬퍼 함수
     UFUNCTION(BlueprintCallable, Category = "Combat|UI")
@@ -73,6 +86,9 @@ public:
 
     UPROPERTY(BlueprintReadOnly, Category = "Combat|State")
     bool bIsReloading;  // 재장전 중인지 여부 - 장전 중 공격 불가능
+
+    UFUNCTION(BlueprintPure, Category = "Combat|Weapon Info")
+    float GetEquippedWeaponDamage() const;
 
     // 외부 시스템 연동용 Getter 함수 (UI, 인벤토리 등)
     UFUNCTION(BlueprintPure, Category = "Combat|UI")
@@ -89,10 +105,10 @@ public:
     bool SetWeaponCurrentAmmo(FName WeaponID, int32 NewAmmo);
 
     UFUNCTION(BlueprintPure, Category = "Combat|UI")
-    float GetWeaponDamage() const;  // 총 데미지
-
-    UFUNCTION(BlueprintPure, Category = "Combat|UI")
     int32 GetMagazineCapacity() const;  // 탄창 최대 용량 반환
+
+    UFUNCTION(BlueprintCallable)
+    void NotifyWeaponChanged();
 
     // UI 경고 메시지 띄우기 (탄약이 없습니다)
     UFUNCTION(BlueprintImplementableEvent, Category = "Combat|UI")
