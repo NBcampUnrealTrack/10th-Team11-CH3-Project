@@ -168,6 +168,16 @@ void UCombatComponent::PrimaryAttack()
         UGameplayStatics::PlaySoundAtLocation(this, FireSound, EyeLocation);
     }
 
+    // 총소리 -> 좀비 청각 감지 (발소리보다 훨씬 크게: Loudness 최대치)
+    UAISense_Hearing::ReportNoiseEvent(
+        GetWorld(),
+        Owner->GetActorLocation(),
+        1.0f,
+        Owner,
+        0.0f,      // MaxRange 0 = 좀비의 AISenseConfig_Hearing HearingRange 그대로 사용
+        NAME_None
+    );
+
     ACharacter* OwnerCharacter = Cast<ACharacter>(Owner);
     if (OwnerCharacter && FireAnimation)
     {
