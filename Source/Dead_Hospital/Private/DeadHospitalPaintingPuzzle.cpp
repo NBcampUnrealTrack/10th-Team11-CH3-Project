@@ -37,7 +37,7 @@ void ADeadHospitalPaintingPuzzle::BeginPlay()
 	// DT_ItemData의 최종 ID를 사용하도록 다시 맞춥니다. 이렇게 해야 그림 획득 후
 	// Inventory의 HasItem("Painting") 검사와 일반 삭제 방지 기능이 같은 아이템을 찾습니다.
 	PaintingItemData.ItemID = TEXT("Painting");
-	HiddenKeyItemId = TEXT("Key");
+	HiddenKeyItemId = TEXT("CardKeyA");
 
 	if (!IsValid(HiddenKeyPickup))
 	{

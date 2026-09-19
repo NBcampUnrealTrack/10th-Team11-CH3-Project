@@ -9,6 +9,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
+#include "CombatComponent.h"
 
 ADeadHospitalGameMode::ADeadHospitalGameMode()
 {
@@ -18,12 +19,12 @@ ADeadHospitalGameMode::ADeadHospitalGameMode()
 	FinalObjectiveText = FText::FromString(TEXT("생명유지장치를 종료하라"));
 	EscapeObjectiveText = FText::FromString(TEXT("제한시간 안에 병원을 탈출하라"));
 
-	// DT_ItemData와 팀원 InventoryComponent에서 확정한 진행 아이템 ID를 그대로 사용합니다.
-	// Key와 Painting은 플레이어가 인벤토리에서 임의로 버리는 일반 삭제를 막아야 합니다.
-	// 단, 잠긴 문이 Key를 정상적으로 사용하는 상황은 일반 삭제가 아니므로
-	// Door에서 InventoryComponent::ConsumeKeyItem()을 호출해 Key 한 개를 소비합니다.
+	// 게임 진행에 필요한 중요 아이템 목록입니다.
+	// 카드키와 그림은 일반적인 방법으로 버리지 못하도록 보호합니다.
 	ProtectedKeyItemIds = {
-		TEXT("Key"),
+		TEXT("CardKeyA"),
+		TEXT("CardKeyB"),
+		TEXT("MasterCardKey"),
 		TEXT("Painting")
 	};
 }
@@ -508,6 +509,27 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 	}
 	NewCheckpoint.EquippedWeaponId = Inventory->GetEquippedWeaponID();
 
+	// 퀵슬롯 1, 2, 3에 등록된 아이템 ID를 체크포인트에 저장합니다.
+	// 내부 인덱스 0, 1, 2가 화면의 퀵슬롯 1, 2, 3에 해당합니다.
+	NewCheckpoint.SavedQuickSlots.SetNum(3);
+
+	for (int32 QuickSlotIndex = 0; QuickSlotIndex < 3; ++QuickSlotIndex)
+	{
+		NewCheckpoint.SavedQuickSlots[QuickSlotIndex]
+			= Inventory->GetQuickSlotItem(QuickSlotIndex);
+	}
+
+	// 플레이어의 CombatComponent를 가져옵니다.
+	if (UCombatComponent* CombatComp =
+		PlayerPawn->FindComponentByClass<UCombatComponent>())
+	{
+		// HandGun과 Magnum의 현재 탄창에 남아 있는 탄약 수를
+		// 체크포인트 데이터에 각각 저장합니다.
+		NewCheckpoint.SavedHandGunMagazineAmmo = CombatComp->GetWeaponCurrentAmmo(FName(TEXT("HandGun")));
+
+		NewCheckpoint.SavedMagnumMagazineAmmo = CombatComp->GetWeaponCurrentAmmo(FName(TEXT("Magnum")));
+	}
+
 	// 문서는 Inventory Item이 아니므로 별도의 DocumentComponent에서 따로 복사합니다.
 	// 팀원 컴포넌트의 GetDocuments()는 읽기 전용 공개 함수이므로 내부 배열을 직접 수정하지 않습니다.
 	const UDocumentComponent* DocumentComponent = PlayerActor->FindComponentByClass<UDocumentComponent>();
@@ -634,22 +656,91 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 			}
 		}
 
-		// 아이템을 모두 넣은 다음, 저장 당시 장착 중이던 무기가 있다면 다시 장착합니다.
 		// EquipWeapon()은 해당 무기가 인벤토리에 실제로 있는지도 검사하므로 성공 여부를 확인합니다.
+		// 아이템을 모두 넣은 다음, 저장 당시 장착 중이던 무기가 있다면 다시 장착합니다.
 		if (!LastCheckpoint.EquippedWeaponId.IsNone()
 			&& !Inventory->EquipWeapon(LastCheckpoint.EquippedWeaponId))
 		{
 			PlayerController->UnPossess();
 			NewPlayerPawn->Destroy();
+
 			if (IsValid(OldPawn))
 			{
 				PlayerController->Possess(OldPawn);
 			}
+
 			UE_LOG(LogTemp, Error, TEXT("Checkpoint restart failed: equipped weapon could not be restored."));
 			return false;
 		}
-	}
 
+
+		// ==================== 퀵슬롯 복원 ====================
+
+		// 체크포인트에 저장된 퀵슬롯 1, 2, 3을 복원합니다.
+		// 인벤토리 아이템을 먼저 복원한 뒤 SetQuickSlot()을 호출해야
+		// 해당 아이템을 실제로 보유하고 있는지 정상적으로 검사할 수 있습니다.
+		for (int32 QuickSlotIndex = 0;
+			QuickSlotIndex < LastCheckpoint.SavedQuickSlots.Num();
+			++QuickSlotIndex)
+		{
+			const FName SavedQuickSlotItemId =
+				LastCheckpoint.SavedQuickSlots[QuickSlotIndex];
+
+			// 저장 당시 비어 있던 퀵슬롯은 건너뜁니다.
+			if (SavedQuickSlotItemId.IsNone())
+			{
+				continue;
+			}
+
+			if (!Inventory->SetQuickSlot(QuickSlotIndex, SavedQuickSlotItemId))
+			{
+				PlayerController->UnPossess();
+				NewPlayerPawn->Destroy();
+
+				if (IsValid(OldPawn))
+				{
+					PlayerController->Possess(OldPawn);
+				}
+
+				UE_LOG(
+					LogTemp,
+					Error,
+					TEXT("Checkpoint restart failed: QuickSlot %d item %s could not be restored."),
+					QuickSlotIndex + 1,
+					*SavedQuickSlotItemId.ToString());
+
+				return false;
+			}
+		}
+		// 새로 생성된 플레이어의 CombatComponent를 가져옵니다.
+		if (UCombatComponent* CombatComp =
+			NewPlayerPawn->FindComponentByClass<UCombatComponent>())
+		{
+			// 체크포인트에 저장되어 있던 HandGun 탄창 수를 복원합니다.
+			if (!CombatComp->SetWeaponCurrentAmmo(
+				FName(TEXT("HandGun")),
+				LastCheckpoint.SavedHandGunMagazineAmmo))
+			{
+				UE_LOG(
+					LogTemp,
+					Warning,
+					TEXT("Checkpoint restart: Failed to restore HandGun magazine ammo.")
+				);
+			}
+
+			// 체크포인트에 저장되어 있던 Magnum 탄창 수를 복원합니다.
+			if (!CombatComp->SetWeaponCurrentAmmo(
+				FName(TEXT("Magnum")),
+				LastCheckpoint.SavedMagnumMagazineAmmo))
+			{
+				UE_LOG(
+					LogTemp,
+					Warning,
+					TEXT("Checkpoint restart: Failed to restore Magnum magazine ammo.")
+				);
+			}
+		}
+	}
 	if (LastCheckpoint.HasDocumentSnapshot)
 	{
 		UDocumentComponent* DocumentComponent = NewPlayerPawn->FindComponentByClass<UDocumentComponent>();

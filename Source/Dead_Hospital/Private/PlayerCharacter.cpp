@@ -202,6 +202,39 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 				);
 			}
 
+			// O키 -> 조합창
+			if (CharacterController->CraftAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->CraftAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnCraftPressed
+				);
+			}
+
+			// ESC키 -> 현재 메뉴 UI 닫기
+			if (CharacterController->CloseUIAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->CloseUIAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnCloseUIPressed
+				);
+			}
+
+			// P키 - 게임 일시정지 / 해제
+			if (CharacterController->PauseAction)
+			{
+				EnhancedInput->BindAction(
+					CharacterController->PauseAction,
+					ETriggerEvent::Started,
+					this,
+					&APlayerCharacter::OnPausePressed
+				);
+			}
+
 			// 1/2/3키 (QuickSlot1/2/3Action) 바인딩
 			if (CharacterController->QuickSlot1Action)
 			{
@@ -517,9 +550,8 @@ void APlayerCharacter::Die()
 		OnFlashlightStateChanged(false);
 	}
 
-	// 인벤토리 강제로 닫음
-	CloseInventory();
-	CloseDocument();
+	// 사망 시 열려 있는 인벤토리 / 문서 / 조합창 모두 닫기
+	CloseAllMenuUI();
 
 	// 상호작용 연타 방지용 값 정리
 	LastInteractActor.Reset();
@@ -611,6 +643,54 @@ void APlayerCharacter::OnDocumentPressed(const FInputActionValue& value)
 	ToggleDocument();
 }
 
+// O키 입력 -> 조합창 열기 / 닫기
+void APlayerCharacter::OnCraftPressed(const FInputActionValue& value)
+{
+	// 사망, 은신 전환, 강제 입력 잠금 상태에서는 사용하지 않음
+	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked)
+	{
+		return;
+	}
+
+	ToggleCraft();
+}
+
+// ESC키 - 현재 열려 있는 메뉴 UI 닫기
+void APlayerCharacter::OnCloseUIPressed(const FInputActionValue& Value){
+
+	// Pause 메뉴가 열려 있다면
+	// 게임 일시정지를 해제하고 Pause 메뉴를 닫음
+	if (bIsPauseOpen){
+
+		TogglePause();
+		return;
+	}
+
+	// 일반 메뉴가 아무것도 열려 있지 않으면
+	// ESC키로 Pause 메뉴 열기
+	if (!bIsInventoryOpen && !bIsDocumentOpen && !bIsCraftOpen){
+
+		TogglePause();
+		return;
+	}
+
+	// 인벤토리 / 문서 / 조합창이 열려 있다면
+	// 현재 메뉴만 닫기
+	CloseAllMenuUI();
+}
+
+// P키 - 게임 일시정지 / 해제
+void APlayerCharacter::OnPausePressed(const FInputActionValue& Value)
+{
+	// 사망 상태에서는 Pause 메뉴를 열지 않음
+	if (bIsDead)
+	{
+		return;
+	}
+
+	TogglePause();
+}
+
 // 1/2/3 입력 -> 해당 인덱스의 퀵슬롯 아이템 사용
 void APlayerCharacter::OnQuickSlot1Pressed(const FInputActionValue& value)
 {
@@ -692,20 +772,44 @@ void APlayerCharacter::ToggleFlashlight()
 // OnInventoryToggled 이벤트를 받아 처리한다. (Player 쪽은 상태 관리 + 입력 차단만 담당)
 void APlayerCharacter::ToggleInventory()
 {
-	//사망 / 은신(연출포함) / 입력 잠금 상태면 무시
+	// 사망 / 은신(연출 포함) / 입력 잠금 상태면 무시
 	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked)
 	{
 		return;
 	}
 
-	bIsInventoryOpen = !bIsInventoryOpen;
+	// 이미 인벤토리가 열려 있다면 닫기
+	if (bIsInventoryOpen)
+	{
+		CloseInventory();
+		return;
+	}
 
-	//인벤토리가 열리면 일반 상호작용 프롬프트도 같이 숨겨야 하므로
-	// 기존 UI 오픈 플래그를 재사용한다 (문서/키패드 등과 동일 취급).
-	SetUIOpen(bIsInventoryOpen);
+	// 문서창이 열려 있다면 닫기
+	if (bIsDocumentOpen)
+	{
+		CloseDocument();
+	}
 
-	// 실제 인벤토리 위젯 표시/ 숨김은 인벤토리 파트에서 이 이벤트를 반아 처리
-	OnInventoryToggled(bIsInventoryOpen);
+	// 조합창이 열려 있다면 닫기
+	if (bIsCraftOpen)
+	{
+		CloseCraft();
+	}
+
+	// 인벤토리 열기
+	bIsInventoryOpen = true;
+
+	// 인벤토리 / 문서 / 조합창 중 하나라도 열려 있으면
+	// Player는 UI 사용 중 상태를 유지
+	SetUIOpen(
+		bIsInventoryOpen ||
+		bIsDocumentOpen ||
+		bIsCraftOpen
+	);
+
+	// 실제 인벤토리 위젯 표시
+	OnInventoryToggled(true);
 }
 
 // 인벤토리 UI 쪽(ESC, X버튼, 아이템 사용 후 자동 닫힘 등)에서 호출.
@@ -718,7 +822,11 @@ void APlayerCharacter::CloseInventory()
 	}
 
 	bIsInventoryOpen = false;
-	SetUIOpen(false);
+
+	// 인벤토리를 닫아도 문서창 또는 조합창이 열려 있다면
+	// UI 사용 중 상태는 계속 유지합니다.
+	SetUIOpen(bIsInventoryOpen || bIsDocumentOpen ||bIsCraftOpen);
+
 	OnInventoryToggled(false);
 }
 
@@ -732,12 +840,38 @@ void APlayerCharacter::ToggleDocument()
 		return;
 	}
 
-	bIsDocumentOpen = !bIsDocumentOpen;
+	// 이미 문서창이 열려 있으면 닫기
+	if (bIsDocumentOpen)
+	{
+		CloseDocument();
+		return;
+	}
 
-	// 문서창이 열리면 일반 상호작용 프롬프트도 같이 숨겨야 하므로 UI 오픈 플래그를 재사용
-	SetUIOpen(bIsDocumentOpen);
+	// 인벤토리가 열려 있으면 먼저 닫기
+	if (bIsInventoryOpen)
+	{
+		CloseInventory();
+	}
 
-	OnDocumentToggled(bIsDocumentOpen);
+	// 조합창이 열려 있으면 먼저 닫기
+	if (bIsCraftOpen)
+	{
+		CloseCraft();
+	}
+
+	// 문서창 열기
+	bIsDocumentOpen = true;
+
+	// 인벤토리 / 문서 / 조합창 중 하나라도 열려 있으면
+	// Player는 UI 사용 중 상태를 유지
+	SetUIOpen(
+		bIsInventoryOpen ||
+		bIsDocumentOpen ||
+		bIsCraftOpen
+	);
+
+	// 실제 문서 위젯 표시
+	OnDocumentToggled(true);
 }
 
 // 문서 UI 쪽(ESC, X버튼 등)에서 호출. 이미 닫혀 있으면 아무 동작 안 함.
@@ -749,8 +883,134 @@ void APlayerCharacter::CloseDocument()
 	}
 
 	bIsDocumentOpen = false;
-	SetUIOpen(false);
+	// 문서창을 닫아도 인벤토리 또는 조합창이 열려 있다면
+	// UI 사용 중 상태는 계속 유지합니다.
+	SetUIOpen(bIsInventoryOpen || bIsDocumentOpen || bIsCraftOpen);
 	OnDocumentToggled(false);
+}
+
+// O 입력 -> 조합창 토글
+// 실제 조합 위젯 표시 / 숨김은
+// OnCraftToggled 이벤트를 받아 처리한다.
+// Player 쪽은 상태 관리 + 입력 차단만 담당
+void APlayerCharacter::ToggleCraft()
+{
+	// 사망 / 은신(연출포함) / 입력 잠금 상태면 무시
+	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked)
+	{
+		return;
+	}
+
+	// 이미 조합창이 열려 있으면 닫기
+	if (bIsCraftOpen)
+	{
+		CloseCraft();
+		return;
+	}
+
+	// 인벤토리가 열려 있으면 먼저 닫기
+	if (bIsInventoryOpen)
+	{
+		CloseInventory();
+	}
+
+	// 문서창이 열려 있으면 먼저 닫기
+	if (bIsDocumentOpen)
+	{
+		CloseDocument();
+	}
+
+	// 조합창 열기
+	bIsCraftOpen = true;
+
+	// 인벤토리 / 문서 / 조합창 중 하나라도 열려 있으면
+	// Player는 UI 사용 중 상태를 유지
+	SetUIOpen(
+		bIsInventoryOpen ||
+		bIsDocumentOpen ||
+		bIsCraftOpen
+	);
+
+	// 실제 조합 위젯 표시
+	OnCraftToggled(true);
+}
+
+// 조합 UI 쪽(ESC, X버튼 등)에서 호출.
+// 이미 닫혀 있으면 아무 동작 안 함.
+void APlayerCharacter::CloseCraft()
+{
+	// 이미 조합창이 닫혀 있으면 아무것도 하지 않음
+	if (!bIsCraftOpen)
+	{
+		return;
+	}
+
+	// 조합창 닫기
+	bIsCraftOpen = false;
+
+	// 다른 메뉴가 열려 있다면 UI 사용 중 상태 유지
+	SetUIOpen(
+		bIsInventoryOpen ||
+		bIsDocumentOpen ||
+		bIsCraftOpen
+	);
+
+	// 실제 조합 위젯을 닫으라고 Blueprint에 전달
+	OnCraftToggled(false);
+}
+
+// ESC 입력 -> 현재 열려 있는 메뉴 UI를 모두 닫음
+void APlayerCharacter::CloseAllMenuUI()
+{
+	// 인벤토리 닫기
+	CloseInventory();
+
+	// 문서창 닫기
+	CloseDocument();
+
+	// 조합창 닫기
+	CloseCraft();
+
+	// 모든 메뉴가 닫혔으므로
+	// Player의 UI 사용 중 상태도 해제
+	SetUIOpen(false);
+}
+
+// 게임 일시정지 / 해제
+void APlayerCharacter::TogglePause()
+{
+	// 현재 Pause 메뉴가 닫혀 있다면
+	if (!bIsPauseOpen)
+	{
+		// 인벤토리 / 문서 / 조합창이 열려 있다면 먼저 닫기
+		CloseAllMenuUI();
+
+		// Pause 메뉴 열기
+		bIsPauseOpen = true;
+
+		// UI 사용 중 상태로 변경
+		SetUIOpen(true);
+
+		// Blueprint에 Pause UI를 열라고 알림
+		OnPauseToggled(true);
+
+		// 게임 일시정지
+		UGameplayStatics::SetGamePaused(GetWorld(), true);
+
+		return;
+	}
+
+	// 이미 Pause 상태라면 게임 재개
+	UGameplayStatics::SetGamePaused(GetWorld(), false);
+
+	// Pause 메뉴 닫기
+	bIsPauseOpen = false;
+
+	// UI 사용 상태 해제
+	SetUIOpen(false);
+
+	// Blueprint에 Pause UI를 닫으라고 알림
+	OnPauseToggled(false);
 }
 
 // 1/2/3 입력 -> 해당 인덱스의 퀵슬롯 아이템 사용

@@ -175,6 +175,19 @@ struct FDeadHospitalCheckpointData
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	TArray<FDocumentData> Documents;
+
+	// 체크포인트 저장 시 플레이어의 퀵슬롯 아이템 ID를 저장합니다.
+	// Index 0, 1, 2는 각각 퀵슬롯 1, 2, 3에 해당합니다.
+	UPROPERTY()
+	TArray<FName> SavedQuickSlots;
+
+	// 체크포인트 저장 시 HandGun의 현재 탄창에 남아 있는 탄약 수를 저장합니다.
+	UPROPERTY()
+	int32 SavedHandGunMagazineAmmo = 0;
+
+	// 체크포인트 저장 시 Magnum의 현재 탄창에 남아 있는 탄약 수를 저장합니다.
+	UPROPERTY()
+	int32 SavedMagnumMagazineAmmo = 0;
 };
 
 /**

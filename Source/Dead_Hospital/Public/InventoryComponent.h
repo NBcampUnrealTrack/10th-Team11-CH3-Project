@@ -170,6 +170,9 @@ protected:
 
 private:
 
+	// 제작 재료를 소비한 뒤 결과 아이템을 넣을 공간이 생기는지 확인
+	bool CanAddCraftResultAfterConsumingMaterials(FName ResultItemID, const FItemData& ResultItemData) const;
+
 	//현재 장착 중인 무기 ID
 	FName EquippedWeaponID;
 
