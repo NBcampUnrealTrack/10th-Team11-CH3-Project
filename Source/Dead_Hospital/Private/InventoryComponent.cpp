@@ -717,6 +717,55 @@ bool UInventoryComponent::CanAddItem(const FItemData& NewItem) const{
 	return false;
 }
 
+// 제작 재료를 소비한 뒤 결과 아이템을 넣을 공간이 생기는지 확인
+bool UInventoryComponent::CanAddCraftResultAfterConsumingMaterials(FName ResultItemID, const FItemData& ResultItemData) const
+{
+	// 현재 상태에서도 결과 아이템이 들어갈 수 있다면 바로 제작 가능
+	if (CanAddItem(ResultItemData)){
+		return true;
+	}
+
+	// 현재는 공간이 부족한 경우
+	// 제작 재료를 사용하면서 슬롯 하나가 완전히 비워지는지 확인한다.
+
+	// HandGunAmmo 제작
+	// Gunpowder 2개를 사용했을 때 Gunpowder 슬롯 하나가 비워질 수 있는지 확인
+	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
+
+		for (const FInventorySlot& Slot : InventorySlots){
+
+			if (!Slot.bIsEmpty && Slot.ItemData.ItemID == FName(TEXT("Gunpowder")) && Slot.ItemData.Quantity <= 2){
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// MasterCardKey 제작
+	// CardKeyA 또는 CardKeyB를 1개 사용해서 슬롯이 비워지는지 확인
+	if (ResultItemID == FName(TEXT("MasterCardKey"))){
+
+		for (const FInventorySlot& Slot : InventorySlots){
+
+			if (Slot.bIsEmpty){
+
+				continue;
+			}
+
+			if ((Slot.ItemData.ItemID == FName(TEXT("CardKeyA")) || Slot.ItemData.ItemID == FName(TEXT("CardKeyB"))) && Slot.ItemData.Quantity <= 1)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	return false;
+}
+
 // Grid Inventory에서 아이템 위치 이동
 bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
 
@@ -886,10 +935,11 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		return false;
 	}
 
-	// 결과 아이템이 인벤토리에 들어갈 수 있는지 먼저 확인
-	if (!CanAddItem(*ResultItemData)){
+	// 제작 재료를 소비한 뒤에도
+	// 결과 아이템을 넣을 공간이 있는지 확인
+	if (!CanAddCraftResultAfterConsumingMaterials(ResultItemID, *ResultItemData)){
 
-		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Inventory is full"));
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Not enough inventory space. ResultItemID = %s"), *ResultItemID.ToString());
 
 		return false;
 	}
@@ -907,6 +957,20 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		if (!AddItem(*ResultItemData)){
 
 			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add HandGunAmmo"));
+
+			// 결과 아이템 추가에 실패했으므로
+			// 이미 사용한 Gunpowder 2개를 다시 복구
+			const FItemData* GunpowderData = ItemDataTable->FindRow<FItemData>(FName(TEXT("Gunpowder")), TEXT("CraftRollback"));
+
+			if (GunpowderData){
+
+				// DataTable의 원본 데이터를 복사한 뒤
+				// 복구해야 하는 수량을 2개로 설정
+				FItemData RestoreGunpowder = *GunpowderData;
+				RestoreGunpowder.Quantity = 2;
+
+				AddItem(RestoreGunpowder);
+			}
 
 			return false;
 		}
@@ -928,6 +992,18 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		// CardKeyB 1개 소비
 		if (!ConsumeKeyItem(FName(TEXT("CardKeyB")), 1)){
 
+			// CardKeyA는 이미 소비된 상태이므로
+			// CardKeyB 소비에 실패하면 CardKeyA를 다시 복구
+			const FItemData* CardKeyAData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyA")), TEXT("CraftRollback"));
+
+			if (CardKeyAData){
+
+				FItemData RestoreCardKeyA = *CardKeyAData;
+				RestoreCardKeyA.Quantity = 1;
+
+				AddItem(RestoreCardKeyA);
+			}
+
 			return false;
 		}
 
@@ -935,6 +1011,31 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		if (!AddItem(*ResultItemData)){
 
 			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add MasterCardKey"));
+
+			// 결과 아이템 추가에 실패했으므로
+			// 이미 사용한 CardKeyA와 CardKeyB를 다시 복구
+
+			const FItemData* CardKeyAData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyA")), TEXT("CraftRollback"));
+
+			const FItemData* CardKeyBData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyB")), TEXT("CraftRollback"));
+
+			// CardKeyA 복구
+			if (CardKeyAData){
+
+				FItemData RestoreCardKeyA = *CardKeyAData;
+				RestoreCardKeyA.Quantity = 1;
+
+				AddItem(RestoreCardKeyA);
+			}
+
+			// CardKeyB 복구
+			if (CardKeyBData){
+
+				FItemData RestoreCardKeyB = *CardKeyBData;
+				RestoreCardKeyB.Quantity = 1;
+
+				AddItem(RestoreCardKeyB);
+			}
 
 			return false;
 		}

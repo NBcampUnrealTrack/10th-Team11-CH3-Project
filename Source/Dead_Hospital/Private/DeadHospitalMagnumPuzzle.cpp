@@ -21,14 +21,6 @@ bool ADeadHospitalMagnumPuzzle::TryCompletePuzzle(AActor* Interactor)
 		return false;
 	}
 
-	// GameMode에 PZ-03 완료가 기록되면 MagnumPickup의 필요 조건도 충족됩니다.
-	// Execute_Interact는 플레이어가 매그넘에 E를 누른 것과 같은 안전한 획득 절차를 실행하므로,
-	// ProgressionItem 안의 InventoryComponent::AddItem()과 중복 지급 방지 기록을 그대로 사용합니다.
-	if (IsValid(MagnumPickup) && !MagnumPickup->HasBeenCollected())
-	{
-		IInteractable::Execute_Interact(MagnumPickup, Interactor);
-	}
-
 	// 인벤토리가 가득 찬 경우 AddItem()이 실패할 수 있습니다. 퍼즐 완료 자체는 이미 저장됐으므로
 	// false라고 거짓 보고하지 않고, 매그넘 Actor를 맵에 남겨 공간을 만든 뒤 다시 주울 수 있게 합니다.
 	if (!IsValid(MagnumPickup) || !MagnumPickup->HasBeenCollected())

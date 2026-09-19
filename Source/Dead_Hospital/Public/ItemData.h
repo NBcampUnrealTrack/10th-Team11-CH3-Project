@@ -14,7 +14,7 @@ enum class EItemType : uint8
 	Material,    // Gunpowder
 	Tool,        // Flashlight
 	Currency,    // Coin
-	KeyItem      // Key, Painting
+	KeyItem      // CardKeyA, CardKeyB, MasterCardKey, Painting
 };
 
 USTRUCT(BlueprintType)

@@ -212,18 +212,18 @@ bool ADeadHospitalDoor::TryUnlockWithKey(AActor* Interactor)
 	}
 
 	UInventoryComponent* Inventory = Interactor->FindComponentByClass<UInventoryComponent>();
-	// HasItem()은 팀원 InventoryComponent가 제공하는 공개 함수입니다.
-	// PZ-02 문에서는 RequiredKeyItemId를 "Key"로 설정하므로 HasItem("Key")를 검사하게 됩니다.
+
+	// HasItem()으로 이 문에 필요한 KeyItem을 플레이어가 보유하고 있는지 확인합니다.
+	// CardKeyA / CardKeyB는 RequiredKeyItemId에 설정된 값으로 검사합니다.
 	if (!IsValid(Inventory) || !Inventory->HasItem(RequiredKeyItemId))
 	{
 		return false;
 	}
 
-	// Key/Painting의 "보호"는 인벤토리에서 임의로 버리는 일반 삭제만 막는 규칙입니다.
-	// 문에서 정식으로 사용하는 Key는 ConsumeKeyItem()을 통해 소비할 수 있어야 합니다.
-	// PZ-02의 최종 ID "Key"는 기존 맵에 false가 저장되어 있어도 기획대로 반드시 한 개 소비합니다.
-	const bool IsPz02Key = RequiredKeyItemId == FName(TEXT("Key"));
-	const bool ShouldConsumeKey = IsPz02Key || ConsumeKeyWhenUnlocked;
+	// 이 문이 일회용 키를 사용하는 경우에만 아이템을 소비합니다.
+	// CardKeyA / CardKeyB 같은 중간 진행용 카드키는
+	// ConsumeKeyWhenUnlocked를 false로 설정하여 보유 상태를 유지합니다.
+	const bool ShouldConsumeKey = ConsumeKeyWhenUnlocked;
 
 	// 일회용 Key라면 먼저 인벤토리 슬롯에서 같은 ItemID의 원본 자료를 한 개 찾아 둡니다.
 	// 문 잠금 해제 기록에 실패하면 아래에서 AddItem()으로 Key 한 개를 돌려줘야 하기 때문입니다.
