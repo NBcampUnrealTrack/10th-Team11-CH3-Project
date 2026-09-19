@@ -441,6 +441,8 @@ void AZombieCharacter::Attack()
 	//(애니메이션 재생 중 대상이 범위를 벗어났을 수 있으므로 여기서 다시 확인)
 	if (IsValid(Target) && AttackRangeComp->IsOverlappingActor(Target))
 	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red,
+			FString::Printf(TEXT("TakeDamage FIRED - Power: %f"), Power));
 		Target->TakeDamage(Power, FDamageEvent(), GetController(), this);
 	}
 }

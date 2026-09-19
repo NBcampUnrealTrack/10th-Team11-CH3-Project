@@ -503,14 +503,39 @@ void AZombieAIController::OnAttackCooldownFinished()
 	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
 	AActor* ChaseTarget = BlackboardComp ? Cast<AActor>(BlackboardComp->GetValueAsObject(BBKey_ChaseTarget)) : nullptr;
 
-	if (IsValid(ChaseTarget))
-	{
-		SetZombieState(EZombieState::Chase);
-	}
-	else
+	//ChaseTarget이 아예 없다(완전히 잊혀진 상태) -> Patrol
+	if (!IsValid(ChaseTarget))
 	{
 		SetZombieState(EZombieState::Patrol);
 	}
+
+	//ChaseTarget은 아직 안 잊혀졌더라도(MaxAge 5초 이내), "지금 이 순간" 진짜로 보이는지
+	//AIPerception한테 직접 물어본다. IsValid만 보면 Search 중이어도 무조건 true라서
+	//Search를 강제로 덮어쓰고 Chase로 되돌리는 문제가 있었음
+	bool bIsCurrentlySeen = false;
+	if (AIPerception)
+	{
+		TArray<AActor*> PerceivedActors;
+		AIPerception->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), PerceivedActors);
+		bIsCurrentlySeen = PerceivedActors.Contains(ChaseTarget);
+	}
+
+	if (bIsCurrentlySeen)
+	{
+		SetZombieState(EZombieState::Chase);
+	}
+	else if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+	{
+		//지금 안 보인다면, 이미 OnPerceptionUpdated가 Search/Investigating으로
+		//제대로 넘겨놨을 테니 그 상태를 덮어쓰지 않는다.
+		//단, 혹시 갱신 이벤트를 못 받아서 아직도 Attacking으로 남아잇는 예외 상황이면
+		//안전하게 Search로 보내서 최소한 멈춰있지는 않게 한다.
+		if (Zombie->GetCurrentState() == EZombieState::Attacking)
+		{
+			SetZombieState(EZombieState::Search);
+		}
+	}
+
 }
 
 //Behavior Tree Task 등에서 호출 - 공격을 시작할 때 이동을 멈추고
