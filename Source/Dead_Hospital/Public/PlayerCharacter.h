@@ -108,7 +108,7 @@ public:
 	// 문서/키패드/Pause 등 다른 IU가 열려 있는 동안 일반 상호작용 프롬프트를 숨기기 위한 스위치
 	// 해당 UI 위젯을 열고 닫을 떄 블루프린트에서 호출해준다.
 	UFUNCTION(BlueprintCallable, Category = "Interact")
-	void SetUIOpen(bool bNewUIOpen) { bIsUIOpen = bNewUIOpen; }
+	void SetUIOpen(bool bNewUIOpen);
 
 	// 은신 중이거나 사망 상태면 false. 공격/아이템 사용 등 다른 액션 시스템에서
 	// 공격/아이템 사용 등 다른 핵션 시스템에서
@@ -353,6 +353,7 @@ protected:
 	void OnCloseUIPressed(const FInputActionValue& value);
 
 	// P키 - 게임 일시정지 / 해제
+	UFUNCTION()
 	void OnPausePressed(const FInputActionValue& Value);
 
 	// 1/2/3 퀵슬롯 입력 핸들러 
