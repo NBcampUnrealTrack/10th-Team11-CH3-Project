@@ -62,7 +62,7 @@ AZombieAIController::AZombieAIController()
 	HearingConfig = CreateDefaultSubobject<UAISenseConfig_Hearing>(TEXT("HearingConfig"));
 	//감지 가능한 최대 거리. 실제 소리 이벤트 발생은 소리 낸 쪽에서
 	//UAISense_Hearing::ReportNoiseEvent()를 호출해줘야 함
-	HearingConfig->HearingRange = 1500.0f;
+	HearingConfig->HearingRange = 1000.0f;
 	HearingConfig->DetectionByAffiliation.bDetectEnemies = true;
 	HearingConfig->DetectionByAffiliation.bDetectNeutrals = true;
 	HearingConfig->DetectionByAffiliation.bDetectFriendlies = true;
@@ -194,9 +194,15 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 #endif
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
-		SetZombieState(EZombieState::Chase);
+		
+		AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
 
-		if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+		if (!Zombie || Zombie->GetCurrentState() != EZombieState::Attacking)
+		{
+			SetZombieState(EZombieState::Chase);
+		}
+
+		if (Zombie)
 		{
 			Zombie->RefreshAttackRange();
 		}
@@ -218,7 +224,8 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		}
 		else
 		{
-			//정말로 시야에서 벗어났으면 Search로 전환
+			//정말로 시야에서 벗어난 그 순간의 위치를 LastKnownLocation으로 명확히 찍어준다.
+			BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, Stimulus.StimulusLocation);
 			SetZombieState(EZombieState::Search);
 		}
 	}
@@ -362,6 +369,23 @@ void AZombieAIController::Tick(float DeltaTime)
 	if (bIsChasing)
 	{
 		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
+
+		//거리 기반 Chase 속도 조절 - 멀수록 빠르게, 가까울수록 느리게
+		const float DistanceToTarget = FVector::Dist(Zombie->GetActorLocation(), ChaseTarget->GetActorLocation());
+
+		const float  NewChaseSpeed = FMath::GetMappedRangeValueClamped(
+			FVector2D(Zombie->GetMinChaseDistance(), Zombie->GetMaxChaseDistance()),
+			FVector2D(Zombie->GetMinChaseSpeed(), Zombie->GetMaxChaseSpeed()),
+			DistanceToTarget
+		);
+
+		Zombie->GetCharacterMovement()->MaxWalkSpeed = NewChaseSpeed;
+
+#if WITH_EDITOR
+		GEngine->AddOnScreenDebugMessage(102, 0.0f, FColor::Magenta,
+			FString::Printf(TEXT("Dist: %.1f / Speed: %.1f"), DistanceToTarget, NewChaseSpeed));
+#endif
+	
 	}
 
 	//HideSpot(은신) 감지 - "목격된 상태로 숨는 순간"을 포착 
@@ -596,6 +620,8 @@ void AZombieAIController::StartSearchTurn()
 		Zombie->SetSearchBaseYaw(Zombie->GetActorRotation().Yaw);//집입 시점 각도를 기준으로 고정
 
 		Zombie->GetCharacterMovement()->MaxWalkSpeed = Zombie->GetPatrolSpeed();
+		//진짜로 제자리 두리번거림이 시작되는 이 시점에만 이동 방향 회전을 끈다.
+		Zombie->GetCharacterMovement()->bOrientRotationToMovement = false;
 
 		Zombie->PlaySearchTurnMontage();
 	}
