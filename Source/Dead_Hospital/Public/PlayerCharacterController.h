@@ -77,6 +77,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* FireAction;
 
+	// UI 열림/닫힘에 따라 마우스 커서 표시 + Input Mode 전환
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void SetUIInputMode(bool bUIOpen);
+
 	virtual void BeginPlay() override;
 	
 };

@@ -5,6 +5,9 @@
 #include "CombatComponent.h"
 #include "PlayerInterface.h"
 #include "EnhancedInputComponent.h"
+#include "Interactable.h"
+#include "DeadHospitalGameMode.h"
+#include "GameFramework/GameModeBase.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -291,6 +294,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	}
 }
 
+
 void APlayerCharacter::Move(const FInputActionValue& value)
 {
 	// 은신 중이거나 인벤토리 등 UI가 열려 있으면 일반 이동 불가 (은신 장소에서 나오는 것만 E로 허용)
@@ -506,7 +510,7 @@ void APlayerCharacter::Die()
 	if (bIsDead) return;
 	bIsDead = true;
 
-	UE_LOG(LogTemp, Warning, TEXT("PlayerCharacter died"));
+	UE_LOG(LogTemp, Warning, TEXT("PlayerCharacter::Die() called"));
 
 	// 이동/입력 정지
 	if (GetCharacterMovement())
@@ -526,8 +530,8 @@ void APlayerCharacter::Die()
 	// 사망 시 프롬프트도 확실히 정리
 	CurrentInteractableActor.Reset();
 	HideInteractionPrompt();
-	
-	// 은신 중 사망 -> 은신 상태 강제 해제 (연출없이 즉이 정리)
+
+	// 은신 중 사망 -> 은신 상태 강제 해제 (연출없이 즉시 정리)
 	if (bIsHiding)
 	{
 		ResetHidingState();
@@ -556,6 +560,29 @@ void APlayerCharacter::Die()
 	// 상호작용 연타 방지용 값 정리
 	LastInteractActor.Reset();
 	LastInteractTime = -1.0f;
+
+	// GameOver 화면에서 마우스로 버튼을 누를 수 있도록 커서 표시 + UI 입력 모드로 전환
+	// (CloseAllMenuUI()가 커서를 숨긴 뒤에 켜야 하므로 반드시 그 아래에 둔다)
+	if (APlayerCharacterController* CharacterController = Cast<APlayerCharacterController>(GetController()))
+	{
+		CharacterController->SetUIInputMode(true);
+	}
+
+	// GameMode에 사망 확정 알림 (GameOverReason = PlayerDied로 기록됨)
+	if (UWorld* World = GetWorld())
+	{
+		if (ADeadHospitalGameMode* GameMode = World->GetAuthGameMode<ADeadHospitalGameMode>())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Die(): HandlePlayerDeath() 호출"));
+			GameMode->HandlePlayerDeath();
+		}
+		else
+		{
+			AGameModeBase* CurrentMode = World->GetAuthGameMode();
+			UE_LOG(LogTemp, Error, TEXT("Die(): GameMode가 ADeadHospitalGameMode가 아닙니다! (현재: %s)"),
+				CurrentMode ? *CurrentMode->GetClass()->GetName() : TEXT("nullptr"));
+		}
+	}
 
 	// 블루프린트에서 사망 애니메이션, 리스폰 UI 등 연출 붙이는 지점
 	OnDeath();
@@ -610,10 +637,16 @@ void APlayerCharacter::ResetHidingState()
 {
 	if (CurrentHidingSpot.IsValid())
 	{
-		// HidingSpot 쪽 State도 같이 Idle로 되돌려서, 다음에 다른 플레이어/재시작 후에도 정상 사용 가능하게 함
-		IPlayerInterface::Execute_ForceRelease(CurrentHidingSpot.Get(), this);
-		CurrentHidingSpot->OnDestroyed.RemoveDynamic(this, &APlayerCharacter::HandleHidingSpotDestroyed);
+		AActor* Spot = CurrentHidingSpot.Get();
+
+		// HidingSpot 쪽 State도 같이 Idle로 되돌려서, 다음에 다시 정상 사용 가능하게 함
+		if (Spot->GetClass()->ImplementsInterface(UPlayerInterface::StaticClass()))
+		{
+			IPlayerInterface::Execute_ForceRelease(Spot, this);
+		}
+		Spot->OnDestroyed.RemoveDynamic(this, &APlayerCharacter::HandleHidingSpotDestroyed);
 	}
+	
 
 	bIsHiding = false;
 	CurrentHidingSpot.Reset();
@@ -740,6 +773,17 @@ void APlayerCharacter::OnFirePressed(const FInputActionValue& value)
 void APlayerCharacter::AcquireFlashlight()
 {
 	bHasFlashlight = true;
+}
+
+// UI 열림/닫힘 상태 갱신 + 마우스 커서/Input Mode 전환
+void APlayerCharacter::SetUIOpen(bool bNewUIOpen)
+{
+	bIsUIOpen = bNewUIOpen;
+
+	if (APlayerCharacterController* CharacterController = Cast<APlayerCharacterController>(GetController()))
+	{
+		CharacterController->SetUIInputMode(bNewUIOpen);
+	}
 }
 
 void APlayerCharacter::ToggleFlashlight()
@@ -1060,29 +1104,52 @@ AActor* APlayerCharacter::FindInteractableTarget() const
 	}
 
 	AActor* HitActor = Hit.GetActor();
-
-	// 상호작용 불가능한 Actor
-	if (!IsValid(HitActor) || !HitActor->GetClass()->ImplementsInterface(UPlayerInterface::StaticClass()))
+	if (!IsValid(HitActor))
 	{
 		return nullptr;
 	}
 
-	// 너무 멀리 있음
+	const bool bImplementsPlayerInterface = HitActor->GetClass()->ImplementsInterface(UPlayerInterface::StaticClass());
+	const bool bImplementsInteractable = HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass());
+
+	if (!bImplementsPlayerInterface && !bImplementsInteractable)
+	{
+		return nullptr;
+	}
+
 	if (Hit.Distance > InteractDistance)
 	{
 		return nullptr;
 	}
 
-	// 은신 중 -> 허용된 상호작용만 실행
-	if (bIsHiding && !IPlayerInterface::Execute_IsAllowedWhileHiding(HitActor))
+	if (bIsHiding)
 	{
-		return nullptr;
+		if (bImplementsPlayerInterface)
+		{
+			if (!IPlayerInterface::Execute_IsAllowedWhileHiding(HitActor))
+			{
+				return nullptr;
+			}
+		}
+		else
+		{
+			return nullptr;
+		}
 	}
 
-	// 이미 사용된 Actor / 지금 상호작용 불가능한 상태
-	if (!IPlayerInterface::Execute_CanInteract(HitActor, const_cast<APlayerCharacter*>(this)))
+	if (bImplementsPlayerInterface)
 	{
-		return nullptr;
+		if (!IPlayerInterface::Execute_CanInteract(HitActor, const_cast<APlayerCharacter*>(this)))
+		{
+			return nullptr;
+		}
+	}
+	else if (bImplementsInteractable)
+	{
+		if (!IInteractable::Execute_CanInteract(HitActor, const_cast<APlayerCharacter*>(this)))
+		{
+			return nullptr;
+		}
 	}
 
 	return HitActor;
@@ -1118,8 +1185,16 @@ void APlayerCharacter::UpdateInteractionPrompt()
 	// 다른 Actor를 바라봄, 혹은 같은 Actor라도 상태(잠김->열림 등)가 바뀌었을 수 있으므로
 	// 매 프레임 텍스트를 다시 받아와서 UI에 갱신해준다.
 	CurrentInteractableActor = NewTarget;
+	FText PromptText;
+	if (NewTarget->GetClass()->ImplementsInterface(UPlayerInterface::StaticClass()))
+	{
+		PromptText = IPlayerInterface::Execute_GetInteractionText(NewTarget, const_cast<APlayerCharacter*>(this));
+	}
+	else if (NewTarget->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+	{
+		PromptText = IInteractable::Execute_GetInteractionText(NewTarget);
+	}
 	
-	const FText PromptText = IPlayerInterface::Execute_GetInteractionText(NewTarget, const_cast<APlayerCharacter*>(this));
 	ShowInteractionPrompt(PromptText);
 }
 
@@ -1138,12 +1213,28 @@ void APlayerCharacter::TryInteract()
 		return;
 	}
 
-	if (!IPlayerInterface::Execute_CanInteract(TargetActor, this))
+	const bool bImplementsPlayerInterface = TargetActor->GetClass()->ImplementsInterface(UPlayerInterface::StaticClass());
+	const bool bImplementsInteractable = TargetActor->GetClass()->ImplementsInterface(UInteractable::StaticClass());
+
+	if (bImplementsPlayerInterface)
+	{
+		if (!IPlayerInterface::Execute_CanInteract(TargetActor, this))
+		{
+			return;
+		}
+	}
+	else if (bImplementsInteractable)
+	{
+		if (!IInteractable::Execute_CanInteract(TargetActor, this))
+		{
+			return;
+		}
+	}
+	else
 	{
 		return;
 	}
 
-	// E 연타 방지
 	const float Now = GetWorld()->GetTimeSeconds();
 	if (LastInteractActor.Get() == TargetActor && (Now - LastInteractTime) < InteractCooldown)
 	{
@@ -1153,5 +1244,12 @@ void APlayerCharacter::TryInteract()
 	LastInteractActor = TargetActor;
 	LastInteractTime = Now;
 
-	IPlayerInterface::Execute_Interact(TargetActor, this);
+	if (bImplementsPlayerInterface)
+	{
+		IPlayerInterface::Execute_Interact(TargetActor, this);
+	}
+	else
+	{
+		IInteractable::Execute_Interact(TargetActor, this);
+	}
 }

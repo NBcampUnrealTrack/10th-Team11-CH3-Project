@@ -11,6 +11,9 @@ APlayerCharacterController::APlayerCharacterController()
 	FlashlightAction(nullptr),
 	InventoryAction(nullptr),
 	DocumentAction(nullptr),
+	CraftAction(nullptr),
+	CloseUIAction(nullptr),
+	PauseAction(nullptr),
 	QuickSlot1Action(nullptr),
 	QuickSlot2Action(nullptr),
 	QuickSlot3Action(nullptr),
@@ -32,5 +35,22 @@ void APlayerCharacterController::BeginPlay()
 				Subsystem->AddMappingContext(InputMappingContext, 0);
 			}
 		}
+	}
+}
+
+void APlayerCharacterController::SetUIInputMode(bool bUIOpen)
+{
+	if (bUIOpen)
+	{
+		FInputModeGameAndUI InputMode;
+		InputMode.SetHideCursorDuringCapture(false);
+		SetInputMode(InputMode);
+		bShowMouseCursor = true;
+	}
+	else
+	{
+		FInputModeGameOnly InputMode;
+		SetInputMode(InputMode);
+		bShowMouseCursor = false;
 	}
 }
