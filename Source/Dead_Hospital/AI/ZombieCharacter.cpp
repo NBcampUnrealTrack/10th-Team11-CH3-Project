@@ -44,6 +44,15 @@ AZombieCharacter::AZombieCharacter()
 	ChaseTarget = nullptr;
 	//좀비의 현재 상태 - 초기는 순찰
 	CurrentState = EZombieState::Patrol;
+
+	//추격 거리
+	MinChaseDistance = 150.0f;
+	MaxChaseDistance = 800.0f;
+	//추격 속도
+	MinChaseSpeed = 200.0f;
+	MaxChaseSpeed = 320.0f;
+
+
 	//스폰되자마자 즉시 어그로(Chase 진입)를 걸지 여부
 	bAggroOnSpawn = false;
 	//P2P 순찰 로직에서 "지금 몇 번째 순찰 지점을 향하고 있는지"를 가리키는 인덱스
@@ -90,6 +99,7 @@ void AZombieCharacter::BeginPlay()
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 	//좀비가 이동방향으로 몸을 돌릴때 회전을 부드럽게 해주기 위해 사용
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
+	GetCharacterMovement()->MaxAcceleration = 20000;
 	
 	//메시(스켈레탈 메시)의 "기본 상대 회전/위치"를 지금 시점 값으로 저장
 	//나중에 Root Motion 등으로 메시 위치/회전이 흐트러졌을 때 "원래 자리로 되돌리는"
@@ -496,7 +506,6 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 		GetCharacterMovement()->RotationRate = FRotator(0.0f, 1080.0f, 0.0f);
-		GetCharacterMovement()->bOrientRotationToMovement = false;
 		break;
 	case EZombieState::Hitstun:
 		GetCharacterMovement()->MaxWalkSpeed = 0.0f;

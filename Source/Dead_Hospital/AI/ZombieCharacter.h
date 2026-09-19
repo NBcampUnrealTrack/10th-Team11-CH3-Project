@@ -32,13 +32,13 @@ public:
 	//Search 두리번거림 반전 여부
 	//(Root Motion 몽타주는 Mirror 노드로 반전이 안 되는 한계로 인해
 	//현재 값만 토글되고, 각도 보정 계산에만 쓰임)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Search")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Search")
 	bool bSearchTurnMirrored = false;
 	// 이 좀비가 죽은 척 대기 중인지 여부
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|JumpScare")
 	bool bIsFakeDead = false;
 	//스폰 즉시 어그로 여부.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|AI")
 	bool bAggroOnSpawn;
 
 
@@ -46,7 +46,7 @@ protected:
 	// 컴포넌트 및 타이머
 
 	//공격 판정용 구 콜리전. 생성자에서 고정 생성되므로 컴포넌트 자체 교체는 불가
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Component")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Zombie|Component")
 	USphereComponent* AttackRangeComp;
 	//디버그용 화살표
 	/*UPROPERTY(VisibleAnywhere)
@@ -65,28 +65,39 @@ protected:
 
 	//P2P 왕복 순찰 지점들. EditInstanceOnly라서 같은 Bp를 여러 곳에 배치해도
 	//인스턴스마다 다른 순찰 경로를 지정할 수 있음
-	UPROPERTY(EditInstanceOnly, Category = "LocationPoint")
+	UPROPERTY(EditInstanceOnly, Category = "Zombie|LocationPoint")
 	TArray<AActor*> PatrolPoints;
 
 	//캐릭터 스탯
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Zombie|Stats")
 	float Health;//현재체력
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Stats")
 	float MaxHealth;//최대체력
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Zombie|Stats")
 	FString ZombieName;//이름
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Stats")
 	float Power;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Stats")
 	float AttackRange;//공격 범위
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Stats")
 	float PatrolSpeed;//순찰(걷는) 속도
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Stats")
 	float ChaseSpeed;//추적 속도
+
+	//거리별 속도 변화를 위한 변수들
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Chase")
+	float MinChaseDistance;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Chase")
+	float MaxChaseDistance;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Chase")
+	float MinChaseSpeed;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Chase")
+	float MaxChaseSpeed;
+
 	//P2P 왕복 순찰에서 현재 목표 지점 인덱스
 	int32 CurrentPatrolIndex;
 	//피격 경직 지속시간(초)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Combat")
 	float HitstunDuration;
 	//Search 진입 시점 기준 Yaw
 	UPROPERTY()
@@ -98,25 +109,25 @@ protected:
 	bool bPatrolForward = true;
 
 	//상태 관련
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Zombie|State")
 	ACharacter* ChaseTarget;//추적타겟
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "State")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Zombie|State")
 	EZombieState CurrentState;//좀비 현재 상태(Idle, Patrol, Chase, Attack,	Dead)
 
 	//애니메이션 몽타주
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Combat")
 	UAnimMontage* AttackMontage;//애니메이션 몽타주
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Search")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Search")
 	UAnimMontage* SearchTurnMontage;
 	// 일어날 때 재생할 애니메이션
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|JumpScare")
 	UAnimMontage* GetUpMontage;
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|Combat")
 	UAnimMontage* HitReactMontage;//피격 리액션 애니메이션. 비어있어도 상태 전환/이동 정지는 되지만 애니메이션만 안 나옴
 
-	UPROPERTY(EditDefaultsOnly, Category = "Drop")
+	UPROPERTY(EditDefaultsOnly, Category = "Zombie|Drop")
 	UDataTable* ZombieDropTable;//드랍 아이템/확률(가중치)/수량 정의 테이블
-	UPROPERTY(EditDefaultsOnly, Category = "Drop")
+	UPROPERTY(EditDefaultsOnly, Category = "Zombie|Drop")
 	UDataTable* ItemDataTable;//아이템 상세 정보 테이블. ZombieDropTable의 ItemID로 여기서 조회
 
 public:
@@ -133,6 +144,12 @@ public:
 	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
 	FORCEINLINE float GetSearchBaseYaw() const { return SearchBaseYaw; }
 	FORCEINLINE float GetPatrolSpeed() const { return PatrolSpeed; }
+	FORCEINLINE float GetMinChaseDistance() const { return MinChaseDistance; }
+	FORCEINLINE float GetMaxChaseDistance() const { return MaxChaseDistance; }
+	FORCEINLINE float GetMinChaseSpeed() const { return MinChaseSpeed; }
+	FORCEINLINE float GetMaxChaseSpeed() const { return MaxChaseSpeed; }
+
+
 	FORCEINLINE FString GetZombieName() const { return ZombieName; }
 	FORCEINLINE FRotator GetDefaultMeshRelativeRotation() const { return DefaultMeshRelativeRotation; }
 	FORCEINLINE FVector GetDefaultMeshRelativeLocation() const { return DefaultMeshRelativeLocation; }
@@ -146,7 +163,7 @@ public:
 	FORCEINLINE EZombieState GetCurrentState() const { return CurrentState; }
 
 	//Anim Notify에서 호출 - 공격 판정 타이밍에 데미지 적용
-	UFUNCTION(BlueprintCallable, Category = "Attack")
+	UFUNCTION(BlueprintCallable, Category = "Zombie|Attack")
 	void Attack();
 
 	//사망처리
@@ -157,7 +174,7 @@ public:
 	void OnHitstunEnded();
 
 	//공격 애니메이션 종료 시 AI 컨트롤러에 알림
-	UFUNCTION(BlueprintCallable, Category = "Combat")
+	UFUNCTION(BlueprintCallable, Category = "Zombie|Combat")
 	void OnAttackAnimationFinished();
 
 	//몽타주 재생 함수들
@@ -167,13 +184,13 @@ public:
 	void AggroOnSpawn();//스폰 즉시 어그로
 
 	//SearchTurn 몽타주 재생 중여부
-	UFUNCTION(BlueprintCallable, Category = "Search")
+	UFUNCTION(BlueprintCallable, Category = "Zombie|Search")
 	bool IsPlayingSearchTurn() const;
 
 	// 트리거가 밟히면 호출
-	UFUNCTION(BlueprintCallable, Category = "JumpScare")
+	UFUNCTION(BlueprintCallable, Category = "Zombie|JumpScare")
 	void WakeUp();
-	UFUNCTION(BlueprintCallable, Category = "JumpScare")
+	UFUNCTION(BlueprintCallable, Category = "Zombie|JumpScare")
 	void EnterFakeDead();
 	//일어나는 몽타주 종료 콜백(BT 재시작)
 	void OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted);
@@ -183,7 +200,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void CheckSearchTurnSight();
 	//bSearchTurnMirrored Getter
-	UFUNCTION(BlueprintPure, Category = "Search")
+	UFUNCTION(BlueprintPure, Category = "Zombie|Search")
 	bool bIsSearchTurnMirrored() const;
 	//다음 순찰 지점 좌표 계산(왕복 로직 포함)
 	bool GetNextPatrolLocation(FVector& OutLocation);
