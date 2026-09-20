@@ -4,6 +4,8 @@
 
 #include "DocumentComponent.h"
 #include "InventoryComponent.h"
+#include "PlayerCharacter.h"
+#include "Engine/DamageEvents.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -15,9 +17,9 @@ ADeadHospitalGameMode::ADeadHospitalGameMode()
 {
 	// 생성자는 GameMode가 처음 만들어질 때 기본값을 넣는 곳입니다.
 	// FText는 화면에 보여 주는 글자이며 GameMode Blueprint의 기본값에서 문구를 바꿀 수 있습니다.
-	FirstObjectiveText = FText::FromString(TEXT("병실을 조사하라"));
-	FinalObjectiveText = FText::FromString(TEXT("생명유지장치를 종료하라"));
-	EscapeObjectiveText = FText::FromString(TEXT("제한시간 안에 병원을 탈출하라"));
+	FirstObjectiveText = FText::FromString(TEXT("병실을 조사하세요"));
+	FinalObjectiveText = FText::FromString(TEXT("생명유지장치를 정지하세요"));
+	EscapeObjectiveText = FText::FromString(TEXT("제한시간 안에 병원에서 탈출하세요"));
 
 	// 게임 진행에 필요한 중요 아이템 목록입니다.
 	// 카드키와 그림은 일반적인 방법으로 버리지 못하도록 보호합니다.
@@ -26,6 +28,19 @@ ADeadHospitalGameMode::ADeadHospitalGameMode()
 		TEXT("CardKeyB"),
 		TEXT("MasterCardKey"),
 		TEXT("Painting")
+	};
+
+	// 최신 GDD에서 특수중환자격리실은 7개 퍼즐을 모두 해결한 후에만 진입할 수 있습니다.
+	// 이 목록을 생성자에서 채워 두면 C++ GameMode를 그대로 사용해도 필수 조건이 비어 있는 사고를 막을 수 있습니다.
+	// Blueprint 자식에서 배열을 직접 바꾸면 그 Blueprint 값이 우선하므로, 배치 전에 PZ01~PZ07이 모두 들어 있는지 확인해야 합니다.
+	RequiredPuzzleIdsForFinalObjective = {
+		TEXT("PZ01"),
+		TEXT("PZ02"),
+		TEXT("PZ03"),
+		TEXT("PZ04"),
+		TEXT("PZ05"),
+		TEXT("PZ06"),
+		TEXT("PZ07")
 	};
 }
 
@@ -75,11 +90,13 @@ bool ADeadHospitalGameMode::StartGame()
 	CountedEnemies.Reset();
 	LastCheckpoint = FDeadHospitalCheckpointData();
 	CurrentAreaId = NAME_None;
+	CurrentObjective = FDeadHospitalObjectiveState();
+	CurrentSubObjective = FDeadHospitalObjectiveState();
 
 	// 기록을 초기화한 다음 일반 탐색으로 넘어가 첫 목표와 1초 타이머를 설정합니다.
 	// Broadcast는 UI 등 On... 이벤트에 연결된 외부 동작에 변경 사실을 알립니다.
 	SetGamePhase(EDeadHospitalGamePhase::Playing);
-	SetCurrentObjective(FirstObjectiveId, FirstObjectiveText);
+	SetMainObjective(FirstObjectiveId, FirstObjectiveText);
 	RestartGameTimer();
 
 	OnGameRecordsUpdated.Broadcast();
@@ -99,7 +116,8 @@ bool ADeadHospitalGameMode::StartFinalObjective()
 	}
 
 	SetGamePhase(EDeadHospitalGamePhase::FinalObjective);
-	SetCurrentObjective(FinalObjectiveId, FinalObjectiveText);
+	SetMainObjective(FinalObjectiveId, FinalObjectiveText);
+	ClearSubObjective();
 	OnFinalObjectiveStarted.Broadcast();
 	return true;
 }
@@ -139,10 +157,11 @@ bool ADeadHospitalGameMode::CompleteLifeSupportShutdown()
 
 	LifeSupportShutdown = true;
 	SetGamePhase(EDeadHospitalGamePhase::ReturningToHospital);
-	ClearCurrentObjective();
+	ClearMainObjective();
+	ClearSubObjective();
 
 	// 아직 탈출 타이머를 시작하지 않습니다.
-	// 성불 연출, 암전, 지하 2층 이동, 조작 복구가 모두 끝난 뒤 StartEscapePhase가 호출됩니다.
+	// 최신 GDD에서는 순간이동하지 않고, 특수중환자격리실에서 성불 연출과 조작 복구가 모두 끝난 뒤 StartEscapePhase가 호출됩니다.
 	OnLifeSupportShutdown.Broadcast();
 	OnGameRecordsUpdated.Broadcast();
 	return true;
@@ -194,7 +213,8 @@ bool ADeadHospitalGameMode::StartEscapePhase(int32 DurationSeconds)
 
 	EscapeRemainingTimeSeconds = FMath::Max(SelectedDuration, 1);
 	SetGamePhase(EDeadHospitalGamePhase::Escape);
-	SetCurrentObjective(EscapeObjectiveId, EscapeObjectiveText);
+	SetMainObjective(EscapeObjectiveId, EscapeObjectiveText);
+	ClearSubObjective();
 
 	OnEscapeTimeChanged.Broadcast(EscapeRemainingTimeSeconds);
 	OnGameRecordsUpdated.Broadcast();
@@ -220,7 +240,8 @@ bool ADeadHospitalGameMode::TryStartEnding()
 	FinalRank = CalculateRankFromClearTime(FinalClearTimeSeconds);
 	ClearResultConfirmed = true;
 	GetWorldTimerManager().ClearTimer(GameTimerHandle);
-	ClearCurrentObjective();
+	ClearMainObjective();
+	ClearSubObjective();
 	SetGamePhase(EDeadHospitalGamePhase::Ending);
 	SetLocalPlayerInputEnabled(false);
 
@@ -260,6 +281,17 @@ bool ADeadHospitalGameMode::SetCurrentObjective(
 	int32 CurrentProgress,
 	int32 TargetProgress)
 {
+	// 이 함수는 기존 Blueprint에 이미 배치된 Set Current Objective 노드를 깨지 않기 위한 호환용 입구입니다.
+	// 최신 기획에서는 메인 목표와 서브 목표를 동시에 관리하므로, 예전 함수는 메인 목표를 바꾸는 새 함수로 연결합니다.
+	return SetMainObjective(ObjectiveId, ObjectiveText, CurrentProgress, TargetProgress);
+}
+
+bool ADeadHospitalGameMode::SetMainObjective(
+	FName ObjectiveId,
+	FText ObjectiveText,
+	int32 CurrentProgress,
+	int32 TargetProgress)
+{
 	// ObjectiveId는 코드가 목표를 구별하는 이름이고 ObjectiveText는 UI에 읽히는 문구입니다.
 	// None 또는 종료/엔딩 단계라면 더 이상 새 목표를 화면에 띄우지 않습니다.
 	if (ObjectiveId.IsNone() || IsTerminalPhase() || CurrentGamePhase == EDeadHospitalGamePhase::Ending)
@@ -277,13 +309,47 @@ bool ADeadHospitalGameMode::SetCurrentObjective(
 		: 0;
 	CurrentObjective.IsActive = true;
 
+	// OnObjectiveChanged는 예전 UI를 위한 알림이고 OnMainObjectiveChanged는 새 UI를 위한 알림입니다.
+	// 둘 다 보내면 기존 Blueprint를 깨지 않으면서 메인/서브 UI를 나누어 연동할 수 있습니다.
 	OnObjectiveChanged.Broadcast(CurrentObjective);
+	OnMainObjectiveChanged.Broadcast(CurrentObjective);
+	return true;
+}
+
+bool ADeadHospitalGameMode::SetSubObjective(
+	FName ObjectiveId,
+	FText ObjectiveText,
+	int32 CurrentProgress,
+	int32 TargetProgress)
+{
+	// 서브 목표는 메인 목표 CurrentObjective를 건드리지 않고 CurrentSubObjective에 따로 저장합니다.
+	// 그래서 예를 들어 메인에 '2층을 조사하세요', 서브에 '그림 2/3' 둘을 동시에 표시할 수 있습니다.
+	if (ObjectiveId.IsNone() || IsTerminalPhase() || CurrentGamePhase == EDeadHospitalGamePhase::Ending)
+	{
+		return false;
+	}
+
+	CurrentSubObjective.ObjectiveId = ObjectiveId;
+	CurrentSubObjective.ObjectiveText = ObjectiveText;
+	CurrentSubObjective.TargetProgress = FMath::Max(TargetProgress, 0);
+	CurrentSubObjective.CurrentProgress = CurrentSubObjective.TargetProgress > 0
+		? FMath::Clamp(CurrentProgress, 0, CurrentSubObjective.TargetProgress)
+		: 0;
+	CurrentSubObjective.IsActive = true;
+
+	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
 	return true;
 }
 
 bool ADeadHospitalGameMode::UpdateObjectiveProgress(FName ObjectiveId, int32 CurrentProgress, int32 TargetProgress)
 {
-	// 지금 화면에 떠 있는 목표와 ID가 같을 때만 숫자를 바꿉니다.
+	// 예전 Blueprint 노드는 메인 목표 진행도를 바꾸는 함수로 연결합니다.
+	return UpdateMainObjectiveProgress(ObjectiveId, CurrentProgress, TargetProgress);
+}
+
+bool ADeadHospitalGameMode::UpdateMainObjectiveProgress(FName ObjectiveId, int32 CurrentProgress, int32 TargetProgress)
+{
+	// 지금 화면에 떠 있는 메인 목표와 ID가 같을 때만 숫자를 바꿉니다.
 	// 다른 목표 진행도가 우연히 들어와도 현재 목표를 덮어쓰지 않습니다.
 	if (!CurrentObjective.IsActive || CurrentObjective.ObjectiveId != ObjectiveId || TargetProgress < 0)
 	{
@@ -296,10 +362,67 @@ bool ADeadHospitalGameMode::UpdateObjectiveProgress(FName ObjectiveId, int32 Cur
 		: 0;
 
 	OnObjectiveChanged.Broadcast(CurrentObjective);
+	OnMainObjectiveChanged.Broadcast(CurrentObjective);
 	return true;
 }
 
+bool ADeadHospitalGameMode::UpdateSubObjectiveProgress(FName ObjectiveId, int32 CurrentProgress, int32 TargetProgress)
+{
+	// 서브 목표도 현재 활성 ID가 같을 때만 숫자를 바꿉니다.
+	// TargetProgress가 3이라면 CurrentProgress는 Clamp로 0~3 범위에서만 저장됩니다.
+	if (!CurrentSubObjective.IsActive
+		|| CurrentSubObjective.ObjectiveId != ObjectiveId
+		|| TargetProgress < 0)
+	{
+		return false;
+	}
+
+	CurrentSubObjective.TargetProgress = TargetProgress;
+	CurrentSubObjective.CurrentProgress = TargetProgress > 0
+		? FMath::Clamp(CurrentProgress, 0, TargetProgress)
+		: 0;
+
+	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
+	return true;
+}
+
+bool ADeadHospitalGameMode::AdvanceSubObjectiveProgress(
+	FName ObjectiveId,
+	FText ObjectiveText,
+	int32 ProgressToAdd,
+	int32 TargetProgress)
+{
+	// ProgressToAdd가 0 이하거나 목표 수가 0 이하면 의미 있는 진행이 아니므로 거절합니다.
+	if (ObjectiveId.IsNone() || ProgressToAdd <= 0 || TargetProgress <= 0)
+	{
+		return false;
+	}
+
+	// 아직 서브 목표가 없다면 0에서 시작하고, 같은 ID가 이미 활성 중이면 기존 숫자에 더합니다.
+	// 다른 ID가 활성 중인데 새 ID가 들어오면 실수로 덮어쓰지 않고 false를 돌려줍니다.
+	if (!CurrentSubObjective.IsActive)
+	{
+		return SetSubObjective(ObjectiveId, ObjectiveText, ProgressToAdd, TargetProgress);
+	}
+
+	if (CurrentSubObjective.ObjectiveId != ObjectiveId)
+	{
+		return false;
+	}
+
+	return UpdateSubObjectiveProgress(
+		ObjectiveId,
+		CurrentSubObjective.CurrentProgress + ProgressToAdd,
+		TargetProgress);
+}
+
 void ADeadHospitalGameMode::ClearCurrentObjective()
+{
+	// 예전 Blueprint를 위한 함수이며, 현재는 메인 목표만 비웁니다.
+	ClearMainObjective();
+}
+
+void ADeadHospitalGameMode::ClearMainObjective()
 {
 	// 이미 비어 있으면 같은 '목표 제거' 이벤트를 여러 번 보내지 않습니다.
 	if (!CurrentObjective.IsActive && CurrentObjective.ObjectiveId.IsNone())
@@ -310,6 +433,19 @@ void ADeadHospitalGameMode::ClearCurrentObjective()
 	// 새 기본 struct를 대입하면 ID=None, 숫자=0, IsActive=false가 됩니다.
 	CurrentObjective = FDeadHospitalObjectiveState();
 	OnObjectiveChanged.Broadcast(CurrentObjective);
+	OnMainObjectiveChanged.Broadcast(CurrentObjective);
+}
+
+void ADeadHospitalGameMode::ClearSubObjective()
+{
+	// 메인 목표는 유지하고 서브 목표 칸만 비웁니다.
+	if (!CurrentSubObjective.IsActive && CurrentSubObjective.ObjectiveId.IsNone())
+	{
+		return;
+	}
+
+	CurrentSubObjective = FDeadHospitalObjectiveState();
+	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
 }
 
 bool ADeadHospitalGameMode::CompletePuzzle(FName PuzzleId)
@@ -486,6 +622,7 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 		: (!CurrentAreaId.IsNone() ? CurrentAreaId : CheckpointId);
 	NewCheckpoint.SavedGamePhase = CurrentGamePhase;
 	NewCheckpoint.SavedObjective = CurrentObjective;
+	NewCheckpoint.SavedSubObjective = CurrentSubObjective;
 	NewCheckpoint.SavedPlayTimeSeconds = ElapsedPlayTimeSeconds;
 	NewCheckpoint.SavedKillCount = KillCount;
 	NewCheckpoint.SavedEscapeTimeSeconds = EscapeRemainingTimeSeconds;
@@ -494,6 +631,25 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 	NewCheckpoint.CompletedEventIds = GetCompletedOneTimeEventIds();
 	NewCheckpoint.ActivatedCheckpointIds = ActivatedCheckpointIds.Array();
 	NewCheckpoint.ActivatedCheckpointIds.AddUnique(CheckpointId);
+
+	// APlayerCharacter로 Cast에 성공하면 Player 팀이 공개한 Getter로 체력과 손전등 보유 상태를 읽습니다.
+	// GameMode가 PlayerCharacter의 private 변수를 직접 바꾸지 않기 때문에 팀원 파트의 컡슐화를 깨지 않습니다.
+	if (const APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(PlayerActor))
+	{
+		NewCheckpoint.HasPlayerHealthSnapshot = true;
+		NewCheckpoint.SavedPlayerHealth = PlayerCharacter->GetCurrentHP();
+		NewCheckpoint.SavedPlayerHadFlashlight = PlayerCharacter->HasFlashlight();
+	}
+	else
+	{
+		// 다른 Pawn 클래스로 테스트하는 경우에도 인벤토리와 진행 상태 저장은 계속할 수 있게 합니다.
+		// 단, 이 경우는 PlayerCharacter 전용 HP/손전등만 복구할 수 없다는 경고를 남깁니다.
+		UE_LOG(
+			LogTemp,
+			Warning,
+			TEXT("Checkpoint %s saved without PlayerCharacter health/flashlight data."),
+			*CheckpointId.ToString());
+	}
 
 	// InventoryComponent는 팀원 코드를 수정하지 않고 공개된 데이터와 함수만 사용합니다.
 	NewCheckpoint.HasInventorySnapshot = true;
@@ -793,15 +949,45 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 		}
 	}
 
+	// 인벤토리와 문서를 모두 복구한 뒤 PlayerCharacter 전용 상태를 복구합니다.
+	// 손전등은 AcquireFlashlight()라는 팀원의 공개 함수를 통해 복구하므로 손전등 UI/상태 알림도 기존 흐름대로 실행됩니다.
+	if (APlayerCharacter* NewPlayerCharacter = Cast<APlayerCharacter>(NewPlayerPawn))
+	{
+		if (LastCheckpoint.SavedPlayerHadFlashlight && !NewPlayerCharacter->HasFlashlight())
+		{
+			NewPlayerCharacter->AcquireFlashlight();
+		}
+
+		if (LastCheckpoint.HasPlayerHealthSnapshot)
+		{
+			// 새 Pawn은 기본적으로 최대 HP로 시작합니다. 저장 HP가 그보다 낮으면 차이만큼만 TakeDamage를 적용합니다.
+			// PlayerCharacter에 공개 SetHealth 함수가 없으므로 private CurrentHP를 건드리지 않고, 공개된 정상 피해 흐름을 이용해 UI에도 HP 변경을 알립니다.
+			const float SafeSavedHealth = FMath::Clamp(
+				LastCheckpoint.SavedPlayerHealth,
+				0.0f,
+				NewPlayerCharacter->GetMaxHP());
+			const float HealthToRemove = NewPlayerCharacter->GetCurrentHP() - SafeSavedHealth;
+
+			if (HealthToRemove > 0.0f)
+			{
+				FDamageEvent CheckpointRestoreDamageEvent;
+				NewPlayerCharacter->TakeDamage(
+					HealthToRemove,
+					CheckpointRestoreDamageEvent,
+					nullptr,
+					nullptr);
+			}
+		}
+	}
+
 	// 생성/연결/아이템 복구가 모두 성공한 뒤에만 이전 Pawn을 없앱니다.
 	if (IsValid(OldPawn))
 	{
 		OldPawn->Destroy();
 	}
 
-	// 현재 플레이 숫자/목표/퍼즐 목록을 저장 시점으로 되돌리고,
-	// 새 Pawn 입력과 1초 타이머를 복구합니다. 새 Pawn의 HP 등은
-	// DefaultPawnClass 기본 설정에서 시작하며 이 struct에서는 저장하지 않습니다.
+	// 현재 플레이 숫자/메인·서브 목표/퍼즐 목록을 저장 시점으로 되돌리고,
+	// 새 Pawn 입력과 1초 타이머를 복구합니다. HP와 손전등은 바로 위에서 이미 복구되었습니다.
 	RestoreInternalCheckpointState();
 	SetLocalPlayerInputEnabled(true);
 	RestartGameTimer();
@@ -811,6 +997,8 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 	OnCheckpointPlayerRespawned.Broadcast(NewPlayerPawn);
 	OnCheckpointRestored.Broadcast(LastCheckpoint.CheckpointId);
 	OnObjectiveChanged.Broadcast(CurrentObjective);
+	OnMainObjectiveChanged.Broadcast(CurrentObjective);
+	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
 	OnEscapeTimeChanged.Broadcast(EscapeRemainingTimeSeconds);
 	OnGameRecordsUpdated.Broadcast();
 	return true;
@@ -1008,7 +1196,8 @@ void ADeadHospitalGameMode::FinishWithGameOver(EDeadHospitalGameOverReason NewGa
 	GameOverReason = NewGameOverReason;
 	GetWorldTimerManager().ClearTimer(GameTimerHandle);
 	RunningEventIds.Reset();
-	ClearCurrentObjective();
+	ClearMainObjective();
+	ClearSubObjective();
 	SetGamePhase(EDeadHospitalGamePhase::GameOver);
 	SetLocalPlayerInputEnabled(false);
 
@@ -1102,6 +1291,7 @@ void ADeadHospitalGameMode::RestoreInternalCheckpointState()
 	EscapeRemainingTimeSeconds = LastCheckpoint.SavedEscapeTimeSeconds;
 	LifeSupportShutdown = LastCheckpoint.SavedLifeSupportShutdown;
 	CurrentObjective = LastCheckpoint.SavedObjective;
+	CurrentSubObjective = LastCheckpoint.SavedSubObjective;
 	CurrentAreaId = LastCheckpoint.SavedAreaId;
 	GameOverReason = EDeadHospitalGameOverReason::None;
 	ClearResultConfirmed = false;

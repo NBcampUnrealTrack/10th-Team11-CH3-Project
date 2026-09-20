@@ -3,7 +3,6 @@
 #include "DeadHospitalLifeSupportDevice.h"
 
 #include "DeadHospitalGameMode.h"
-#include "Camera/PlayerCameraManager.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -41,18 +40,12 @@ void ADeadHospitalLifeSupportDevice::BeginPlay()
 		GameMode->OnGamePhaseChanged.AddDynamic(this, &ADeadHospitalLifeSupportDevice::HandleGamePhaseChanged);
 	}
 
-	if (!IsValid(EscapeDestinationActor))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s: EscapeDestinationActor is not assigned."), *GetName());
-	}
-
 	OnLifeSupportStateRestored(DeviceShutdown);
 }
 
 void ADeadHospitalLifeSupportDevice::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	GetWorldTimerManager().ClearTimer(SequenceTimerHandle);
-	GetWorldTimerManager().ClearTimer(TeleportTimerHandle);
 
 	if (ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>())
 	{
@@ -72,7 +65,7 @@ bool ADeadHospitalLifeSupportDevice::CanInteract_Implementation(AActor* Interact
 {
 	// 아직 FinalObjective 단계가 아니거나, 목적지가 준비되지 않았거나,
 	// 이미 장치를 껐다면 E 상호작용을 거부합니다. &&는 조건이 전부 true여야 성공입니다.
-	if (DeviceShutdown || SequenceCompletionStarted || !EscapeDestinationReady || !IsValid(EscapeDestinationActor))
+	if (DeviceShutdown || SequenceCompletionStarted)
 	{
 		return false;
 	}
@@ -144,8 +137,6 @@ bool ADeadHospitalLifeSupportDevice::CompleteAscensionSequence()
 	if (!DeviceShutdown
 		|| SequenceCompletionStarted
 		|| EscapeSequenceFinished
-		|| !EscapeDestinationReady
-		|| !IsValid(EscapeDestinationActor)
 		|| !StoredPlayerPawn.IsValid())
 	{
 		return false;
@@ -153,43 +144,8 @@ bool ADeadHospitalLifeSupportDevice::CompleteAscensionSequence()
 
 	// true로 먼저 바꿔 같은 Finished 알림이 중복 도착해도 두 번 이동하지 않게 합니다.
 	SequenceCompletionStarted = true;
-
-	APawn* PlayerPawn = StoredPlayerPawn.Get();
-	APlayerController* PlayerController = IsValid(PlayerPawn)
-		? Cast<APlayerController>(PlayerPawn->GetController())
-		: nullptr;
-
-	if (IsValid(PlayerController)
-		&& IsValid(PlayerController->PlayerCameraManager)
-		&& FadeDurationSeconds > 0.0f)
-	{
-		PlayerController->PlayerCameraManager->StartCameraFade(
-			// 0(밝음)에서 1(검정)로 FadeDurationSeconds 동안 전환합니다.
-			0.0f,
-			1.0f,
-			FadeDurationSeconds,
-			FLinearColor::Black,
-			false,
-			true
-		);
-	}
-
-	if (FadeDurationSeconds <= 0.0f)
-	{
-		PerformEscapeTeleport();
-	}
-	else
-	{
-		GetWorldTimerManager().SetTimer(
-			TeleportTimerHandle,
-			this,
-			&ADeadHospitalLifeSupportDevice::PerformEscapeTeleport,
-			FadeDurationSeconds,
-			false
-		);
-	}
-
-	return true;
+	FinishAscensionAndStartEscape();
+	return EscapeSequenceFinished;
 }
 
 void ADeadHospitalLifeSupportDevice::SetEscapeDestinationReady(bool IsReady)
@@ -197,33 +153,15 @@ void ADeadHospitalLifeSupportDevice::SetEscapeDestinationReady(bool IsReady)
 	EscapeDestinationReady = IsReady;
 }
 
-void ADeadHospitalLifeSupportDevice::PerformEscapeTeleport()
+void ADeadHospitalLifeSupportDevice::FinishAscensionAndStartEscape()
 {
 	// 화면 암전이 끝났을 때 실제 Player를 지하 2층 TargetPoint로 옮깁니다.
 	// `TeleportTo` 실패 시 타이머를 멈추고 입력/화면을 복구합니다.
 	APawn* PlayerPawn = StoredPlayerPawn.Get();
-	if (!IsValid(PlayerPawn) || !IsValid(EscapeDestinationActor) || !EscapeDestinationReady)
+	if (!IsValid(PlayerPawn))
 	{
-		RestoreAfterTeleportFailure();
+		RestoreAfterEscapeStartFailure();
 		return;
-	}
-
-	const FVector DestinationLocation = EscapeDestinationActor->GetActorLocation() + DestinationOffset;
-	// 목적지 Actor의 회전도 함께 적용해 도착 후 Player가 올바른 방향을 보게 합니다.
-	const FRotator DestinationRotation = EscapeDestinationActor->GetActorRotation();
-
-	// bNoCheck를 false로 사용하면 목적지에 벽이나 바닥 충돌이 있을 때 억지로 내부에 넣지 않습니다.
-	// 배치가 잘못된 경우 이동을 실패시켜 Player가 맵 아래로 떨어지는 것보다 안전하게 복구합니다.
-	if (!PlayerPawn->TeleportTo(DestinationLocation, DestinationRotation, false, false))
-	{
-		RestoreAfterTeleportFailure();
-		return;
-	}
-
-	APlayerController* PlayerController = Cast<APlayerController>(PlayerPawn->GetController());
-	if (IsValid(PlayerController))
-	{
-		PlayerController->SetControlRotation(DestinationRotation);
 	}
 
 	// 가이드의 순서대로 "도착 완료 → 입력 복구 → Escape 상태와 Timer 시작"을 지킵니다.
@@ -232,39 +170,18 @@ void ADeadHospitalLifeSupportDevice::PerformEscapeTeleport()
 	ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
 	if (!IsValid(GameMode) || !GameMode->StartEscapePhase(EscapeDurationSeconds))
 	{
-		RestoreAfterTeleportFailure();
+		RestoreAfterEscapeStartFailure();
 		return;
-	}
-
-	// 지하 2층 이동과 Escape 단계 전환이 모두 성공했으므로 현재 진행 구역도 함께 갱신합니다.
-	// 다음 체크포인트는 이 값을 저장해 Respawn 뒤 UI/진행 로직이 병원 복귀 구역임을 알 수 있습니다.
-	if (!EscapeDestinationAreaId.IsNone())
-	{
-		GameMode->SetCurrentAreaId(EscapeDestinationAreaId);
 	}
 
 	if (!GameMode->CompleteOneTimeEvent(DeadHospitalLifeSupportEventIds::ShutdownSequence))
 	{
 		// 이 지점은 이동과 Escape 전환이 모두 성공한 뒤이므로 게임 진행은 유지합니다.
 		// 다만 완료 ID가 저장되지 않으면 체크포인트 중복 방지가 약해지므로 반드시 로그로 알려 줍니다.
-		UE_LOG(LogTemp, Error, TEXT("LifeSupportShutdown EventId could not be completed after a successful teleport."));
+		UE_LOG(LogTemp, Error, TEXT("LifeSupportShutdown EventId could not be completed after Escape started."));
 	}
 	EscapeSequenceFinished = true;
 	SequenceCompletionStarted = false;
-
-	if (IsValid(PlayerController)
-		&& IsValid(PlayerController->PlayerCameraManager)
-		&& FadeDurationSeconds > 0.0f)
-	{
-		PlayerController->PlayerCameraManager->StartCameraFade(
-			1.0f,
-			0.0f,
-			FadeDurationSeconds,
-			FLinearColor::Black,
-			false,
-			false
-		);
-	}
 
 	StoredPlayerPawn.Reset();
 	OnEscapeTeleportCompleted();
@@ -324,11 +241,10 @@ void ADeadHospitalLifeSupportDevice::HandleAutomaticSequenceCompletion()
 	CompleteAscensionSequence();
 }
 
-void ADeadHospitalLifeSupportDevice::RestoreAfterTeleportFailure()
+void ADeadHospitalLifeSupportDevice::RestoreAfterEscapeStartFailure()
 {
 	// 이동에 실패했는데 화면만 검고 Player 입력도 꺼지면 진행할 수 없습니다.
 	// 다만 GameOver/Ending/Cleared 상태에서는 사망/엔딩 입력 잠금이 우선입니다.
-	GetWorldTimerManager().ClearTimer(TeleportTimerHandle);
 	SequenceCompletionStarted = false;
 
 	const ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
@@ -344,26 +260,6 @@ void ADeadHospitalLifeSupportDevice::RestoreAfterTeleportFailure()
 		SetStoredPlayerInputEnabled(true);
 	}
 
-	APawn* PlayerPawn = StoredPlayerPawn.Get();
-	APlayerController* PlayerController = IsValid(PlayerPawn)
-		? Cast<APlayerController>(PlayerPawn->GetController())
-		: nullptr;
-
-	if (!GameMustKeepInputLocked
-		&& IsValid(PlayerController)
-		&& IsValid(PlayerController->PlayerCameraManager)
-		&& FadeDurationSeconds > 0.0f)
-	{
-		PlayerController->PlayerCameraManager->StartCameraFade(
-			1.0f,
-			0.0f,
-			FadeDurationSeconds,
-			FLinearColor::Black,
-			false,
-			false
-		);
-	}
-
 	OnEscapeTeleportFailed();
 }
 
@@ -372,7 +268,6 @@ void ADeadHospitalLifeSupportDevice::HandleCheckpointRestored(FName CheckpointId
 	// 저장 시점으로 되돌아갈 때 이전 실행의 타이머/Player 참조를 버립니다.
 	// 저장 당시 장치를 껐는지, Escape 단계였는지 GameMode에서 다시 읽습니다.
 	GetWorldTimerManager().ClearTimer(SequenceTimerHandle);
-	GetWorldTimerManager().ClearTimer(TeleportTimerHandle);
 	StoredPlayerPawn.Reset();
 	SequenceCompletionStarted = false;
 
@@ -396,7 +291,6 @@ void ADeadHospitalLifeSupportDevice::HandleGamePhaseChanged(EDeadHospitalGamePha
 	// 사망이나 게임 종료 뒤에도 Sequence Timer가 남아 있으면 늦게 Teleport가 실행될 수 있습니다.
 	// 두 Timer를 모두 지우고 실행 중 Event 예약도 취소하여 체크포인트 재시작을 방해하지 않게 합니다.
 	GetWorldTimerManager().ClearTimer(SequenceTimerHandle);
-	GetWorldTimerManager().ClearTimer(TeleportTimerHandle);
 
 	if (ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>())
 	{
