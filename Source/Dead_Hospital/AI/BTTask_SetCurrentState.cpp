@@ -23,8 +23,8 @@ EBTNodeResult::Type UBTTask_SetCurrentState::ExecuteTask(UBehaviorTreeComponent&
 	//좀비 캐릭터가 아니라면(다른 종류의 Pawn이라면) Task를 실패로 종료한다.
 	if (!Zombie) return EBTNodeResult::Failed;
 
-	UE_LOG(LogTemp, Warning, TEXT("[%s] SetCurrentState Called! NewState: %d"),
-		*Zombie->GetName(), (int32)NewState);
+	/*UE_LOG(LogTemp, Warning, TEXT("[%s] SetCurrentState Called! NewState: %d"),
+		*Zombie->GetName(), (int32)NewState);*/
 
 	//실제 상태 변경 - NewState는 이 Task 노드의 프로퍼티로,
 	//Behavior Tree 에디터에서 노드마다 다르게 지정해둔 목표 상태 값이다.
