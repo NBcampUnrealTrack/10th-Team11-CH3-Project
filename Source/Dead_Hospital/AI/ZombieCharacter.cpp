@@ -172,6 +172,9 @@ void AZombieCharacter::OnAttackEndOverlap(UPrimitiveComponent* OverlappedComp, A
 //받은 데미지 계산 - 체력 감소, 사망/경직 분기
 float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+	UE_LOG(LogTemp, Warning, TEXT("[%s] TakeDamage 호출됨! DamageAmount: %f, DamageCauser: %s"),
+		*GetName(), DamageAmount, DamageCauser ? *DamageCauser->GetName() : TEXT("nullptr"));
+
 	if (DamageAmount <= 0.0f)
 	{
 		return 0.0f;
