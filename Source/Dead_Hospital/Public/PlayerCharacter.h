@@ -11,6 +11,7 @@ class UDocumentComponent;
 class UCombatComponent;
 class USkeletalMeshComponent;
 class USoundBase;
+class USkeletalMesh;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryToggled, bool, bIsOpen);
@@ -146,6 +147,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void Heal(float HealAmount);
 
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void EquipWeapon(int32 WeaponIndex);
+
 	// 언리얼 기본 데미지 파이프라인 오버라이드
 	virtual float TakeDamage(
 		float DamageAmount, 
@@ -164,6 +168,16 @@ protected:
 	// 1인칭 손(팔) 전용 메시. 본인에게만 보이고, 카메라에 붙어서 시선을 따라 움직인다.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	USkeletalMeshComponent* ArmsMesh;
+
+	// 손 소켓에 붙는 총 메시
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	USkeletalMeshComponent* WeaponMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	USkeletalMesh* Weapon1Mesh = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Weapon")
+	USkeletalMesh* Weapon2Mesh = nullptr;
 
 	// Inventory
 	UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "Inventory")
