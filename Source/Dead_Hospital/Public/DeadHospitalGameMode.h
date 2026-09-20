@@ -21,7 +21,7 @@ enum class EDeadHospitalGamePhase : uint8
 	Waiting,				// 메인 레벨은 열렸지만 인트로가 끝나지 않아 게임 시간이 흐르지 않는 상태
 	Playing,				// 병원을 탐색하고 전투와 퍼즐을 진행하는 일반 플레이 상태
 	FinalObjective,		// 생명유지장치 구역에 도착하여 마지막 목표를 수행하는 상태
-	ReturningToHospital,	// 장치를 끈 뒤 성불 연출과 지하 2층 복귀를 기다리는 상태
+	ReturningToHospital,	// 예전 이름을 Blueprint 호환 때문에 유지. 현재는 장치 정지 후 성불 연출이 끝나기를 기다리는 상태이며 순간이동하지 않음
 	Escape,				// 병원 붕괴 제한시간 안에 최종 출구로 이동하는 상태
 	Ending,				// 최종 출구 상호작용 후 엔딩 연출을 재생하는 상태
 	GameOver,			// 플레이어 사망 또는 탈출 시간 초과로 실패한 상태
@@ -119,6 +119,15 @@ struct FDeadHospitalCheckpointData
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	FDeadHospitalObjectiveState SavedObjective;
 
+	/**
+	 * 저장 당시 HUD에 표시되던 서브 목표입니다.
+	 * SavedObjective는 기존 Blueprint와의 호환을 위해 메인 목표 저장칸으로 계속 사용하고,
+	 * 서브 목표만 별도 칸에 보관합니다. 이렇게 해야 그림 수집 2/3 같은 진행도가
+	 * 체크포인트 재시작 뒤에도 메인 목표와 함께 정확하게 돌아옵니다.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	FDeadHospitalObjectiveState SavedSubObjective;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	int32 SavedPlayTimeSeconds = 0;
 
@@ -130,6 +139,18 @@ struct FDeadHospitalCheckpointData
 
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	bool SavedLifeSupportShutdown = false;
+
+	/** PlayerCharacter에서 체력을 정상적으로 읽어 왔는지 나타냅니다. */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	bool HasPlayerHealthSnapshot = false;
+
+	/** 체크포인트를 밟은 순간의 실제 HP입니다. 새 Pawn의 최대 HP 범위 안으로 보정해 복구합니다. */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	float SavedPlayerHealth = 0.0f;
+
+	/** 손전등은 일반 Inventory Item으로 들어가지 않으므로 별도 보유 상태를 기억합니다. */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	bool SavedPlayerHadFlashlight = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	TArray<FName> CompletedPuzzleIds;
@@ -249,7 +270,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Game Flow")
 	bool AreFinalObjectiveRequirementsMet() const;
 
-	/** 생명유지장치 종료를 한 번만 승인하고 성불·복귀 단계로 이동합니다. */
+	/** 생명유지장치 종료를 한 번만 승인하고, 현재 위치에서 성불 연출을 기다리는 단계로 이동합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Game Flow")
 	bool CompleteLifeSupportShutdown();
 
@@ -269,9 +290,9 @@ public:
 	bool RegisterEnemyKillOnce(AActor* DefeatedEnemy);
 
 	/**
-	 * 장치 종료 후 보스 구역에서 병원 지하 2층으로 돌아오고 조작이 복구된 뒤 호출합니다.
+	 * 장치 종료 후 성불 연출이 끝나고 현재 특수중환자격리실에서 조작이 복구될 때 호출합니다.
 	 * DurationSeconds가 0 이하이면 에디터의 기본 제한시간을 사용합니다.
-	 * ReturningToHospital에서 Escape로 바꾸며 그때부터 남은 시간을 줄입니다.
+	 * 호환을 위해 남아 있는 ReturningToHospital 단계에서 Escape로 바꾸며 그때부터 남은 시간을 줄입니다.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Game Flow")
 	bool StartEscapePhase(int32 DurationSeconds = -1);
@@ -309,13 +330,48 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Objective")
 	bool SetCurrentObjective(FName ObjectiveId, FText ObjectiveText, int32 CurrentProgress = 0, int32 TargetProgress = 0);
 
+	/**
+	 * 최신 GDD의 M00~M09 메인 목표를 설정합니다.
+	 * 기존 SetCurrentObjective는 과거 Blueprint를 깨지 않기 위해 남겨 둔 별칭이며,
+	 * 새 연결에서는 함수 이름만 보아도 용도를 알 수 있는 이 함수를 사용하는 편이 좋습니다.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Objective|Main")
+	bool SetMainObjective(FName ObjectiveId, FText ObjectiveText, int32 CurrentProgress = 0, int32 TargetProgress = 0);
+
+	/** S01~S09처럼 메인 진행과 동시에 표시할 수 있는 서브 목표를 설정합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Objective|Sub")
+	bool SetSubObjective(FName ObjectiveId, FText ObjectiveText, int32 CurrentProgress = 0, int32 TargetProgress = 0);
+
 	/** 같은 목표 ID의 숫자만 갱신합니다. 예: 1/3에서 2/3. ID가 다르면 false를 반환합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Objective")
 	bool UpdateObjectiveProgress(FName ObjectiveId, int32 CurrentProgress, int32 TargetProgress);
 
+	UFUNCTION(BlueprintCallable, Category = "Objective|Main")
+	bool UpdateMainObjectiveProgress(FName ObjectiveId, int32 CurrentProgress, int32 TargetProgress);
+
+	UFUNCTION(BlueprintCallable, Category = "Objective|Sub")
+	bool UpdateSubObjectiveProgress(FName ObjectiveId, int32 CurrentProgress, int32 TargetProgress);
+
+	/**
+	 * 그림 한 점 획득처럼 현재 값에 일정 수를 더할 때 사용합니다.
+	 * 아직 해당 서브 목표가 시작되지 않았다면 전달받은 문구와 목표 수로 먼저 생성합니다.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Objective|Sub")
+	bool AdvanceSubObjectiveProgress(
+		FName ObjectiveId,
+		FText ObjectiveText,
+		int32 ProgressToAdd,
+		int32 TargetProgress);
+
 	/** GameOver, Ending, Clear처럼 목표를 더 표시하면 안 되는 순간 현재 목표를 비웁니다. */
 	UFUNCTION(BlueprintCallable, Category = "Objective")
 	void ClearCurrentObjective();
+
+	UFUNCTION(BlueprintCallable, Category = "Objective|Main")
+	void ClearMainObjective();
+
+	UFUNCTION(BlueprintCallable, Category = "Objective|Sub")
+	void ClearSubObjective();
 
 	/* ------------------------------- Puzzle -------------------------------- */
 
@@ -414,6 +470,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Objective")
 	FDeadHospitalObjectiveState GetCurrentObjective() const { return CurrentObjective; }
 
+	UFUNCTION(BlueprintPure, Category = "Objective|Main")
+	FDeadHospitalObjectiveState GetCurrentMainObjective() const { return CurrentObjective; }
+
+	UFUNCTION(BlueprintPure, Category = "Objective|Sub")
+	FDeadHospitalObjectiveState GetCurrentSubObjective() const { return CurrentSubObjective; }
+
 	UFUNCTION(BlueprintPure, Category = "Game Records")
 	EDeadHospitalRank GetProjectedRank() const;
 
@@ -468,6 +530,13 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Game Events")
 	FOnObjectiveChangedSignature OnObjectiveChanged;
 
+	/** 새 UI는 아래 두 이벤트를 따로 받아 메인·서브 목표 영역을 각각 갱신합니다. */
+	UPROPERTY(BlueprintAssignable, Category = "Game Events")
+	FOnObjectiveChangedSignature OnMainObjectiveChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Game Events")
+	FOnObjectiveChangedSignature OnSubObjectiveChanged;
+
 	UPROPERTY(BlueprintAssignable, Category = "Game Events")
 	FOnPuzzleCompletedSignature OnPuzzleCompleted;
 
@@ -520,7 +589,7 @@ protected:
 	bool StartAutomatically = false;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Objective")
-	FName FirstObjectiveId = TEXT("ExplorePatientRoom");
+	FName FirstObjectiveId = TEXT("M00");
 
 	// ID는 코드가 같은 목표를 구별하기 위한 이름이고, Text는 플레이어가 읽을 문장입니다.
 	// EditDefaultsOnly는 GameMode Blueprint의 기본값에서 문구와 ID를 설정할 수 있다는 뜻입니다.
@@ -528,21 +597,21 @@ protected:
 	FText FirstObjectiveText;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Objective")
-	FName FinalObjectiveId = TEXT("ShutdownLifeSupport");
+	FName FinalObjectiveId = TEXT("M08");
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Objective")
 	FText FinalObjectiveText;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Objective")
-	FName EscapeObjectiveId = TEXT("EscapeHospital");
+	FName EscapeObjectiveId = TEXT("M09");
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Objective")
 	FText EscapeObjectiveText;
 
 	/**
-	 * 생명유지장치 구역으로 이동하기 전에 반드시 해결해야 하는 퍼즐 ID 목록입니다.
-	 * PZ-02와 PZ-03의 세부 ID는 팀에서 확정한 값을 Blueprint GameMode 기본값에 넣습니다.
-	 * 목록이 비어 있으면 퍼즐 조건을 검사하지 않으므로, 실제 제출용 Blueprint에서는 반드시 확인해야 합니다.
+	 * 특수중환자격리실에서 마지막 목표를 시작하기 전에 반드시 해결해야 하는 퍼즐 ID 목록입니다.
+	 * 최신 기획의 표준 ID는 PZ01~PZ07이며 생성자에서 기본 목록을 넣습니다.
+	 * Blueprint 기본값에서 배열을 비우면 조건 검사가 사라지므로 실제 맵 연결 때 주의해야 합니다.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Game Flow|Final Objective")
 	TArray<FName> RequiredPuzzleIdsForFinalObjective;
@@ -620,6 +689,10 @@ private:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Objective", meta = (AllowPrivateAccess = "true"))
 	FDeadHospitalObjectiveState CurrentObjective;
+
+	/** 메인 목표와 동시에 표시할 수 있는 현재 서브 목표입니다. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Objective", meta = (AllowPrivateAccess = "true"))
+	FDeadHospitalObjectiveState CurrentSubObjective;
 
 	/**
 	 * Player가 현재 어느 구역에 있는지 나타내는 논리적인 이름입니다.

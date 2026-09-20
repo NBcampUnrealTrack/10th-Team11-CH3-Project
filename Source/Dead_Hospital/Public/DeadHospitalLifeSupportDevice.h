@@ -13,13 +13,13 @@ enum class EDeadHospitalGamePhase : uint8;
 
 /**
  * 기획서의 최종 핵심 사건은 보스 처치가 아니라 생명유지장치 종료입니다.
- * 이 Actor는 E 상호작용, 연출이 끝났다는 알림, 목적지 이동, 탈출 타이머 시작을
+ * 이 Actor는 E 상호작용, 연출이 끝났다는 알림, 조작 복구, 탈출 타이머 시작을
  * 하나의 순서로 묶습니다. 순서를 바꾸면 장치가 꺼지기도 전에 제한시간이
- * 흐르거나 암전 중 Player가 움직이는 문제가 생기므로 단계별로 검사합니다.
+ * 흐르거나 성불 연출 중 Player가 움직이는 문제가 생기므로 단계별로 검사합니다.
  *
  * 반드시 다음 순서로만 진행됩니다.
  * E 상호작용 → 장치 종료 승인 → Player 입력 잠금 → 육신 사망/귀신 성불 연출
- * → 화면 암전 → 지하 2층 이동 → Player 입력 복구 → Escape Timer 시작
+ * → 현재 특수중환자격리실 위치 그대로 Player 입력 복구 → Escape Timer 시작
  */
 UCLASS()
 class DEAD_HOSPITAL_API ADeadHospitalLifeSupportDevice : public AActor, public IInteractable
@@ -40,14 +40,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Life Support")
 	bool TryShutdownDeviceForInteractor(AActor* Interactor);
 
-	/** 귀신 성불 Sequence가 끝났을 때 호출합니다. 그때 암전하고 지하 2층으로 이동합니다. */
+	/** 귀신 성불 Sequence가 끝났을 때 호출합니다. Player를 옮기지 않고 현재 위치에서 조작과 탈출 제한시간을 시작합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Life Support")
 	bool CompleteAscensionSequence();
 
-	/**
-	 * 목적지가 멀거나 스트리밍 대상이면 로딩 시작 때 false, 바닥/연출/착지 공간
-	 * 준비 완료 때 true로 설정합니다. 기본 true는 가까이 배치된 준비된 공간용입니다.
-	 */
+	/** 이전 기획의 복귀 순간이동용 함수입니다. 기존 Blueprint 노드 호환만 유지하며 최신 흐름에서는 값을 사용하지 않습니다. */
 	UFUNCTION(BlueprintCallable, Category = "Life Support")
 	void SetEscapeDestinationReady(bool IsReady);
 
@@ -65,14 +62,11 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Life Support")
 	UStaticMeshComponent* DeviceMesh;
 
-	/**
-	 * L_MainLevel의 지하 2층 안전한 바닥에 TargetPoint를 놓고 Details에서 연결합니다.
-	 * nullptr이면 갈 목적지가 없어 장치 E 입력을 거부합니다.
-	 */
+	/** 이전 기획의 복귀 순간이동 Target입니다. 기존 Blueprint 자료 호환 때문에 남기지만 더 이상 Player 이동에 사용하지 않습니다. */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Life Support|Teleport")
 	AActor* EscapeDestinationActor = nullptr;
 
-	/** 장치 종료 후 돌아오는 병원 구역 ID입니다. 체크포인트의 현재 구역 저장에 사용합니다. */
+	/** 이전 기획의 복귀 구역 ID입니다. 현재는 사용하지 않고 에셋 호환을 위해 남깁니다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Life Support|Teleport")
 	FName EscapeDestinationAreaId = TEXT("Hospital_B2");
 
@@ -107,11 +101,11 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Life Support")
 	void OnDeviceShutdownRejected();
 
-	/** 순간이동과 조작 복구를 끝내고 Escape Timer를 시작한 직후 실행됩니다. */
+	/** 이벤트 이름은 기존 Blueprint 연결 호환을 위해 유지합니다. 현재는 순간이동 없이 조작 복구와 Escape 시작이 끝난 직후 실행됩니다. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Life Support")
 	void OnEscapeTeleportCompleted();
 
-	/** 목적지 충돌이나 설정 오류로 이동하지 못했을 때 개발자가 확인할 수 있는 연결 지점입니다. */
+	/** 이벤트 이름은 호환용입니다. 현재는 Player 또는 GameMode 참조 오류로 Escape 시작을 못했을 때 실행됩니다. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Life Support")
 	void OnEscapeTeleportFailed();
 
@@ -119,12 +113,12 @@ protected:
 	void OnLifeSupportStateRestored(bool WasShutdown);
 
 private:
-	void PerformEscapeTeleport();
+	void FinishAscensionAndStartEscape();
 	void SetStoredPlayerInputEnabled(bool ShouldEnableInput);
 	void StartAutomaticSequenceCompletion();
 	/** Unreal Timer에서 bool 함수를 직접 호출하지 않도록 사용하는 반환값 없는 중간 함수입니다. */
 	void HandleAutomaticSequenceCompletion();
-	void RestoreAfterTeleportFailure();
+	void RestoreAfterEscapeStartFailure();
 
 	UFUNCTION()
 	void HandleCheckpointRestored(FName CheckpointId);
@@ -148,5 +142,4 @@ private:
 	 */
 	TWeakObjectPtr<APawn> StoredPlayerPawn;
 	FTimerHandle SequenceTimerHandle;
-	FTimerHandle TeleportTimerHandle;
 };
