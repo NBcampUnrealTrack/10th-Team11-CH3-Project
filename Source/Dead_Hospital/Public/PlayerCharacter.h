@@ -9,6 +9,8 @@ class UCameraComponent;
 class UInventoryComponent;
 class UDocumentComponent;
 class UCombatComponent;
+class USkeletalMeshComponent;
+class USoundBase;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryToggled, bool, bIsOpen);
@@ -159,6 +161,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "camera")
 	UCameraComponent* CameraComp;
 
+	// 1인칭 손(팔) 전용 메시. 본인에게만 보이고, 카메라에 붙어서 시선을 따라 움직인다.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	USkeletalMeshComponent* ArmsMesh;
+
 	// Inventory
 	UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "Inventory")
 	UInventoryComponent* InventoryComp;
@@ -295,12 +301,32 @@ protected:
 	float SprintNoiseLoudness = 1.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
-	float WalkNoiseInterval = 0.5f; // 발소리 간격(초)
+	float WalkNoiseInterval = 0.3f; // 발소리 간격(초)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Noise")
 	float SprintNoiseInterval = 0.3f;
 
 	float NoiseTimer = 0.0f;
+
+	// 발소리 (걷기 / 뛰기). 에디터에서 사운드 에셋 지정
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* WalkFootstepSound = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* SprintFootstepSound = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	float FootstepVolume = 1.0f;
+
+	// 연사 사용 여부 (단발 무기만 쓸 때는 끌 수 있음)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	bool bAutoFire = true;
+
+	// 연사 간격(초). 작을수록 빠름
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+	float AutoFireInterval = 0.12f;
+
+	FTimerHandle AutoFireTimerHandle;
 
 	// Jump 기능 미사용 (이번 게임에서 사용 안 함)
 	virtual bool CanJumpInternal_Implementation() const override { return false;  }
@@ -376,6 +402,15 @@ protected:
 	// 마우스 우클릭 입력 핸들러 -> 전투 파트 CombatComponent의 PrimaryAttack 호출
 	UFUNCTION()
 	void OnFirePressed(const FInputActionValue& value);
+
+	// 좌클릭을 뗄 때 연사 중단
+	UFUNCTION()
+	void OnFireReleased(const FInputActionValue& value);
+
+	// 연사 시작 / 반복 발사 / 중단
+	void StartAutoFire();
+	void HandleAutoFire();
+	void StopAutoFire();
 
 	// Sit 키 입력 -> 앉기/일어서기 토글. 사망/은신/입력잠금 상태면 무시된다
 	void ToggleSit();

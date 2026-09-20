@@ -14,6 +14,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Perception/AISense_Hearing.h"
+#include "Sound/SoundBase.h"
 
 
 APlayerCharacter::APlayerCharacter()
@@ -36,6 +37,14 @@ APlayerCharacter::APlayerCharacter()
 	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	CameraComp->SetupAttachment(SpringArmComp, USpringArmComponent::SocketName);
 	CameraComp->bUsePawnControlRotation = false;
+
+	// 1인칭 손(팔) 메시: 카메라에 부착, 본인에게만 보임, 그림자/충돌 없음
+	ArmsMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("ArmsMesh"));
+	ArmsMesh->SetupAttachment(CameraComp);
+	ArmsMesh->SetOnlyOwnerSee(true);
+	ArmsMesh->bCastDynamicShadow = false;
+	ArmsMesh->CastShadow = false;
+	ArmsMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	// 인벤토리 컴포넌트 생성
 	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
@@ -289,6 +298,13 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 					this,
 					&APlayerCharacter::OnFirePressed
 				);
+
+				EnhancedInput->BindAction(
+					CharacterController->FireAction,
+					ETriggerEvent::Completed,
+					this,
+					&APlayerCharacter::OnFireReleased
+				);
 			}
 		}
 	}
@@ -462,6 +478,12 @@ void APlayerCharacter::UpdateMovementNoise(float DeltaTime)
 	{
 		NoiseTimer = 0.0f;
 
+		USoundBase* FootstepSound = bIsSprinting ? SprintFootstepSound : WalkFootstepSound;
+		if (FootstepSound && GetCharacterMovement() && GetCharacterMovement()->IsMovingOnGround())
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, FootstepSound, GetActorLocation(), FootstepVolume);
+		}
+
 		// Loudness가 클수록 AI Hearing Sense가 감지하는 범위도 넓어짐 (AISenseConfig_Hearing 설정 기준)
 		UAISense_Hearing::ReportNoiseEvent(
 			GetWorld(),
@@ -542,6 +564,9 @@ void APlayerCharacter::Die()
 	{
 		UnCrouch();
 	}
+
+	// 연사 중단
+	StopAutoFire();
 
 	// 스프린트 상태 정리
 	bIsSprinting = false;
@@ -767,7 +792,45 @@ void APlayerCharacter::OnFirePressed(const FInputActionValue& value)
 	if (CombatComp)
 	{
 		CombatComp->PrimaryAttack();
+
+		if (bAutoFire)
+		{
+			StartAutoFire();
+		}
 	}
+}
+
+void APlayerCharacter::OnFireReleased(const FInputActionValue& value)
+{
+	StopAutoFire();
+}
+
+void APlayerCharacter::StartAutoFire()
+{
+	GetWorldTimerManager().SetTimer(
+		AutoFireTimerHandle,
+		this,
+		&APlayerCharacter::HandleAutoFire,
+		AutoFireInterval,
+		true
+	);
+}
+
+// 타이머가 간격마다 호출. 발사 불가 상태(사망/은신/UI 등)가 되면 스스로 중단한다.
+void APlayerCharacter::HandleAutoFire()
+{
+	if (!CombatComp || !CanPerformAction())
+	{
+		StopAutoFire();
+		return;
+	}
+
+	CombatComp->PrimaryAttack();
+}
+
+void APlayerCharacter::StopAutoFire()
+{
+	GetWorldTimerManager().ClearTimer(AutoFireTimerHandle);
 }
 
 void APlayerCharacter::AcquireFlashlight()
@@ -779,6 +842,12 @@ void APlayerCharacter::AcquireFlashlight()
 void APlayerCharacter::SetUIOpen(bool bNewUIOpen)
 {
 	bIsUIOpen = bNewUIOpen;
+
+	// UI가 열리면 연사 중단
+	if (bNewUIOpen)
+	{
+		StopAutoFire();
+	}
 
 	if (APlayerCharacterController* CharacterController = Cast<APlayerCharacterController>(GetController()))
 	{
