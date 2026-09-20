@@ -50,6 +50,9 @@ public:
 
 public:
 	AZombieAIController();
+	//델리게이트 선언 추가
+	DECLARE_MULTICAST_DELEGATE(FOnAttackSequenceFinished);
+	FOnAttackSequenceFinished OnAttackSequenceFinished; //공격+쿨다운까지 완전 끝났을 때 터짐
 
 	//매 프레임 실행 - Pitch/Roll 보정, LastKnownLocation 갱신, HideSpot 감지 등을 처리
 	virtual void Tick(float DeltaTime) override;

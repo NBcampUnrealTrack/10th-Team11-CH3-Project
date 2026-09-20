@@ -560,6 +560,7 @@ void AZombieAIController::OnAttackCooldownFinished()
 		}
 	}
 
+	OnAttackSequenceFinished.Broadcast();
 }
 
 //Behavior Tree Task 등에서 호출 - 공격을 시작할 때 이동을 멈추고

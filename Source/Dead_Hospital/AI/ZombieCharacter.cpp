@@ -409,12 +409,15 @@ void AZombieCharacter::HandleItemDrop()
 		return;
 	}
 
+	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector DropLocation = GetActorLocation() - FVector(0.f, 0.f, HalfHeight);
+
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	AItemPickup* SpawnedPickup = GetWorld()->SpawnActor<AItemPickup>(
 		SelectedEntry->PickupClass,
-		GetActorLocation(),
+		DropLocation,
 		GetActorRotation(),
 		SpawnParams
 	);
