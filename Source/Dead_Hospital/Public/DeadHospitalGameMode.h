@@ -158,6 +158,11 @@ struct FDeadHospitalCheckpointData
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	TArray<FItemData> InventoryItems;
 
+	// 체크포인트 저장 시 플레이어가 보유한 Coin 수량
+	// Coin은 InventorySlots에 들어가지 않으므로 별도로 저장
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	int32 SavedCoinQuantity = 0;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	FName EquippedWeaponId = NAME_None;
 

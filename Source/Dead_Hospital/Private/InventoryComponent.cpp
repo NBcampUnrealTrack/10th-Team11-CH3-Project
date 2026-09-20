@@ -50,6 +50,20 @@ bool UInventoryComponent::AddItem(const FItemData& NewItem){
 		return false;
 	}
 
+	// Coin은 일반 인벤토리 슬롯을 사용하지 않고
+	// 별도의 CoinQuantity에 바로 누적
+	if (NewItem.ItemID == FName(TEXT("Coin"))) {
+
+		CoinQuantity += NewItem.Quantity;
+
+		UE_LOG(LogTemp, Warning, TEXT("Coin added / Amount: %d / Total: %d"), NewItem.Quantity, CoinQuantity);
+
+		// Coin UI 갱신을 위해 인벤토리 변경 이벤트 발생
+		OnInventoryChanged.Broadcast();
+
+		return true;
+	}
+
 	// 아이템 전체를 넣을 공간이 있는지 먼저 확인
 	// 공간이 부족하면 아무것도 추가하지 않음
 	if (!CanAddItem(NewItem)){
@@ -351,37 +365,48 @@ int32 UInventoryComponent::GetCoinQuantity() const
 {
 	// Coin도 일반 아이템처럼 InventorySlots에 저장되므로
 	// 기존 GetItemQuantity()를 이용해서 전체 Coin 수량을 반환
-	return GetItemQuantity(FName(TEXT("Coin")));
+	return CoinQuantity;
+}
+
+// Coin 수량을 직접 설정
+// 체크포인트에서 Coin 수량을 복구할 때 사용
+void UInventoryComponent::SetCoinQuantity(int32 NewQuantity){
+
+	// Coin 수량이 음수가 되지 않도록 0 이상으로 설정
+	CoinQuantity = FMath::Max(0, NewQuantity);
+
+	UE_LOG(LogTemp, Warning, TEXT("Coin quantity set / Total: %d"), CoinQuantity);
+
+	// Coin 수량이 변경되었으므로 UI 갱신
+	OnInventoryChanged.Broadcast();
 }
 
 // Coin을 필요한 수량만큼 사용
 bool UInventoryComponent::SpendCoin(int32 Amount){
+
 	// 0개 또는 음수 Coin 사용 요청은 잘못된 요청
 	if (Amount <= 0){
 
 		UE_LOG(LogTemp, Warning, TEXT("Invalid Coin spend amount: %d"), Amount);
-		return false;
-	}
-
-	// 현재 보유 중인 Coin 수량 확인
-	int32 CurrentCoin = GetCoinQuantity();
-
-	// 필요한 Coin보다 적게 가지고 있으면 사용 실패
-	if (CurrentCoin < Amount){
-
-		UE_LOG(LogTemp, Warning, TEXT("Not enough Coin / Current: %d / Required: %d"), CurrentCoin, Amount);
 
 		return false;
 	}
 
-	// 기존 RemoveItem을 이용해서 Coin 차감
-	// RemoveItem 내부에서 InventoryChanged Event도 발생함
-	if (!RemoveItem(FName(TEXT("Coin")), Amount)){
+	// 현재 보유 중인 Coin보다 많이 사용하려고 하면 실패
+	if (CoinQuantity < Amount){
+
+		UE_LOG(LogTemp, Warning, TEXT("Not enough Coin / Current: %d / Required: %d"), CoinQuantity, Amount);
+
 		return false;
 	}
 
-	UE_LOG(LogTemp, Warning,
-		TEXT("Coin spent / Amount: %d / Remaining: %d"), Amount, GetCoinQuantity());
+	// 필요한 만큼 Coin 차감
+	CoinQuantity -= Amount;
+
+	UE_LOG(LogTemp, Warning, TEXT("Coin spent / Amount: %d / Remaining: %d"), Amount, CoinQuantity);
+
+	// Coin UI가 현재 보유량을 다시 갱신할 수 있도록 알림
+	OnInventoryChanged.Broadcast();
 
 	return true;
 }

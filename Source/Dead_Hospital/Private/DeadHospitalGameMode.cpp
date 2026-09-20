@@ -507,6 +507,10 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 			NewCheckpoint.InventoryItems.Add(Slot.ItemData);
 		}
 	}
+	// Coin은 InventorySlots에 들어가지 않으므로
+	// 현재 보유 중인 Coin 수량을 별도로 체크포인트에 저장
+	NewCheckpoint.SavedCoinQuantity = Inventory->GetCoinQuantity();
+
 	NewCheckpoint.EquippedWeaponId = Inventory->GetEquippedWeaponID();
 
 	// 퀵슬롯 1, 2, 3에 등록된 아이템 ID를 체크포인트에 저장합니다.
@@ -655,6 +659,10 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 				return false;
 			}
 		}
+
+		// 체크포인트에 저장된 Coin 수량 복구
+		// Coin은 InventorySlots가 아닌 별도 CoinQuantity로 관리
+		Inventory->SetCoinQuantity(LastCheckpoint.SavedCoinQuantity);
 
 		// EquipWeapon()은 해당 무기가 인벤토리에 실제로 있는지도 검사하므로 성공 여부를 확인합니다.
 		// 아이템을 모두 넣은 다음, 저장 당시 장착 중이던 무기가 있다면 다시 장착합니다.

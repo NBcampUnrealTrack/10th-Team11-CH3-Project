@@ -68,6 +68,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	int32 GetCoinQuantity() const;
 
+	// Coin 수량을 직접 설정
+	// 체크포인트에서 Coin 수량을 복구할 때 사용
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void SetCoinQuantity(int32 NewQuantity);
+
 	// Coin을 필요한 수량만큼 사용
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool SpendCoin(int32 Amount);
@@ -172,6 +177,12 @@ private:
 
 	// 제작 재료를 소비한 뒤 결과 아이템을 넣을 공간이 생기는지 확인
 	bool CanAddCraftResultAfterConsumingMaterials(FName ResultItemID, const FItemData& ResultItemData) const;
+
+	// 현재 보유 중인 Coin 수량
+	// Coin은 InventorySlots에 들어가지 않고 별도로 관리
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory",
+		meta = (AllowPrivateAccess = "true"))
+	int32 CoinQuantity = 0;
 
 	//현재 장착 중인 무기 ID
 	FName EquippedWeaponID;
