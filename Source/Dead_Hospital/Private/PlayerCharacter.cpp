@@ -46,6 +46,13 @@ APlayerCharacter::APlayerCharacter()
 	ArmsMesh->CastShadow = false;
 	ArmsMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
+	WeaponMesh->SetupAttachment(ArmsMesh, TEXT("WeaponSocket"));
+	WeaponMesh->SetOnlyOwnerSee(true);
+	WeaponMesh->bCastDynamicShadow = false;
+	WeaponMesh->CastShadow = false;
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	// 인벤토리 컴포넌트 생성
 	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 
@@ -78,6 +85,8 @@ void APlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	GetMesh()->SetOwnerNoSee(true);
+
+	EquipWeapon(0);
 
 	CurrentHP = MaxHP;
 	CurrentStamina = MaxStamina;
@@ -1321,4 +1330,12 @@ void APlayerCharacter::TryInteract()
 	{
 		IInteractable::Execute_Interact(TargetActor, this);
 	}
+}
+
+void APlayerCharacter::EquipWeapon(int32 WeaponIndex)
+{
+	if (!WeaponMesh) return;
+
+	USkeletalMesh* NewMesh = (WeaponIndex == 0) ? Weapon1Mesh : Weapon2Mesh;
+	WeaponMesh->SetSkeletalMesh(NewMesh);
 }
