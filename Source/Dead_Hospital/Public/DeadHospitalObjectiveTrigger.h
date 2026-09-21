@@ -66,6 +66,22 @@ protected:
 	TArray<FName> RequiredCompletedEventIds;
 
 	/**
+	 * Player 인벤토리에 반드시 들어 있어야 하는 ItemID 목록입니다.
+	 * 예를 들어 시작 병실 출구에는 Flashlight를 넣어 손전등을 얻지 않고 M01로 넘어가는 것을 막을 수 있습니다.
+	 * 목록을 비우면 아이템을 검사하지 않습니다. 팀원의 Inventory 내부 배열은 수정하지 않고 HasItem()만 사용합니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Objective Trigger|Requirement")
+	TArray<FName> RequiredItemIds;
+
+	/**
+	 * Player의 DocumentComponent에 반드시 기록되어 있어야 하는 DocumentID 목록입니다.
+	 * 시작 문서나 병원장실 핵심 문서를 읽은 뒤에만 다음 목표를 시작시키고 싶을 때 사용합니다.
+	 * DT_DocumentData의 Row Name이 아니라 실제 FDocumentData.DocumentID와 정확히 같은 값을 입력해야 합니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Objective Trigger|Requirement")
+	TArray<FName> RequiredDocumentIds;
+
+	/**
 	 * 특수중환자격리실 입구 Trigger에서만 true로 사용합니다.
 	 * Player를 순간이동시키지 않고 GameMode의 FinalObjective 단계와 M08 목표를 시작합니다.
 	 * 이 값이 true일 때는 아래 메인/서브 목표 설정을 둘 다 false로 두고 StartFinalObjective의 기본 M08을 사용합니다.
@@ -105,6 +121,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Objective Trigger|Sub", meta = (EditCondition = "SetSubObjectiveOnTrigger", ClampMin = "0"))
 	int32 SubTargetProgress = 0;
 
+	/**
+	 * Trigger 성공 시 완료 처리할 기존 서브 목표 ID 목록입니다.
+	 * 예를 들어 병원장실 핵심 문서를 읽은 뒤 통과하는 Trigger에는 S09를 넣을 수 있습니다.
+	 * 배열에 없는 다른 서브 목표(S03 등)는 그대로 유지됩니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Objective Trigger|Sub")
+	TArray<FName> SubObjectiveIdsToClearOnSuccess;
+
 	/** 두 목표 설정과 일회성 기록이 모두 성공한 뒤 Blueprint 연출을 연결하는 자리입니다. */
 	UFUNCTION(BlueprintImplementableEvent, Category = "Objective Trigger")
 	void OnObjectivesApplied();
@@ -126,7 +150,7 @@ private:
 	UFUNCTION()
 	void HandleCheckpointRestored(FName CheckpointId);
 
-	bool AreRequirementsMet(const ADeadHospitalGameMode* GameMode) const;
+	bool AreRequirementsMet(const ADeadHospitalGameMode* GameMode, const AActor* Interactor) const;
 	void RestoreObjectiveState(
 		ADeadHospitalGameMode* GameMode,
 		const FDeadHospitalObjectiveState& PreviousMain,

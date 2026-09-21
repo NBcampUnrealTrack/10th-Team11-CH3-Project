@@ -3,8 +3,10 @@
 #include "DeadHospitalObjectiveTrigger.h"
 
 #include "Components/BoxComponent.h"
+#include "DocumentComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "InventoryComponent.h"
 
 ADeadHospitalObjectiveTrigger::ADeadHospitalObjectiveTrigger()
 {
@@ -68,7 +70,7 @@ bool ADeadHospitalObjectiveTrigger::TryApplyObjectives(AActor* Interactor)
 		|| !PlayerPawn->IsPlayerControlled()
 		|| !IsValid(GameMode)
 		|| (OneUseOnly && (HasBeenUsed || TriggerEventId.IsNone()))
-		|| !AreRequirementsMet(GameMode))
+		|| !AreRequirementsMet(GameMode, Interactor))
 	{
 		OnObjectiveApplicationRejected();
 		return false;
@@ -76,7 +78,10 @@ bool ADeadHospitalObjectiveTrigger::TryApplyObjectives(AActor* Interactor)
 
 	// 일반 Trigger는 메인/서브 중 하나 이상을 설정해야 합니다.
 	// 최종 구역 Trigger는 StartFinalObjective가 M08을 자동 설정하므로 반대로 두 수동 설정을 끌 것을 요구합니다.
-	if ((!StartFinalObjectiveOnTrigger && !SetMainObjectiveOnTrigger && !SetSubObjectiveOnTrigger)
+	if ((!StartFinalObjectiveOnTrigger
+			&& !SetMainObjectiveOnTrigger
+			&& !SetSubObjectiveOnTrigger
+			&& SubObjectiveIdsToClearOnSuccess.IsEmpty())
 		|| (SetMainObjectiveOnTrigger && MainObjectiveId.IsNone())
 		|| (SetSubObjectiveOnTrigger && SubObjectiveId.IsNone())
 		|| (StartFinalObjectiveOnTrigger && (SetMainObjectiveOnTrigger || SetSubObjectiveOnTrigger)))
@@ -150,14 +155,26 @@ bool ADeadHospitalObjectiveTrigger::TryApplyObjectives(AActor* Interactor)
 		return false;
 	}
 
+	// 목표 설정과 일회성 기록이 모두 성공한 뒤에만 완료할 서브 목표를 지웁니다.
+	// 먼저 지우면 뒤 단계 실패 시 UI 목록을 정확히 원상복구하기 어려우므로 항상 마지막에 처리합니다.
+	for (const FName CompletedSubObjectiveId : SubObjectiveIdsToClearOnSuccess)
+	{
+		if (!CompletedSubObjectiveId.IsNone())
+		{
+			GameMode->ClearSubObjectiveById(CompletedSubObjectiveId);
+		}
+	}
+
 	HasBeenUsed = OneUseOnly;
 	OnObjectivesApplied();
 	return true;
 }
 
-bool ADeadHospitalObjectiveTrigger::AreRequirementsMet(const ADeadHospitalGameMode* GameMode) const
+bool ADeadHospitalObjectiveTrigger::AreRequirementsMet(
+	const ADeadHospitalGameMode* GameMode,
+	const AActor* Interactor) const
 {
-	if (!IsValid(GameMode))
+	if (!IsValid(GameMode) || !IsValid(Interactor))
 	{
 		return false;
 	}
@@ -180,6 +197,43 @@ bool ADeadHospitalObjectiveTrigger::AreRequirementsMet(const ADeadHospitalGameMo
 		if (RequiredEventId.IsNone() || !GameMode->IsOneTimeEventCompleted(RequiredEventId))
 		{
 			return false;
+		}
+	}
+
+	if (!RequiredItemIds.IsEmpty())
+	{
+		// 아이템 조건이 있을 때만 Player의 InventoryComponent를 찾습니다.
+		// 조건이 비어 있는 Trigger까지 인벤토리 유무 때문에 실패하지 않도록 검사 범위를 좁힙니다.
+		const UInventoryComponent* Inventory = Interactor->FindComponentByClass<UInventoryComponent>();
+		if (!IsValid(Inventory))
+		{
+			return false;
+		}
+
+		for (const FName RequiredItemId : RequiredItemIds)
+		{
+			if (RequiredItemId.IsNone() || !Inventory->HasItem(RequiredItemId))
+			{
+				return false;
+			}
+		}
+	}
+
+	if (!RequiredDocumentIds.IsEmpty())
+	{
+		// 문서는 일반 인벤토리와 별도인 DocumentComponent에 저장되므로 따로 확인합니다.
+		const UDocumentComponent* DocumentComponent = Interactor->FindComponentByClass<UDocumentComponent>();
+		if (!IsValid(DocumentComponent))
+		{
+			return false;
+		}
+
+		for (const FName RequiredDocumentId : RequiredDocumentIds)
+		{
+			if (RequiredDocumentId.IsNone() || !DocumentComponent->HasDocument(RequiredDocumentId))
+			{
+				return false;
+			}
 		}
 	}
 

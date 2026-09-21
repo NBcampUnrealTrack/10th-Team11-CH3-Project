@@ -75,7 +75,8 @@ protected:
 
 	/**
 	 * 성공할 때 완료 처리하여 HUD에서 제거할 서브 목표 ID 목록입니다.
-	 * PZ04에는 S05와 S06, PZ06에는 S03과 S08처럼 해당 퍼즐이 끝내는 목표를 Details에서 넣습니다.
+	 * 최신 GDD에서 S05와 S06은 각각 천사/악마 머리를 '획득할 때' 끝나므로 PZ04 Actor에서는 보통 비워 둡니다.
+	 * PZ06에는 그림 배치 성공으로 끝나는 S03과 S08을 넣습니다.
 	 * 목록이 비어 있으면 목표를 지우지 않으며, 다른 활성 서브 목표는 그대로 유지됩니다.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Puzzle|Item Placement|Objective")
