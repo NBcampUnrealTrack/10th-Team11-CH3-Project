@@ -209,6 +209,15 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 	}
 	else
 	{
+		AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+
+		//이미 Chase 중이면 시야를 잠깐 놓쳐도 상태를 바꾸지 않고 그대로 추격 유지.
+		//진짜로 놓쳤는지 판정은 여기가 아니라 OnPerceptionForgotten(MaxAge 5초)에서 처리함
+		if (Zombie && (Zombie->GetCurrentState() == EZombieState::Chase || Zombie->GetCurrentState() == EZombieState::Attacking))
+		{
+			return;
+		}
+
 		//시야 감지 실패로 전환된 경우. Search 몽타주 재생 중이면 캡슐이 이미
 		//플레이어 쪽을 보고 있을 수 있으므로 CheckSearchTurnVisibility로 재확인
 		//(Search 중 정면에 있어도 Chase 재진입 안 되던 버그 대응)
@@ -217,7 +226,7 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 			BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
 			SetZombieState(EZombieState::Chase);
 
-			if (AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn()))
+			if (Zombie)
 			{
 				Zombie->RefreshAttackRange();
 			}
@@ -248,8 +257,11 @@ void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
 #if WITH_EDITOR
 		GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Forgotten"));
 #endif
+		//완전히 놓친 순간 - 바로 Patrol이 아니라 먼저 Search로 보내서
+		//마지막으로 쫓던 위치를 확인하게 함. LastKnownLocation은 Chase 중
+		//Tick()이 매 프레임 실시간으로 갱신해온 값이라 이 시점 기준 최신 위치임
+		SetZombieState(EZombieState::Search);
 		BlackboardComp->ClearValue(BBKey_ChaseTarget);
-		SetZombieState(EZombieState::Patrol);
 	}
 }
 
@@ -362,11 +374,19 @@ void AZombieAIController::Tick(float DeltaTime)
 		return;	
 	}
 
+	bool bIsCurrentlySeen = false;
+	if (AIPerception)
+	{
+		TArray<AActor*> PerceivedActors;
+		AIPerception->GetCurrentlyPerceivedActors(UAISense_Sight::StaticClass(), PerceivedActors);
+		bIsCurrentlySeen = PerceivedActors.Contains(ChaseTarget);
+	}
+
 	//[LastKnownLocation 갱신] Chase 중이면 매 프레임 대상 위치를 계속 기록해서,
 	//나중에 시야를 놓쳤을 때 수색 기준점으로 사용
 	bool bIsChasing = (Zombie && Zombie->GetCurrentState() == EZombieState::Chase);	
 
-	if (bIsChasing)
+	if (bIsChasing && bIsCurrentlySeen)
 	{
 		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
 
@@ -556,7 +576,7 @@ void AZombieAIController::OnAttackCooldownFinished()
 		//안전하게 Search로 보내서 최소한 멈춰있지는 않게 한다.
 		if (Zombie->GetCurrentState() == EZombieState::Attacking)
 		{
-			SetZombieState(EZombieState::Search);
+			SetZombieState(EZombieState::Chase);
 		}
 	}
 
