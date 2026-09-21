@@ -585,6 +585,10 @@ void APlayerCharacter::Die()
 	if (bFlashlightOn)
 	{
 		bFlashlightOn = false;
+		if (FlashlightLightComp)
+		{
+			FlashlightLightComp->SetVisibility(false);
+		}
 		OnFlashlightStateChanged(false);
 	}
 
@@ -647,6 +651,10 @@ void APlayerCharacter::SetHiding(bool bNewHiding, AActor* HidingSpot)
 	if (bNewHiding && bFlashlightOn)
 	{
 		bFlashlightOn = false;
+		if (FlashlightLightComp)
+		{
+			FlashlightLightComp->SetVisibility(false);
+		}
 		OnFlashlightStateChanged(false);
 	}
 

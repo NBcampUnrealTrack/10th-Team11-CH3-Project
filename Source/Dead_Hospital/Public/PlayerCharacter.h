@@ -143,6 +143,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	void EquipWeapon(int32 WeaponIndex);
 
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	USkeletalMeshComponent* GetArmsMesh() const { return ArmsMesh; }
+
 	// 언리얼 기본 데미지 파이프라인 오버라이드
 	virtual float TakeDamage(
 		float DamageAmount, 
