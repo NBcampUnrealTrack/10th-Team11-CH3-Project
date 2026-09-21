@@ -19,7 +19,8 @@ enum class EZombieState : uint8
 	Search UMETA(DisplayName = "Search"),
 	Attacking UMETA(DisplayName = "Attacking"),
 	Hitstun UMETA(DisplayName = "Hitstun"),
-	Dead UMETA(DisplayName = "Dead")	
+	Dead UMETA(DisplayName = "Dead"),
+	MoveToLastKnown UMETA(DisplayName = "Move To Last Known")
 };
 
 class USphereComponent;
@@ -40,6 +41,10 @@ public:
 	//스폰 즉시 어그로 여부.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|AI")
 	bool bAggroOnSpawn;
+
+	int32 SearchTurnCount = 0;
+	UPROPERTY(EditAnywhere, Category = "Zombie|Search")
+	int32 MaxSearchTurnCount = 3;
 
 
 protected:
