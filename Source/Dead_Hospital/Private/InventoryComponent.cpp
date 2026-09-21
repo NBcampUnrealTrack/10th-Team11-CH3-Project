@@ -157,6 +157,47 @@ bool UInventoryComponent::AddItem(const FItemData& NewItem){
 	return true;
 }
 
+// ItemID를 이용해 DT_ItemData에서 아이템 정보를 찾아 인벤토리에 추가
+// 퍼즐, 이벤트 등 다른 Blueprint에서 아이템을 지급할 때 사용
+bool UInventoryComponent::AddItemByID(FName ItemID, int32 Quantity){
+
+	// 잘못된 ItemID 또는 수량 방지
+	if (ItemID.IsNone() || Quantity <= 0){
+
+		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: Invalid ItemID or Quantity"));
+
+		return false;
+	}
+
+	// DT_ItemData가 연결되어 있는지 확인
+	if (!ItemDataTable){
+
+		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: ItemDataTable is not set"));
+
+		return false;
+	}
+
+	// ItemID와 같은 Row Name을 DT_ItemData에서 찾음
+	const FItemData* FoundItemData = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("AddItemByID"));
+
+	// 해당 Row를 찾지 못한 경우
+	if (!FoundItemData){
+
+		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: Item not found. ItemID = %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// DataTable의 원본 데이터를 직접 수정하지 않도록 복사
+	FItemData ItemToAdd = *FoundItemData;
+
+	// 퍼즐에서 지급하려는 수량 적용
+	ItemToAdd.Quantity = Quantity;
+
+	// 기존 인벤토리 추가 기능 사용
+	return AddItem(ItemToAdd);
+}
+
 // 아이템 제거
 bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 
@@ -423,7 +464,11 @@ bool UInventoryComponent::IsProtectedItem(FName ItemID) const
 	return ItemID == FName(TEXT("CardKeyA")) ||
 		ItemID == FName(TEXT("CardKeyB")) ||
 		ItemID == FName(TEXT("MasterCardKey")) ||
-		ItemID == FName(TEXT("Painting"));
+		ItemID == FName(TEXT("Painting")) ||
+		ItemID == FName(TEXT("PaintingWoman")) ||
+		ItemID == FName(TEXT("PaintingPottery")) ||
+		ItemID == FName(TEXT("AngelHead")) ||
+		ItemID == FName(TEXT("DemonHead"));
 }
 
 // 해당 아이템을 인벤토리에서 버릴 수 있는지 확인
