@@ -145,6 +145,9 @@ void UCombatComponent::PrimaryAttack()
 
     UpdateAmmoUI();
 
+    // 탄약 차감이 확정된 실제 발사 시점에 크로스헤어 연출용 이벤트 발생
+    OnWeaponFired.Broadcast(CurrentWeaponID);
+
     // 쿨타임 타이머 시작 (공격 속도 시간만큼 대기 후 ResetPrimaryAttack 실행)
     GetWorld()->GetTimerManager().SetTimer(
         TimerHandle_PrimaryCooldown,
