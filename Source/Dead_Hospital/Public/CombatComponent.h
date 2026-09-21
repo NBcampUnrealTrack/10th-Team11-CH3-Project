@@ -46,6 +46,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnEnemyKilledSignature);
 // 무기 교체 신호 (UI 연동용)
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FOnWeaponChangedSignature, FName, WeaponName, float, Damage, int32, CurrentAmmo, int32, MaxAmmo);
 
+// 무기 발사 성공 신호 (크로스헤어 반동 연출용 등)
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponFired, FName, WeaponID);
+
 // 전투 총괄 관리 컴포넌트
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class DEAD_HOSPITAL_API UCombatComponent : public UActorComponent
@@ -62,6 +65,10 @@ public:
     // 블루프린트에서 바인딩할 이벤트 변수
     UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
     FOnWeaponChangedSignature OnWeaponChanged;
+
+    // 블루프린트에서 바인딩할 실제 발사 신호
+    UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
+    FOnWeaponFired OnWeaponFired;
 
     UPROPERTY(BlueprintAssignable, Category = "Combat|Events")
     FOnAmmoChangedSignature OnAmmoChanged;
