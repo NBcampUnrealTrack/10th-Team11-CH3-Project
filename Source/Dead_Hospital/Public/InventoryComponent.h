@@ -56,6 +56,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool AddItem(const FItemData& NewItem);
 
+	// ItemID를 이용해 DT_ItemData에서 아이템 정보를 찾아 인벤토리에 추가
+	// 퍼즐, 이벤트 등 다른 Blueprint에서 아이템을 지급할 때 사용
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool AddItemByID(FName ItemID, int32 Quantity = 1);
+
 	// 아이템 제거
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	bool RemoveItem(FName ItemID, int32 RemoveQuantity = 1);
