@@ -194,6 +194,11 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 #endif
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
+
+		BlackboardComp->SetValueAsVector(
+			BBKey_LastKnownLocation,
+			Actor->GetActorLocation()
+		);
 		
 		AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
 
@@ -215,7 +220,19 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		//진짜로 놓쳤는지 판정은 여기가 아니라 OnPerceptionForgotten(MaxAge 5초)에서 처리함
 		if (Zombie && (Zombie->GetCurrentState() == EZombieState::Chase || Zombie->GetCurrentState() == EZombieState::Attacking))
 		{
+			//SetZombieState(EZombieState::MoveToLastKnown);
 			return;
+		}
+
+		if (Zombie && Zombie->GetCurrentState() == EZombieState::Chase)
+		{
+			const float DistToStimulus = FVector::Dist(Zombie->GetActorLocation(), Stimulus.StimulusLocation);
+			const float LoseRadius = SightConfig ? SightConfig->LoseSightRadius : 2000.0f;
+
+			if (DistToStimulus <= LoseRadius)
+			{
+				return;
+			}
 		}
 
 		//시야 감지 실패로 전환된 경우. Search 몽타주 재생 중이면 캡슐이 이미
@@ -233,8 +250,6 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		}
 		else
 		{
-			//정말로 시야에서 벗어난 그 순간의 위치를 LastKnownLocation으로 명확히 찍어준다.
-			BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, Stimulus.StimulusLocation);
 			SetZombieState(EZombieState::Search);
 		}
 	}
@@ -385,10 +400,15 @@ void AZombieAIController::Tick(float DeltaTime)
 	//[LastKnownLocation 갱신] Chase 중이면 매 프레임 대상 위치를 계속 기록해서,
 	//나중에 시야를 놓쳤을 때 수색 기준점으로 사용
 	bool bIsChasing = (Zombie && Zombie->GetCurrentState() == EZombieState::Chase);	
+	bool bIsTrackingTarget = (Zombie && Zombie->GetCurrentState() == EZombieState::Chase || Zombie->GetCurrentState() == EZombieState::Attacking);
 
-	if (bIsChasing && bIsCurrentlySeen)
+	if (bIsTrackingTarget && bIsCurrentlySeen)
 	{
 		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, ChaseTarget->GetActorLocation());
+	}
+
+	if (bIsChasing)
+	{
 
 		//거리 기반 Chase 속도 조절 - 멀수록 빠르게, 가까울수록 느리게
 		const float DistanceToTarget = FVector::Dist(Zombie->GetActorLocation(), ChaseTarget->GetActorLocation());

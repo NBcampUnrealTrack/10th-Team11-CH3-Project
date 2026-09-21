@@ -482,6 +482,11 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 	EZombieState OldState = CurrentState;
 	CurrentState = NewState;
 
+	if (OldState != EZombieState::Search && NewState == EZombieState::Search)
+	{
+		SearchTurnCount = 0;
+	}
+
 	//Search에서 다른 상태로 벗어나면 타이머/몽타주 정리(방치 시 잘못 재생될 수 있음)
 	if (OldState == EZombieState::Search && NewState != EZombieState::Search)
 	{
@@ -504,6 +509,7 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		break;
 	case EZombieState::Chase:
 	case EZombieState::Investigating:
+	case EZombieState::MoveToLastKnown:
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 		GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
 		GetCharacterMovement()->bOrientRotationToMovement = true;
@@ -583,6 +589,11 @@ void AZombieCharacter::PlaySearchTurnMontage()
 
 	if (AnimInstance && SearchTurnMontage)
 	{
+		// BT가 SearchTurn을 다시 호출해도 현재 회전 중이면 재시작하지 않는다.
+		if (AnimInstance->Montage_IsPlaying(SearchTurnMontage))
+		{
+			return;
+		}
 		AnimInstance->Montage_Play(SearchTurnMontage);
 
 		FOnMontageEnded EndDelegate;
@@ -597,9 +608,18 @@ void AZombieCharacter::OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInt
 	if (!bInterrupted && CurrentState == EZombieState::Search)
 	{
 		GetCharacterMovement()->StopMovementImmediately();
-		ToggleSearchTurnDirection();
-		// NextTick 대신 0.1초의 최소 지연 시간을 부여하여 몽타주 실패 시의 무한 재귀 및 프레임 부하를 완벽히 차단
-		//GetWorldTimerManager().SetTimer(SearchTimerHandle, this, &AZombieCharacter::PlaySearchTurnMontage, 0.1f, false);
+
+		++SearchTurnCount;
+
+		if (SearchTurnCount >= MaxSearchTurnCount)
+		{
+			if (AZombieAIController* AIController = Cast<AZombieAIController>(GetController()))
+			{
+				AIController->SetZombieState(EZombieState::Patrol);
+			}
+			return;
+		}
+
 		PlaySearchTurnMontage();
 	}
 }
