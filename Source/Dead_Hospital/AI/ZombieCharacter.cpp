@@ -60,7 +60,7 @@ AZombieCharacter::AZombieCharacter()
 	//Search(두리번거림) 상태에 진입한 시점의 기준 Yaw 값.
 	SearchBaseYaw = 0.0f;
 	//데미지를 받았을 때 경직 지속 시간
-	HitstunDuration = 0.5f;
+	HitstunDuration = 2.0f;
 
 	//좀비 공격 범위 콜리전
 	AttackRangeComp = CreateDefaultSubobject<USphereComponent>(TEXT("AttackRangeComp"));
@@ -199,6 +199,23 @@ float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	}
 	else
 	{
+		//총에 맞았으면, 데미지를 준 플레이어를 추적 대상으로 설정
+		APawn* AttackerPawn = EventInstigator ? EventInstigator->GetPawn() : nullptr;
+
+		if (IsValid(AttackerPawn) && AttackerPawn->IsPlayerControlled())
+		{
+			if (AZombieAIController* AIController = Cast<AZombieAIController>(GetController()))
+			{
+				if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
+				{
+					BlackboardComp->SetValueAsObject(AZombieAIController::BBKey_ChaseTarget, AttackerPawn);
+					BlackboardComp->SetValueAsVector(AZombieAIController::BBKey_LastKnownLocation, AttackerPawn->GetActorLocation());
+				}
+				//Hitstun보다 먼저 Chase로 설정해야, 경직이 끝났을 때 Chase 상태로 복귀한다.
+				AIController->SetZombieState(EZombieState::Chase);
+			}
+		}
+
 		EnterHitstun();
 	}
 
@@ -538,6 +555,14 @@ void AZombieCharacter::SetSearchBaseYaw(float NewYaw)
 //공격 애니메이션이 끝나는 순간 호출된다.
 void AZombieCharacter::OnAttackAnimationFinished()
 {
+	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+
+	if (AnimInstance && AttackMontage && AnimInstance->Montage_IsPlaying(AttackMontage))
+	{
+		//공격 몽타주가 실제로 끝나기 전이면 이동 재개 금지
+		return;
+	}
+
 #if WITH_EDITOR
 	GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Attack Finished Called"));
 #endif
