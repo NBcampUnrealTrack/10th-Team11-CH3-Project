@@ -10,6 +10,8 @@
 #include "GameFramework/Character.h"
 #include "../AI/ZombieCharacter.h"
 #include "PlayerCharacter.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimInstance.h"
 #include "Perception/AISense_Hearing.h"
 
 
@@ -181,10 +183,15 @@ void UCombatComponent::PrimaryAttack()
         NAME_None
     );
 
-    ACharacter* OwnerCharacter = Cast<ACharacter>(Owner);
-    if (OwnerCharacter && FireAnimation)
+    if (FireAnimation)
     {
-        OwnerCharacter->PlayAnimMontage(FireAnimation);
+        if (USkeletalMeshComponent* Arms = PlayerCharacter->GetArmsMesh())
+        {
+            if (UAnimInstance* AnimInst = Arms->GetAnimInstance())
+            {
+                AnimInst->Montage_Play(FireAnimation);
+            }
+        }
     }
 
     // 무한한 사거리 (시선 방향 벡터 * 999999.0f)
@@ -354,10 +361,15 @@ void UCombatComponent::ReloadWeapon()
         UGameplayStatics::PlaySoundAtLocation(this, ReloadSound, GetOwner()->GetActorLocation());
     }
 
-    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-    if (OwnerCharacter && ReloadAnimation)
+    if (ReloadAnimation)
     {
-        OwnerCharacter->PlayAnimMontage(ReloadAnimation);
+        if (USkeletalMeshComponent* Arms = PlayerCharacter->GetArmsMesh())
+        {
+            if (UAnimInstance* AnimInst = Arms->GetAnimInstance())
+            {
+                AnimInst->Montage_Play(ReloadAnimation);
+            }
+        }
     }
 
     // 장전 대기 시간(2초) 타이머 시작
