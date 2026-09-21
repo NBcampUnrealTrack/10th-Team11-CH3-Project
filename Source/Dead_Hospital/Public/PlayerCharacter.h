@@ -12,6 +12,7 @@ class UCombatComponent;
 class USkeletalMeshComponent;
 class USoundBase;
 class USkeletalMesh;
+class USpotLightComponent;
 struct FInputActionValue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryToggled, bool, bIsOpen);
@@ -93,14 +94,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Document")
 	void CloseDocument();
 
-	// 조합창이 열려 있는지 확인
-	UFUNCTION(BlueprintCallable, Category = "Craft")
-	bool IsCraftOpen() const { return bIsCraftOpen; }
-
-	// 조합 UI 쪽에서 ESC, X버튼 등으로 닫을 때 호출
-	UFUNCTION(BlueprintCallable, Category = "Craft")
-	void CloseCraft();
-
 	// 인벤토리 / 문서 / 조합창을 모두 닫습니다.
 	// ESC 입력에서 사용합니다.
 	UFUNCTION(BlueprintCallable, Category = "UI")
@@ -159,6 +152,11 @@ public:
 	) override;
 
 protected:
+
+	// 손전등 라이트 (메시는 생략하고 라이트만 상체 소켓에 부착)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Flashlight")
+	USpotLightComponent* FlashlightLightComp;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadonly, category = "camera")
 	USpringArmComponent* SpringArmComp;
 
@@ -258,10 +256,6 @@ protected:
 	// J키로 문서창이 연리 있는지 여부
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Document")
 	bool bIsDocumentOpen = false;
-
-	// O키로 조합창이 열려 있는지 여부
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Craft")
-	bool bIsCraftOpen = false;
 
 	// P키 일시정지 메뉴가 열려 있는지 확인
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
@@ -389,10 +383,6 @@ protected:
 	UFUNCTION()
 	void OnDocumentPressed(const FInputActionValue& value);
 
-	// O키 입력 핸들러 (조합창 토글)
-	UFUNCTION()
-	void OnCraftPressed(const FInputActionValue& value);
-
 	// ESC키 입력 핸들러 (현재 열려 있는 메뉴 UI 닫기)
 	UFUNCTION()
 	void OnCloseUIPressed(const FInputActionValue& value);
@@ -444,9 +434,6 @@ protected:
 	// J 입력 -> 문서창 토글. 실제 UI 표시는 문서 파트에서 OnDocumentToggled를 받아 처리한다
 	void ToggleDocument();
 
-	// O 입력 -> 조합창 토글
-	void ToggleCraft();
-
 	// 게임 일시정지 / 해제
 	void TogglePause();
 
@@ -492,6 +479,9 @@ protected:
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "Flashlight")
 	void OnFlashlightStateChanged(bool bNewOn);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Flashlight")
+	void OnFlashlightEquipped();
 
 	// 문서창 열림/닫힘 상태가 바뀔 떄 호출됨. 문서 파트에서 이 이벤트를 받아
 	// 실제 문서 위젯을 열고 닫으면 된다.

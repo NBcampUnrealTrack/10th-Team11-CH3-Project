@@ -7,6 +7,7 @@
 #include "EnhancedInputComponent.h"
 #include "Interactable.h"
 #include "DeadHospitalGameMode.h"
+#include "Components/SpotLightComponent.h"
 #include "GameFramework/GameModeBase.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -52,6 +53,16 @@ APlayerCharacter::APlayerCharacter()
 	WeaponMesh->bCastDynamicShadow = false;
 	WeaponMesh->CastShadow = false;
 	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	// 손전등 라이트 생성. 메시는 안 쓰고 캐릭터 몸 메시의 상체 소켓에 바로 붙인다.
+	FlashlightLightComp = CreateDefaultSubobject<USpotLightComponent>(TEXT("FlashlightLightComp"));
+	FlashlightLightComp->SetupAttachment(GetMesh(), TEXT("FlashlightSocket")); // 스켈레톤에 미리 만들어둔 소켓 이름
+	FlashlightLightComp->Intensity = 5000.f;
+	FlashlightLightComp->AttenuationRadius = 1500.f;
+	FlashlightLightComp->InnerConeAngle = 15.f;
+	FlashlightLightComp->OuterConeAngle = 25.f;
+	FlashlightLightComp->CastShadows = true;
+	FlashlightLightComp->SetVisibility(false); // bFlashlightOn = false 초기값과 맞춤
 
 	// 인벤토리 컴포넌트 생성
 	InventoryComp = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
@@ -220,17 +231,6 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 					ETriggerEvent::Started,
 					this,
 					&APlayerCharacter::OnDocumentPressed
-				);
-			}
-
-			// O키 -> 조합창
-			if (CharacterController->CraftAction)
-			{
-				EnhancedInput->BindAction(
-					CharacterController->CraftAction,
-					ETriggerEvent::Started,
-					this,
-					&APlayerCharacter::OnCraftPressed
 				);
 			}
 
@@ -710,18 +710,6 @@ void APlayerCharacter::OnDocumentPressed(const FInputActionValue& value)
 	ToggleDocument();
 }
 
-// O키 입력 -> 조합창 열기 / 닫기
-void APlayerCharacter::OnCraftPressed(const FInputActionValue& value)
-{
-	// 사망, 은신 전환, 강제 입력 잠금 상태에서는 사용하지 않음
-	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked)
-	{
-		return;
-	}
-
-	ToggleCraft();
-}
-
 // ESC키 - 현재 열려 있는 메뉴 UI 닫기
 void APlayerCharacter::OnCloseUIPressed(const FInputActionValue& Value){
 
@@ -735,7 +723,7 @@ void APlayerCharacter::OnCloseUIPressed(const FInputActionValue& Value){
 
 	// 일반 메뉴가 아무것도 열려 있지 않으면
 	// ESC키로 Pause 메뉴 열기
-	if (!bIsInventoryOpen && !bIsDocumentOpen && !bIsCraftOpen){
+	if (!bIsInventoryOpen && !bIsDocumentOpen ){
 
 		TogglePause();
 		return;
@@ -845,6 +833,7 @@ void APlayerCharacter::StopAutoFire()
 void APlayerCharacter::AcquireFlashlight()
 {
 	bHasFlashlight = true;
+	OnFlashlightEquipped();
 }
 
 // UI 열림/닫힘 상태 갱신 + 마우스 커서/Input Mode 전환
@@ -887,6 +876,12 @@ void APlayerCharacter::ToggleFlashlight()
 	LastFlashlightToggleTime = Now;
 
 	bFlashlightOn = !bFlashlightOn;
+
+	if (FlashlightLightComp)
+	{
+		FlashlightLightComp->SetVisibility(bFlashlightOn);
+	}
+
 	OnFlashlightStateChanged(bFlashlightOn);
 }
 
@@ -913,12 +908,6 @@ void APlayerCharacter::ToggleInventory()
 		CloseDocument();
 	}
 
-	// 조합창이 열려 있다면 닫기
-	if (bIsCraftOpen)
-	{
-		CloseCraft();
-	}
-
 	// 인벤토리 열기
 	bIsInventoryOpen = true;
 
@@ -926,8 +915,7 @@ void APlayerCharacter::ToggleInventory()
 	// Player는 UI 사용 중 상태를 유지
 	SetUIOpen(
 		bIsInventoryOpen ||
-		bIsDocumentOpen ||
-		bIsCraftOpen
+		bIsDocumentOpen
 	);
 
 	// 실제 인벤토리 위젯 표시
@@ -947,7 +935,7 @@ void APlayerCharacter::CloseInventory()
 
 	// 인벤토리를 닫아도 문서창 또는 조합창이 열려 있다면
 	// UI 사용 중 상태는 계속 유지합니다.
-	SetUIOpen(bIsInventoryOpen || bIsDocumentOpen ||bIsCraftOpen);
+	SetUIOpen(bIsInventoryOpen || bIsDocumentOpen );
 
 	OnInventoryToggled.Broadcast(false);
 }
@@ -975,12 +963,6 @@ void APlayerCharacter::ToggleDocument()
 		CloseInventory();
 	}
 
-	// 조합창이 열려 있으면 먼저 닫기
-	if (bIsCraftOpen)
-	{
-		CloseCraft();
-	}
-
 	// 문서창 열기
 	bIsDocumentOpen = true;
 
@@ -988,8 +970,7 @@ void APlayerCharacter::ToggleDocument()
 	// Player는 UI 사용 중 상태를 유지
 	SetUIOpen(
 		bIsInventoryOpen ||
-		bIsDocumentOpen ||
-		bIsCraftOpen
+		bIsDocumentOpen
 	);
 
 	// 실제 문서 위젯 표시
@@ -1007,78 +988,8 @@ void APlayerCharacter::CloseDocument()
 	bIsDocumentOpen = false;
 	// 문서창을 닫아도 인벤토리 또는 조합창이 열려 있다면
 	// UI 사용 중 상태는 계속 유지합니다.
-	SetUIOpen(bIsInventoryOpen || bIsDocumentOpen || bIsCraftOpen);
+	SetUIOpen(bIsInventoryOpen || bIsDocumentOpen );
 	OnDocumentToggled(false);
-}
-
-// O 입력 -> 조합창 토글
-// 실제 조합 위젯 표시 / 숨김은
-// OnCraftToggled 이벤트를 받아 처리한다.
-// Player 쪽은 상태 관리 + 입력 차단만 담당
-void APlayerCharacter::ToggleCraft()
-{
-	// 사망 / 은신(연출포함) / 입력 잠금 상태면 무시
-	if (bIsDead || bIsHiding || bIsHideTransitioning || bIsInputLocked)
-	{
-		return;
-	}
-
-	// 이미 조합창이 열려 있으면 닫기
-	if (bIsCraftOpen)
-	{
-		CloseCraft();
-		return;
-	}
-
-	// 인벤토리가 열려 있으면 먼저 닫기
-	if (bIsInventoryOpen)
-	{
-		CloseInventory();
-	}
-
-	// 문서창이 열려 있으면 먼저 닫기
-	if (bIsDocumentOpen)
-	{
-		CloseDocument();
-	}
-
-	// 조합창 열기
-	bIsCraftOpen = true;
-
-	// 인벤토리 / 문서 / 조합창 중 하나라도 열려 있으면
-	// Player는 UI 사용 중 상태를 유지
-	SetUIOpen(
-		bIsInventoryOpen ||
-		bIsDocumentOpen ||
-		bIsCraftOpen
-	);
-
-	// 실제 조합 위젯 표시
-	OnCraftToggled(true);
-}
-
-// 조합 UI 쪽(ESC, X버튼 등)에서 호출.
-// 이미 닫혀 있으면 아무 동작 안 함.
-void APlayerCharacter::CloseCraft()
-{
-	// 이미 조합창이 닫혀 있으면 아무것도 하지 않음
-	if (!bIsCraftOpen)
-	{
-		return;
-	}
-
-	// 조합창 닫기
-	bIsCraftOpen = false;
-
-	// 다른 메뉴가 열려 있다면 UI 사용 중 상태 유지
-	SetUIOpen(
-		bIsInventoryOpen ||
-		bIsDocumentOpen ||
-		bIsCraftOpen
-	);
-
-	// 실제 조합 위젯을 닫으라고 Blueprint에 전달
-	OnCraftToggled(false);
 }
 
 // ESC 입력 -> 현재 열려 있는 메뉴 UI를 모두 닫음
@@ -1089,9 +1000,6 @@ void APlayerCharacter::CloseAllMenuUI()
 
 	// 문서창 닫기
 	CloseDocument();
-
-	// 조합창 닫기
-	CloseCraft();
 
 	// 모든 메뉴가 닫혔으므로
 	// Player의 UI 사용 중 상태도 해제
