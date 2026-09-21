@@ -65,7 +65,8 @@ AZombieCharacter::AZombieCharacter()
 	//좀비 공격 범위 콜리전
 	AttackRangeComp = CreateDefaultSubobject<USphereComponent>(TEXT("AttackRangeComp"));
 	AttackRangeComp->SetupAttachment(GetCapsuleComponent());
-	AttackRangeComp->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	//좀비끼리 충돌하지 않게 하려고 콜리전 세팅프리셋을 새로 만든걸 적용함
+	AttackRangeComp->SetCollisionProfileName(TEXT("ZombiePawn"));
 	AttackRangeComp->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	AttackRangeComp->SetSphereRadius(AttackRange);
 	//공격 범위 오버랩 이벤트 바인딩
