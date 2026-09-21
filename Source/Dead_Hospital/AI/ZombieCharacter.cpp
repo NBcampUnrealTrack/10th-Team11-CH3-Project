@@ -212,7 +212,10 @@ float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 					BlackboardComp->SetValueAsVector(AZombieAIController::BBKey_LastKnownLocation, AttackerPawn->GetActorLocation());
 				}
 				//Hitstun보다 먼저 Chase로 설정해야, 경직이 끝났을 때 Chase 상태로 복귀한다.
-				AIController->SetZombieState(EZombieState::Chase);
+				if (CurrentState != EZombieState::Hitstun)
+				{
+					AIController->SetZombieState(EZombieState::Chase);
+				}
 			}
 		}
 
@@ -308,13 +311,25 @@ void AZombieCharacter::EnterHitstun()
 		ZombieController->SetZombieState(EZombieState::Hitstun);
 	}
 
+	GetWorldTimerManager().ClearTimer(HitstunTimerHandle);
+
 	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
 	if (AnimInstance && HitReactMontage)
 	{
-		AnimInstance->Montage_Play(HitReactMontage);
+		const float MontageLength = AnimInstance->Montage_Play(HitReactMontage);
+
+		if (MontageLength > 0.0f)
+		{
+			FOnMontageEnded EndDelegate;
+			EndDelegate.BindUObject(this, &AZombieCharacter::OnHitReactMontageEnded);
+
+			AnimInstance->Montage_SetEndDelegate(EndDelegate, HitReactMontage);
+
+			return;
+		}
 	}
 
-	//경직 중 재피격 시 SetTimer가 자동으로 갱신되어 경직시간이 자연스럽게 연장됨
+	//HitReact 몽타주가 없거나 재생 실패했을 때만 타이머 사용
 	GetWorldTimerManager().SetTimer(
 		HitstunTimerHandle,
 		this,
@@ -341,6 +356,18 @@ void AZombieCharacter::OnHitstunEnded()
 
 		ZombieController->SetZombieState(PreHitstunState);
 	}
+}
+
+void AZombieCharacter::OnHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	//연사로 기존 몽타주가 끊긴 경우에는
+	//새 HitReact가 재생 중이므로 Hitstun을 해제하면 안 됨
+	if (bInterrupted || CurrentState != EZombieState::Hitstun)
+	{
+		return;
+	}
+
+	OnHitstunEnded();
 }
 
 //사망 후 일정 시간이 지나면 호출 - 액터를 완전히 제거
