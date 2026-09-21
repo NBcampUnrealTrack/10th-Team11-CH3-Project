@@ -112,7 +112,8 @@ void ADeadHospitalPaintingPuzzle::Interact_Implementation(AActor* Interactor)
 		return;
 	}
 
-	if (!Inventory->AddItem(PaintingItemData))
+	// DT_ItemData에서 Painting 정보를 찾아 인벤토리에 추가
+	if (!Inventory->AddItemByID(FName(TEXT("Painting")), 1))
 	{
 		GameMode->CancelOneTimeEvent(PaintingRemovedEventId);
 		OnPaintingRemovalFailed();
@@ -123,10 +124,9 @@ void ADeadHospitalPaintingPuzzle::Interact_Implementation(AActor* Interactor)
 	// 따라서 실제 기록에 성공한 뒤에만 그림을 제거하고, 실패하면 지급한 그림도 취소합니다.
 	if (!GameMode->CompleteOneTimeEvent(PaintingRemovedEventId))
 	{
-		// Painting은 팀원 인벤토리에서 일반 삭제가 금지된 진행 아이템입니다.
-		// 여기서는 플레이어가 버리는 것이 아니라 실패한 지급을 원상 복구하는 것이므로,
-		// 보호 아이템도 정해진 수량만 제거할 수 있는 ConsumeKeyItem()을 사용합니다.
-		Inventory->ConsumeKeyItem(PaintingItemData.ItemID, PaintingItemData.Quantity);
+		// Event 저장 실패 시 방금 지급한 Painting을 다시 회수
+		Inventory->ConsumeKeyItem(FName(TEXT("Painting")), 1);
+
 		GameMode->CancelOneTimeEvent(PaintingRemovedEventId);
 		OnPaintingRemovalFailed();
 		return;
