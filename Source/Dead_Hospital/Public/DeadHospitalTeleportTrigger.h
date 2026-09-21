@@ -19,8 +19,8 @@ UENUM(BlueprintType)
 enum class EDeadHospitalTeleportPurpose : uint8
 {
 	RegularTransition,			// 병원 구역 사이를 이동하며 게임 단계는 바꾸지 않음
-	EnterFinalObjective,			// 생명유지장치 구역으로 이동한 뒤 마지막 목표를 시작함
-	ReturnToHospitalAndStartEscape	// 지하 2층으로 복귀한 뒤 조작을 돌려주고 붕괴 카운트다운을 시작함
+	EnterFinalObjective,			// 예전 기획의 값. 현재는 ObjectiveTrigger로 특수중환자격리실 진입을 처리함
+	ReturnToHospitalAndStartEscape	// 예전 기획의 값. Blueprint 호환만 유지하며 현재는 안전하게 사용 거부함
 };
 
 /**
@@ -130,7 +130,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Teleport")
 	bool StartsActivated = true;
 
-	/** -1은 GameMode 기본 제한시간 사용. ReturnToHospitalAndStartEscape 목적일 때만 씁니다. */
+	/** 예전 복귀 Teleport의 탈출 시간 설정입니다. 에셋 호환용으로 남기지만 현재 흐름에서는 사용하지 않습니다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Teleport", meta = (ClampMin = "-1"))
 	int32 EscapeDurationSeconds = -1;
 

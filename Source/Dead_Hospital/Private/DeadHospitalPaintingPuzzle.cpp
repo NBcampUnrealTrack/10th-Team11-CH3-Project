@@ -13,7 +13,7 @@ ADeadHospitalPaintingPuzzle::ADeadHospitalPaintingPuzzle()
 {
 	// Actor 생성 시 기본 그림 아이템 데이터와 E 안내 글자를 만듭니다.
 	// ItemID는 팀원 Inventory와 DT_ItemData에서 확정한 Row 이름 "Painting"을 사용합니다.
-	// 그림을 KeyItem으로 지정했지만 숨겨진 Key의 ItemID "Key"와는 서로 다른 항목입니다.
+	// 그림과 숨겨진 CardKeyA는 둘 다 KeyItem이지만 ItemID가 서로 다른 별개 인벤토리 항목입니다.
 	PrimaryActorTick.bCanEverTick = false;
 
 	PaintingMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PaintingMesh"));
@@ -25,6 +25,7 @@ ADeadHospitalPaintingPuzzle::ADeadHospitalPaintingPuzzle()
 	PaintingItemData.Quantity = 1;
 	PaintingItemData.MaxStack = 1;
 	InteractionText = FText::FromString(TEXT("E 키로 그림 조사"));
+	CollectionSubObjectiveText = FText::FromString(TEXT("그림을 모두 수집하세요"));
 }
 
 void ADeadHospitalPaintingPuzzle::BeginPlay()
@@ -33,20 +34,21 @@ void ADeadHospitalPaintingPuzzle::BeginPlay()
 	// 읽어 이미 그림을 뗀 체크포인트에서 다시 보이지 않도록 맞춥니다.
 	Super::BeginPlay();
 
-	// Blueprint나 기존 맵 Actor에 예전 임시 ID가 저장되어 있더라도 실제 플레이에서는
-	// DT_ItemData의 최종 ID를 사용하도록 다시 맞춥니다. 이렇게 해야 그림 획득 후
-	// Inventory의 HasItem("Painting") 검사와 일반 삭제 방지 기능이 같은 아이템을 찾습니다.
-	PaintingItemData.ItemID = TEXT("Painting");
+	// 생성자에는 기존 PZ03과 호환되는 기본값 "Painting"이 들어 있습니다.
+	// 하지만 여기서 다시 "Painting"을 강제로 대입하면, 언리얼 에디터의 Details 패널에서
+	// PZ06용 그림마다 서로 다른 ItemID를 입력해도 게임 시작 순간 모두 같은 ID로 바뀝니다.
+	// 그래서 BeginPlay에서는 ItemID를 덮어쓰지 않고, 각 Blueprint/배치 Actor에 저장된 값을 사용합니다.
+	// PZ03 기존 그림은 값을 바꾸지 않으면 생성자의 기본값 "Painting"을 그대로 사용합니다.
 	HiddenKeyItemId = TEXT("CardKeyA");
 
 	if (!IsValid(HiddenKeyPickup))
 	{
-		UE_LOG(LogTemp, Error, TEXT("%s: HiddenKeyPickup is not assigned. PZ-02 cannot be completed."), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("%s: HiddenKeyPickup is not assigned. PZ03 cannot be completed."), *GetName());
 	}
 	else
 	{
 		// 그림과 Key Actor의 BeginPlay 순서가 어느 쪽이 먼저든 같은 설정이 적용됩니다.
-		// 그림 제거 전에는 Key가 숨겨지고, Key 획득 순간에만 PZ-02 완료가 기록됩니다.
+		// 그림 제거 전에는 CardKeyA가 숨겨지고, 카드키 획득 순간에만 PZ03 완료가 기록됩니다.
 		HiddenKeyPickup->ConfigureAsHiddenPuzzleKey(
 			HiddenKeyItemId,
 			PaintingRemovedEventId,
@@ -132,6 +134,18 @@ void ADeadHospitalPaintingPuzzle::Interact_Implementation(AActor* Interactor)
 
 	PaintingRemoved = true;
 	ApplyRemovedState();
+
+	// 그림 수집은 메인 목표를 덮어쓰지 않고 S03 서브 목표의 숫자만 1 올립니다.
+	// 실제 그림 아이템과 Event를 성공적으로 저장한 뒤에 올려야 인벤토리 수량과 UI 숫자가 다르게 남지 않습니다.
+	if (!CollectionSubObjectiveId.IsNone())
+	{
+		GameMode->AdvanceSubObjectiveProgress(
+			CollectionSubObjectiveId,
+			CollectionSubObjectiveText,
+			1,
+			FMath::Max(CollectionTargetCount, 1));
+	}
+
 	OnPaintingRemoved();
 }
 

@@ -63,8 +63,8 @@ void ADeadHospitalLifeSupportDevice::Interact_Implementation(AActor* Interactor)
 
 bool ADeadHospitalLifeSupportDevice::CanInteract_Implementation(AActor* Interactor) const
 {
-	// 아직 FinalObjective 단계가 아니거나, 목적지가 준비되지 않았거나,
-	// 이미 장치를 껐다면 E 상호작용을 거부합니다. &&는 조건이 전부 true여야 성공입니다.
+	// 이미 장치를 껐거나 성불 완료 처리를 시작했다면 같은 E 입력을 다시 받지 않습니다.
+	// 최신 GDD는 같은 위치에서 탈출을 시작하므로 예전 EscapeDestinationActor의 연결 여부는 검사하지 않습니다.
 	if (DeviceShutdown || SequenceCompletionStarted)
 	{
 		return false;
@@ -132,8 +132,8 @@ bool ADeadHospitalLifeSupportDevice::TryShutdownDeviceForInteractor(AActor* Inte
 
 bool ADeadHospitalLifeSupportDevice::CompleteAscensionSequence()
 {
-	// Sequence Finished 알림이 오면 화면을 검게 만들고 목적지 이동을 예약합니다.
-	// 저장한 Player가 이미 사라졌거나 목적지가 준비되지 않았다면 늦은 알림은 무시합니다.
+	// Level Sequence의 Finished 알림이 오면 Player를 옮기지 않고 현재 위치에서 조작과 Escape를 시작합니다.
+	// 저장한 Player가 이미 사라졌거나 같은 Finished 알림이 두 번 왔다면 진행 상태를 다시 바꾸지 않습니다.
 	if (!DeviceShutdown
 		|| SequenceCompletionStarted
 		|| EscapeSequenceFinished
@@ -142,7 +142,7 @@ bool ADeadHospitalLifeSupportDevice::CompleteAscensionSequence()
 		return false;
 	}
 
-	// true로 먼저 바꿔 같은 Finished 알림이 중복 도착해도 두 번 이동하지 않게 합니다.
+	// true로 먼저 바꾸어 같은 Finished 알림이 중복 도착해도 탈출 타이머가 두 번 시작되지 않게 합니다.
 	SequenceCompletionStarted = true;
 	FinishAscensionAndStartEscape();
 	return EscapeSequenceFinished;
@@ -150,13 +150,15 @@ bool ADeadHospitalLifeSupportDevice::CompleteAscensionSequence()
 
 void ADeadHospitalLifeSupportDevice::SetEscapeDestinationReady(bool IsReady)
 {
+	// 이전 Blueprint에 이미 연결된 노드를 깨지 않기 위해 값은 저장하지만 최신 흐름에서는 사용하지 않습니다.
+	// 현재는 순간이동 목적지가 없으므로 이 값이 false여도 장치 정지와 탈출 시작을 막지 않습니다.
 	EscapeDestinationReady = IsReady;
 }
 
 void ADeadHospitalLifeSupportDevice::FinishAscensionAndStartEscape()
 {
-	// 화면 암전이 끝났을 때 실제 Player를 지하 2층 TargetPoint로 옮깁니다.
-	// `TeleportTo` 실패 시 타이머를 멈추고 입력/화면을 복구합니다.
+	// Player의 위치와 회전은 전혀 바꾸지 않습니다. 특수중환자격리실에서 직접 정문까지 달려가야 하기 때문입니다.
+	// StoredPlayerPawn은 위치 이동용이 아니라 연출 동안 잠갔던 바로 그 Player의 입력을 되돌리기 위해 보관한 참조입니다.
 	APawn* PlayerPawn = StoredPlayerPawn.Get();
 	if (!IsValid(PlayerPawn))
 	{
@@ -164,7 +166,7 @@ void ADeadHospitalLifeSupportDevice::FinishAscensionAndStartEscape()
 		return;
 	}
 
-	// 가이드의 순서대로 "도착 완료 → 입력 복구 → Escape 상태와 Timer 시작"을 지킵니다.
+	// 최신 GDD 순서인 "성불 연출 완료 → 입력 복구 → Escape 상태와 Timer 시작"을 지킵니다.
 	SetStoredPlayerInputEnabled(true);
 
 	ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
@@ -176,7 +178,7 @@ void ADeadHospitalLifeSupportDevice::FinishAscensionAndStartEscape()
 
 	if (!GameMode->CompleteOneTimeEvent(DeadHospitalLifeSupportEventIds::ShutdownSequence))
 	{
-		// 이 지점은 이동과 Escape 전환이 모두 성공한 뒤이므로 게임 진행은 유지합니다.
+		// 이 지점은 Escape 전환이 이미 성공한 뒤이므로 게임 진행은 유지합니다.
 		// 다만 완료 ID가 저장되지 않으면 체크포인트 중복 방지가 약해지므로 반드시 로그로 알려 줍니다.
 		UE_LOG(LogTemp, Error, TEXT("LifeSupportShutdown EventId could not be completed after Escape started."));
 	}
@@ -243,7 +245,7 @@ void ADeadHospitalLifeSupportDevice::HandleAutomaticSequenceCompletion()
 
 void ADeadHospitalLifeSupportDevice::RestoreAfterEscapeStartFailure()
 {
-	// 이동에 실패했는데 화면만 검고 Player 입력도 꺼지면 진행할 수 없습니다.
+	// Escape 시작에 실패했는데 Player 입력까지 꺼져 있으면 진행할 수 없습니다.
 	// 다만 GameOver/Ending/Cleared 상태에서는 사망/엔딩 입력 잠금이 우선입니다.
 	SequenceCompletionStarted = false;
 
@@ -254,7 +256,7 @@ void ADeadHospitalLifeSupportDevice::RestoreAfterEscapeStartFailure()
 			|| GameMode->GetCurrentGamePhase() == EDeadHospitalGamePhase::Cleared);
 
 	// GameOver 화면이 떠 있는 동안 입력을 다시 켜면 사망한 Player가 움직일 수 있습니다.
-	// 일반적인 목적지 설정 실패일 때만 입력과 화면을 원상 복구하여 다시 시도할 수 있게 합니다.
+	// 일반적인 연동 실패일 때만 입력을 원상 복구하여 진행이 완전히 멈추지 않게 합니다.
 	if (!GameMustKeepInputLocked)
 	{
 		SetStoredPlayerInputEnabled(true);
@@ -288,8 +290,8 @@ void ADeadHospitalLifeSupportDevice::HandleGamePhaseChanged(EDeadHospitalGamePha
 		return;
 	}
 
-	// 사망이나 게임 종료 뒤에도 Sequence Timer가 남아 있으면 늦게 Teleport가 실행될 수 있습니다.
-	// 두 Timer를 모두 지우고 실행 중 Event 예약도 취소하여 체크포인트 재시작을 방해하지 않게 합니다.
+	// 사망이나 게임 종료 뒤에도 Sequence Timer가 남아 있으면 늦게 Escape가 시작될 수 있습니다.
+	// Timer를 지우고 실행 중 Event 예약도 취소하여 체크포인트 재시작을 방해하지 않게 합니다.
 	GetWorldTimerManager().ClearTimer(SequenceTimerHandle);
 
 	if (ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>())

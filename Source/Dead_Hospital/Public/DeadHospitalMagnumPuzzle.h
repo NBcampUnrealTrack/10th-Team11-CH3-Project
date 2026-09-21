@@ -9,20 +9,12 @@
 class ADeadHospitalProgressionItem;
 
 /**
- * PZ-03 "병동 1층 매그넘 획득 퍼즐"의 변하지 않는 핵심 연결만 담당합니다.
+ * PZ02 "매그넘 금고 — 사라의 환자 번호"를 담당하는 퍼즐 Actor입니다.
+ * 진료실 문서의 사라 밀러 환자 번호와 금고 주변의 '사라' 표시를 연결하면 정답 3178을 알 수 있습니다.
+ * 키패드 UI가 SubmitCode를 호출하면 C++이 정답을 검사하고, 성공할 때만 PZ02를 저장하고 금고를 엽니다.
  *
- * 현재 기획에서 아직 정해지지 않은 것:
- * - 어떤 단서를 보고 정답을 알아내는지
- * - 버튼, 다이얼, 그림 맞추기 중 어떤 조작을 사용하는지
- *
- * 이미 정해진 것:
- * - 퍼즐 성공 전에는 매그넘을 얻을 수 없음
- * - 성공하면 연결된 보관함 문이 열림
- * - 매그넘은 Inventory에 정확히 한 번만 들어감
- *
- * 그래서 여기서 임의로 정답(숫자나 버튼 순서)을 발명하지 않았습니다.
- * 나중에 정답 방식이 정해지면 Blueprint 자식이 올바른 입력을 확인한 뒤
- * 부모의 TryCompletePuzzle을 호출합니다. 공통 저장/문/보상 기능은 그대로 재사용합니다.
+ * 금고가 열리면 MagnumPickup Actor가 보이게 되며 Player가 다시 E로 주워야 인벤토리에 들어갑니다.
+ * 이렇게 나누면 인벤토리가 가득 찬 경우에도 매그넘이 사라지지 않고 금고 안에 남아 있게 됩니다.
  */
 UCLASS()
 class DEAD_HOSPITAL_API ADeadHospitalMagnumPuzzle : public ADeadHospitalPuzzleBase
@@ -33,8 +25,16 @@ public:
 	ADeadHospitalMagnumPuzzle();
 
 	/**
-	 * 부모의 공통 퍼즐 완료 처리를 성공시킨 뒤, 연결된 MagnumPickup을 즉시 획득 처리합니다.
-	 * 따라서 정상적인 흐름은 "퍼즐 완료 -> Magnum 지급 -> Inventory AddItem" 순서가 됩니다.
+	 * 금고 키패드 UI의 확인 버튼에서 호출합니다.
+	 * EnteredCode가 최신 GDD의 정답 "3178"과 같을 때만 퍼즐 완료를 시도합니다.
+	 * 틀리면 GameMode의 퍼즐 목록과 금고 문은 아무것도 바뀌지 않으므로 다시 입력할 수 있습니다.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Puzzle|Magnum")
+	bool SubmitCode(AActor* Interactor, const FString& EnteredCode);
+
+	/**
+	 * 부모의 공통 퍼즐 완료 처리가 GameMode 기록과 금고 문 잠금 해제를 수행합니다.
+	 * 완료 Broadcast를 받은 MagnumPickup이 공개되고, 실제 AddItem은 Player가 보상을 E로 주울 때 실행됩니다.
 	 */
 	virtual bool TryCompletePuzzle(AActor* Interactor) override;
 
@@ -60,5 +60,17 @@ protected:
 
 	/** 한 번 집은 매그넘이 다시 나타나지 않도록 저장할 Event 이름입니다. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Puzzle|Magnum")
-	FName MagnumPickupEventId = TEXT("PZ03_MagnumCollected");
+	FName MagnumPickupEventId = TEXT("PZ02_MagnumCollected");
+
+	/** 금고의 확정 비밀번호입니다. FString으로 보관하므로 앞의 0도 하나의 글자로 구분할 수 있습니다. */
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Puzzle|Magnum")
+	FString CorrectCode = TEXT("3178");
+
+	/** C++ 정답 판정과 진행 저장이 모두 성공한 뒤 UI에 성공 표시/소리를 내보낼 자리입니다. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Puzzle|Magnum")
+	void OnCodeAccepted();
+
+	/** 오답을 입력했을 때 UI에 빨간 표시/오답 소리를 내보낼 자리입니다. */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Puzzle|Magnum")
+	void OnCodeRejected(const FString& EnteredCode);
 };

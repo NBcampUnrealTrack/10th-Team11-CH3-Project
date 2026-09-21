@@ -123,7 +123,7 @@ private:
 	UFUNCTION()
 	void HandleCheckpointRestored(FName CheckpointId);
 
-	/** 연출 도중 GameOver가 되면 늦게 실행되는 Timer와 Teleport를 안전하게 취소합니다. */
+	/** 연출 도중 GameOver가 되면 늦게 실행되는 Sequence Timer와 Escape 시작을 안전하게 취소합니다. */
 	UFUNCTION()
 	void HandleGamePhaseChanged(EDeadHospitalGamePhase NewGamePhase);
 
