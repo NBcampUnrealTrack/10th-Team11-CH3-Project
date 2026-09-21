@@ -143,7 +143,8 @@ void ADeadHospitalProgressionItem::Interact_Implementation(AActor* Interactor)
 		return;
 	}
 
-	if (!Inventory->AddItem(ItemData))
+	// ItemID를 이용해 DT_ItemData에서 최신 아이템 정보를 가져와 인벤토리에 추가
+	if (!Inventory->AddItemByID(ItemData.ItemID, ItemData.Quantity))
 	{
 		// 인벤토리에 넣지 못했다면 Event 예약을 취소해야 다음 E 입력에서 다시 시도할 수 있습니다.
 		GameMode->CancelOneTimeEvent(PickupEventId);
