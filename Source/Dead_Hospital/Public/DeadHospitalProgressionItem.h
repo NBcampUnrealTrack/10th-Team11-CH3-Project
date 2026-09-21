@@ -12,7 +12,7 @@ class UStaticMeshComponent;
 
 /**
  * 일반 파밍 아이템이 아니라 "획득 여부가 스토리 진행에 영향을 주는 아이템"입니다.
- * 예: 그림을 떼어낸 뒤 나타나는 필수 Key, PZ-03 해결 뒤 받는 매그넘.
+ * 예: PZ03 그림을 떼어낸 뒤 나타나는 CardKeyA, PZ02 해결 뒤 받는 매그넘, PZ05의 CardKeyB.
  * 게임 중 보이는 Actor와 Player 인벤토리의 ItemData는 다릅니다. E를 눌러
  * InventoryComponent::AddItem이 성공하고 GameMode에 획득 Event가 저장되면
  * 맵 Actor를 숨깁니다. 체크포인트를 불러오면 저장 시점에 집었는지 다시 맞춥니다.
@@ -27,8 +27,8 @@ public:
 	ADeadHospitalProgressionItem();
 
 	/**
-	 * Blueprint가 아이템을 공개/숨기려고 호출합니다. true라고 해도 PZ-02 그림 제거
-	 * Event나 PZ-03 퍼즐이 완료되지 않았다면 공개되지 않습니다.
+	 * Blueprint가 아이템을 공개/숨기려고 호출합니다. true라고 해도 PZ03 그림 제거
+	 * Event나 PZ02 매그넘 금고처럼 지정된 요구 조건이 완료되지 않았다면 공개되지 않습니다.
 	 * 즉 화면 연출이 진행 조건을 잘못 앞질러도 필수 아이템을 미리 얻을 수 없습니다.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Progression Item")
@@ -38,7 +38,7 @@ public:
 	bool HasBeenCollected() const { return ItemCollected; }
 
 	/**
-	 * PZ-02 그림 Actor가 연결된 Key를 안전하게 설정할 때 사용하는 C++ 전용 함수입니다.
+	 * PZ03 그림 Actor가 연결된 CardKeyA를 안전하게 설정할 때 사용하는 C++ 전용 함수입니다.
 	 * Item ID, 그림 제거 Event, Key 획득 완료 Puzzle ID를 맞춥니다.
 	 * 단, 이 아이템 Actor 자신의 PickupEventId는 L_MainLevel Details에서
 	 * 다른 아이템과 겹치지 않는 이름(예: PZ02_KeyCollected)으로 지정해야 합니다.
@@ -50,14 +50,15 @@ public:
 	);
 
 	/**
-	 * PZ-03처럼 퍼즐 완료 뒤 나타나는 고유 보상을 안전하게 설정하는 C++ 전용 함수입니다.
-	 * 퍼즐 정답 방식과 보상 지급을 분리하므로 나중에 PZ-03 세부안이 바뀌어도 이 Actor는 재사용할 수 있습니다.
+	 * PZ02 매그넘이나 PZ05 CardKeyB처럼 퍼즐 완료 뒤 나타나는 고유 보상을 설정하는 C++ 전용 함수입니다.
+	 * 퍼즐 정답 방식과 보상 지급을 분리하므로 다른 보상 퍼즐에서도 이 Actor를 재사용할 수 있습니다.
 	 */
 	void ConfigureAsPuzzleReward(
 		FName RequiredCompletedPuzzleId,
 		FName RewardItemId,
 		EItemType RewardItemType,
-		FName RewardPickupEventId
+		FName RewardPickupEventId,
+		FName CompletedSubObjectiveId = NAME_None
 	);
 
 	virtual void Interact_Implementation(AActor* Interactor) override;
@@ -86,16 +87,44 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Requirement")
 	FName RequiredCompletedEventId = NAME_None;
 
-	/** PZ-02 Key처럼 "획득하는 순간 해결"할 때만 퍼즐 ID를 넣습니다. 매그넘은 None입니다. */
+	/** PZ03 CardKeyA처럼 "획득하는 순간 해결"할 때만 퍼즐 ID를 넣습니다. 매그넘과 CardKeyB는 None입니다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Result")
 	FName PuzzleIdCompletedByPickup = NAME_None;
 
 	/**
 	 * 아이템 Actor마다 다른 ID입니다. 획득 기록을 체크포인트에 저장해 같은 물건을
-	 * 반복 지급하지 않게 합니다. PZ-02 열쇠는 Details에서 직접 지정해야 합니다.
+	 * 반복 지급하지 않게 합니다. PZ03 CardKeyA Actor도 다른 아이템과 겹치지 않는 ID를 지정해야 합니다.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Result")
 	FName PickupEventId = NAME_None;
+
+	/**
+	 * 이 아이템 획득이 S01~S09 서브 목표의 숫자를 올려야 할 때만 ID를 설정합니다.
+	 * 예를 들어 나머지 수집용 그림 Actor에 S03을 넣으면 획득 성공 후 그림 수집 진행도가 올라갑니다.
+	 * None으로 두면 인벤토리와 Event만 처리하고 HUD 목표는 건드리지 않습니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Objective")
+	FName SubObjectiveId = NAME_None;
+
+	/** SubObjectiveId가 있을 때 HUD에 표시할 설명입니다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Objective")
+	FText SubObjectiveText;
+
+	/** 이 아이템 하나를 주웠을 때 더할 진행도입니다. 보통은 1을 사용합니다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Objective", meta = (ClampMin = "1"))
+	int32 SubObjectiveProgressToAdd = 1;
+
+	/** 목표의 총 개수입니다. 그림 3점 수집이면 3을 입력합니다. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Objective", meta = (ClampMin = "1"))
+	int32 SubObjectiveTargetProgress = 1;
+
+	/**
+	 * 이 아이템을 실제로 얻는 순간 완료되어 HUD에서 제거할 서브 목표 ID입니다.
+	 * 예: PZ03 CardKeyA는 S04, PZ05 CardKeyB는 S07, PZ02 Magnum은 단서 목표 S02를 끝낼 수 있습니다.
+	 * None이면 어떤 서브 목표도 제거하지 않습니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item|Objective")
+	FName SubObjectiveIdToClearOnPickup = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Progression Item")
 	bool StartsEnabled = true;

@@ -56,6 +56,18 @@ void ADeadHospitalTeleportTrigger::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("%s: DestinationActor is not assigned."), *GetName());
 	}
 
+	if (TeleportPurpose == EDeadHospitalTeleportPurpose::EnterFinalObjective
+		|| TeleportPurpose == EDeadHospitalTeleportPurpose::ReturnToHospitalAndStartEscape)
+	{
+		// 최신 GDD의 유일한 진행용 순간이동은 지하 1층 정전 연출에서 본관 1층으로 이동하는 것입니다.
+		// 예전 enum 값이 저장된 Actor를 찾을 수 있도록 로그를 남기고, 두 예전 목적의 실제 이동은 아래 조건 함수에서 차단합니다.
+		UE_LOG(
+			LogTemp,
+			Error,
+			TEXT("%s: This TeleportPurpose is obsolete. Use RegularTransition only for JS-06, or ObjectiveTrigger for the final room."),
+			*GetName());
+	}
+
 	OnTeleportStateRestored(HasBeenUsed);
 }
 
@@ -208,13 +220,6 @@ void ADeadHospitalTeleportTrigger::PerformTeleport()
 		PlayerController->SetControlRotation(DestinationRotation);
 	}
 
-	// 탈출 시작 Teleport는 가이드 순서대로 입력을 먼저 복구한 다음 Countdown을 시작합니다.
-	// 다른 목적은 단계 변경이 성공한 뒤 공통 마무리에서 입력을 복구합니다.
-	if (TeleportPurpose == EDeadHospitalTeleportPurpose::ReturnToHospitalAndStartEscape)
-	{
-		SetPendingPlayerInputEnabled(true);
-	}
-
 	// GameMode 단계 전환 자체가 OnGamePhaseChanged를 호출합니다. 이 bool은
 	// "지금 이 Trigger가 의도해서 단계를 바꾸는 중"임을 표시해 자기 자신이 취소하지 않게 합니다.
 	ApplyingPurposeTransition = true;
@@ -344,13 +349,12 @@ bool ADeadHospitalTeleportTrigger::IsPurposeAllowedInCurrentPhase(const ADeadHos
 	switch (TeleportPurpose)
 	{
 	case EDeadHospitalTeleportPurpose::EnterFinalObjective:
-		return GameMode->GetCurrentGamePhase() == EDeadHospitalGamePhase::Playing
-			&& !GameMode->HasLifeSupportBeenShutdown()
-			&& GameMode->AreFinalObjectiveRequirementsMet();
+		return false;
 
 	case EDeadHospitalTeleportPurpose::ReturnToHospitalAndStartEscape:
-		return GameMode->GetCurrentGamePhase() == EDeadHospitalGamePhase::ReturningToHospital
-			&& GameMode->HasLifeSupportBeenShutdown();
+		// 이 enum 값은 기존 Blueprint 에셋이 깨지지 않게 남겨 둔 것일 뿐입니다.
+		// 현재 기획에서 장치 정지 후 복귀 순간이동은 없으므로 항상 false로 차단합니다.
+		return false;
 
 	case EDeadHospitalTeleportPurpose::RegularTransition:
 	default:
@@ -369,10 +373,10 @@ bool ADeadHospitalTeleportTrigger::ApplyTeleportPurpose(ADeadHospitalGameMode* G
 	switch (TeleportPurpose)
 	{
 	case EDeadHospitalTeleportPurpose::EnterFinalObjective:
-		return GameMode->StartFinalObjective();
+		return false;
 
 	case EDeadHospitalTeleportPurpose::ReturnToHospitalAndStartEscape:
-		return GameMode->StartEscapePhase(EscapeDurationSeconds);
+		return false;
 
 	case EDeadHospitalTeleportPurpose::RegularTransition:
 	default:

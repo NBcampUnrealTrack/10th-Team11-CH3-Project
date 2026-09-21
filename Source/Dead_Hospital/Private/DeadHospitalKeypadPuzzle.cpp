@@ -8,7 +8,7 @@ ADeadHospitalKeypadPuzzle::ADeadHospitalKeypadPuzzle()
 {
 	// 생성자는 Actor가 처음 만들어질 때 기본값을 넣는 함수입니다.
 	// PuzzleId는 GameMode가 체크포인트에 저장할 이름이고, 표시 글자와는 다릅니다.
-	PuzzleId = TEXT("PZ_01_426");
+	PuzzleId = TEXT("PZ01");
 	InteractionText = FText::FromString(TEXT("E 키로 키패드 조사"));
 }
 
@@ -24,7 +24,7 @@ bool ADeadHospitalKeypadPuzzle::SubmitCode(AActor* Interactor, const FString& En
 
 	// TrimStartAndEnd는 글자 맨 앞/맨 뒤 공백만 지웁니다. 내부의 숫자는 건드리지 않습니다.
 	// 앞뒤의 실수로 들어간 공백만 제거하고 숫자의 순서와 개수는 그대로 비교합니다.
-	// 따라서 0426, 4260, 425 같은 값은 정답으로 처리되지 않습니다.
+	// 따라서 01796, 17960, 1795 같은 값은 정답으로 처리되지 않습니다.
 	const FString TrimmedCode = EnteredCode.TrimStartAndEnd();
 	if (TrimmedCode != CorrectCode)
 	{
@@ -46,7 +46,7 @@ bool ADeadHospitalKeypadPuzzle::SubmitCode(AActor* Interactor, const FString& En
 
 bool ADeadHospitalKeypadPuzzle::CanCompletePuzzle(AActor* Interactor) const
 {
-	// 정답이 426이어도 연결된 문이 없다면 퍼즐 완료 기록을 남기지 않습니다.
+	// 정답이 1796이어도 연결된 문이 없다면 퍼즐 완료 기록을 남기지 않습니다.
 	// 그렇지 않으면 체크포인트에는 성공으로 저장되지만 Player는 다음 구역으로 갈 수 없게 됩니다.
 	return IsValid(ConnectedDoor) && Super::CanCompletePuzzle(Interactor);
 }

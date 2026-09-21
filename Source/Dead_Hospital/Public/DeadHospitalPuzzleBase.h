@@ -87,7 +87,7 @@ protected:
 
 	/**
 	 * 실제 맵에 놓인 Door Actor를 가리킵니다. nullptr이면 연결되지 않은 상태입니다.
-	 * 공통 부모는 문이 없어도 퍼즐 자체는 기록할 수 있지만 PZ-01/PZ-03 자식은
+	 * 공통 부모는 문이 없어도 퍼즐 자체는 기록할 수 있지만 PZ01/PZ02와 배치 퍼즐 자식은
 	 * 문이 필수라서 연결하지 않으면 성공을 막습니다.
 	 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Puzzle")

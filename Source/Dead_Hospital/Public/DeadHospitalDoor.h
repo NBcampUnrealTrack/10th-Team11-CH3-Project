@@ -65,7 +65,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Door|Puzzle")
 	FName RequiredPuzzleId = NAME_None;
 
-	/** 퍼즐 문이면 None, PZ-02 Key 문이면 DT_ItemData의 최종 ID인 "Key"를 입력합니다. */
+	/** 퍼즐이 직접 여는 문이면 None, 카드키 문이면 DT_ItemData의 CardKeyA, CardKeyB, MasterCardKey 중 해당 ID를 입력합니다. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Door|Key")
 	FName RequiredKeyItemId = NAME_None;
 

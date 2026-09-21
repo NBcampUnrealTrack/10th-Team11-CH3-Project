@@ -25,7 +25,7 @@ void ADeadHospitalProgressionItem::ConfigureAsHiddenPuzzleKey(
 	FName RevealEventId,
 	FName CompletedPuzzleId)
 {
-	// 그림 뒤 열쇠는 "그림이 제거되어야 보이고, 열쇠를 집어야 PZ-02 완료"입니다.
+	// PZ03의 카드키 A는 "그림이 제거되어야 보이고, 카드키를 집어야 퍼즐 완료"입니다.
 	// 세 값을 따로 수동 설정하면 엇갈리기 쉬워 PaintingPuzzle이 이 함수를 호출합니다.
 	// 주의: PickupEventId는 이 함수에서 설정하지 않으므로 열쇠 Actor에 따로 입력합니다.
 	// 그림과 연결된 Key는 일반 파밍 아이템이 아니라 진행 필수 아이템입니다.
@@ -37,6 +37,7 @@ void ADeadHospitalProgressionItem::ConfigureAsHiddenPuzzleKey(
 	RequiredPuzzleId = NAME_None;
 	RequiredCompletedEventId = RevealEventId;
 	PuzzleIdCompletedByPickup = CompletedPuzzleId;
+	SubObjectiveIdToClearOnPickup = TEXT("S04");
 	StartsEnabled = false;
 
 	// BeginPlay 뒤에 Painting Actor가 설정한 경우에도 화면 상태를 즉시 다시 계산합니다.
@@ -53,7 +54,8 @@ void ADeadHospitalProgressionItem::ConfigureAsPuzzleReward(
 	FName RequiredCompletedPuzzleId,
 	FName RewardItemId,
 	EItemType RewardItemType,
-	FName RewardPickupEventId)
+	FName RewardPickupEventId,
+	FName CompletedSubObjectiveId)
 {
 	// 매그넘처럼 "퍼즐을 먼저 풀고 나서 보상이 나타나는" 경우입니다.
 	// 획득을 퍼즐 완료로 다시 처리하지 않으므로 PuzzleIdCompletedByPickup은 None입니다.
@@ -65,6 +67,7 @@ void ADeadHospitalProgressionItem::ConfigureAsPuzzleReward(
 	RequiredCompletedEventId = NAME_None;
 	PuzzleIdCompletedByPickup = NAME_None;
 	PickupEventId = RewardPickupEventId;
+	SubObjectiveIdToClearOnPickup = CompletedSubObjectiveId;
 	StartsEnabled = false;
 
 	if (HasActorBegunPlay())
@@ -148,10 +151,10 @@ void ADeadHospitalProgressionItem::Interact_Implementation(AActor* Interactor)
 		return;
 	}
 
-	// Key 획득과 PZ-02 완료를 함께 저장합니다. 매그넘처럼 퍼즐을 먼저 풀고
+	// CardKeyA 획득과 PZ03 완료를 함께 저장합니다. 매그넘처럼 퍼즐을 먼저 풀고
 	// 보상만 획득하는 아이템은 Event 하나만 저장합니다.
 	// ? : 는 조건이 true일 때 앞 함수, false일 때 뒤 함수를 선택합니다.
-	// PZ-02 열쇠는 아이템 Event와 퍼즐 완료를 함께 저장하고,
+	// PZ03 CardKeyA는 아이템 Event와 퍼즐 완료를 함께 저장하고,
 	// 일반 보상은 아이템 Event만 저장합니다.
 	const bool WasProgressRecorded = PuzzleIdCompletedByPickup.IsNone()
 		? GameMode->CompleteOneTimeEvent(PickupEventId)
@@ -172,6 +175,36 @@ void ADeadHospitalProgressionItem::Interact_Implementation(AActor* Interactor)
 		GameMode->CancelOneTimeEvent(PickupEventId);
 		OnItemCollectionFailed();
 		return;
+	}
+
+	// 아이템 획득과 Event 저장이 모두 성공한 뒤에만 선택적인 서브 목표 숫자를 올립니다.
+	// 앞에서 올리면 인벤토리가 가득 차 획득에 실패해도 HUD만 1/3으로 올라가는 오류가 생길 수 있습니다.
+	if (!SubObjectiveId.IsNone())
+	{
+		const bool ObjectiveUpdated = GameMode->AdvanceSubObjectiveProgress(
+			SubObjectiveId,
+			SubObjectiveText,
+			FMath::Max(SubObjectiveProgressToAdd, 1),
+			FMath::Max(SubObjectiveTargetProgress, 1));
+
+		if (!ObjectiveUpdated)
+		{
+			// 아이템은 이미 정상 획득되었으므로 돌려놓지 않습니다.
+			// 다른 ID의 서브 목표가 활성화된 연결 오류일 수 있으므로 Output Log에 알려 맵 설정을 찾을 수 있게 합니다.
+			UE_LOG(
+				LogTemp,
+				Warning,
+				TEXT("%s: Item was collected, but SubObjective %s could not be updated."),
+				*GetName(),
+				*SubObjectiveId.ToString());
+		}
+	}
+
+	// 획득으로 완료되는 단기 서브 목표가 설정돼 있다면 해당 ID 하나만 제거합니다.
+	// S03처럼 동시에 유지 중인 다른 목표는 ClearSubObjectiveById가 건드리지 않습니다.
+	if (!SubObjectiveIdToClearOnPickup.IsNone())
+	{
+		GameMode->ClearSubObjectiveById(SubObjectiveIdToClearOnPickup);
 	}
 
 	ItemCollected = true;

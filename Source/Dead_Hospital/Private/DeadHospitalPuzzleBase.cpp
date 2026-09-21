@@ -135,7 +135,9 @@ bool ADeadHospitalPuzzleBase::TryCompletePuzzle(AActor* Interactor)
 
 	if (!NextObjectiveId.IsNone() && !NextObjectiveText.IsEmpty())
 	{
-		GameMode->SetCurrentObjective(NextObjectiveId, NextObjectiveText);
+		// 퍼즐의 다음 목표는 최신 GDD의 M00~M09 메인 목표 칸에 표시합니다.
+		// 서브 목표는 별도 ObjectiveTrigger/수집 Actor가 관리하므로 여기서 지우거나 덮어쓰지 않습니다.
+		GameMode->SetMainObjective(NextObjectiveId, NextObjectiveText);
 	}
 
 	OnPuzzleSolved(Interactor);

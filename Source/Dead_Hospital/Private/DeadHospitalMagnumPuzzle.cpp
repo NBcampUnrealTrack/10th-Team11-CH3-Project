@@ -7,9 +7,35 @@
 
 ADeadHospitalMagnumPuzzle::ADeadHospitalMagnumPuzzle()
 {
-	// PZ-03 세부 정답이 바뀌어도 저장과 보상 연결에서 사용하는 ID는 그대로 유지합니다.
-	PuzzleId = TEXT("PZ_03_Magnum");
+	// 최신 GDD의 매그넘 금고는 PZ02이며 확정 비밀번호는 헤더의 CorrectCode "3178"입니다.
+	PuzzleId = TEXT("PZ02");
 	InteractionText = FText::FromString(TEXT("E 키로 매그넘 보관함 퍼즐 조사"));
+}
+
+bool ADeadHospitalMagnumPuzzle::SubmitCode(AActor* Interactor, const FString& EnteredCode)
+{
+	// 키패드 UI가 넘겨준 글자의 앞뒤 공백만 제거한 뒤 "3178"과 전체를 비교합니다.
+	// 따라서 "03178", "31780", "3177"은 모두 오답이며 중간 글자를 임의로 지우거나 바꾸지 않습니다.
+	if (!CanInteract_Implementation(Interactor))
+	{
+		return false;
+	}
+
+	const FString TrimmedCode = EnteredCode.TrimStartAndEnd();
+	if (TrimmedCode != CorrectCode)
+	{
+		OnCodeRejected(TrimmedCode);
+		return false;
+	}
+
+	// TryCompletePuzzle이 GameMode 저장, 금고 문 잠금 해제, 매그넘 Actor 공개 조건을 순서대로 처리합니다.
+	if (!TryCompletePuzzle(Interactor))
+	{
+		return false;
+	}
+
+	OnCodeAccepted();
+	return true;
 }
 
 bool ADeadHospitalMagnumPuzzle::TryCompletePuzzle(AActor* Interactor)
@@ -21,13 +47,8 @@ bool ADeadHospitalMagnumPuzzle::TryCompletePuzzle(AActor* Interactor)
 		return false;
 	}
 
-	// 인벤토리가 가득 찬 경우 AddItem()이 실패할 수 있습니다. 퍼즐 완료 자체는 이미 저장됐으므로
-	// false라고 거짓 보고하지 않고, 매그넘 Actor를 맵에 남겨 공간을 만든 뒤 다시 주울 수 있게 합니다.
-	if (!IsValid(MagnumPickup) || !MagnumPickup->HasBeenCollected())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("%s: PZ-03 completed, but Magnum could not be added to Inventory. The pickup remains available."), *GetName());
-	}
-
+	// 이 시점에 MagnumPickup은 순간적으로 인벤토리에 자동 추가되는 것이 아니라,
+	// 퍼즐 완료 조건을 확인하고 금고 안에 보이게 됩니다. Player가 E로 주울 때 Inventory AddItem이 실행됩니다.
 	return true;
 }
 
@@ -45,7 +66,7 @@ void ADeadHospitalMagnumPuzzle::BeginPlay()
 	{
 		// 보상 Actor가 없는데 퍼즐만 완료되면 핵심 무기를 영원히 얻을 수 없습니다.
 		// 게임을 조용히 진행시키지 않고 설정 누락을 Output Log에 분명하게 남깁니다.
-		UE_LOG(LogTemp, Error, TEXT("%s: MagnumPickup is not assigned. PZ-03 reward cannot be obtained."), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("%s: MagnumPickup is not assigned. PZ02 reward cannot be obtained."), *GetName());
 		return;
 	}
 
@@ -57,7 +78,8 @@ void ADeadHospitalMagnumPuzzle::BeginPlay()
 		PuzzleId,
 		MagnumItemId,
 		EItemType::Weapon,
-		MagnumPickupEventId
+		MagnumPickupEventId,
+		TEXT("S02")
 	);
 }
 

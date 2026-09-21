@@ -89,7 +89,7 @@ struct FDeadHospitalObjectiveState
  * 마지막 체크포인트에서 되돌릴 값들을 묶은 '게임 안의 임시 저장 기록'입니다.
  * 디스크에 저장하는 세이브 파일이 아니므로 게임을 종료했다가 다시 켜면 유지되지 않습니다.
  * L_MainLevel 안에서 새 Player Pawn을 체크포인트 위치에 만든 다음 이 값으로 진행 상태를 복구합니다.
- * 여기에는 HP 같은 Player 고유 값은 없고, 아래에 적힌 진행/시간/아이템 정보만 들어 있습니다.
+ * PlayerCharacter의 HP와 손전등, 인벤토리·무기·탄약·문서, 퍼즐·문·목표·타이머 상태를 함께 보관합니다.
  */
 USTRUCT(BlueprintType)
 struct FDeadHospitalCheckpointData
@@ -127,6 +127,14 @@ struct FDeadHospitalCheckpointData
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	FDeadHospitalObjectiveState SavedSubObjective;
+
+	/**
+	 * 저장 당시 동시에 유지되던 모든 서브 목표입니다.
+	 * S03 그림 수집을 계속 유지하면서 S04~S07의 지역 목표를 함께 표시할 수 있도록 배열로 보관합니다.
+	 * SavedSubObjective는 기존 Blueprint 호환을 위한 "가장 최근 서브 목표 한 개"로 계속 남겨 둡니다.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	TArray<FDeadHospitalObjectiveState> SavedSubObjectives;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	int32 SavedPlayTimeSeconds = 0;
@@ -264,7 +272,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Game Flow")
 	bool StartGame();
 
-	/** 생명유지장치 구역으로 순간이동을 마친 뒤 마지막 목표를 시작합니다. */
+	/** 마스터 카드키로 문을 열고 특수중환자격리실에 직접 들어온 뒤 M08 마지막 목표를 시작합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Game Flow")
 	bool StartFinalObjective();
 
@@ -378,6 +386,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Objective|Sub")
 	void ClearSubObjective();
 
+	/** 여러 서브 목표 중 전달한 ID 하나만 완료·제거할 때 사용합니다. 다른 서브 목표는 그대로 유지됩니다. */
+	UFUNCTION(BlueprintCallable, Category = "Objective|Sub")
+	bool ClearSubObjectiveById(FName ObjectiveId);
+
 	/* ------------------------------- Puzzle -------------------------------- */
 
 	/**
@@ -389,7 +401,7 @@ public:
 	bool CompletePuzzle(FName PuzzleId);
 
 	/**
-	 * 아이템을 집는 순간 퍼즐까지 끝나는 경우(PZ-02)에만 사용합니다.
+	 * 아이템을 집는 순간 퍼즐까지 끝나는 경우(PZ03 CardKeyA)에만 사용합니다.
 	 * 퍼즐 완료와 아이템 획득 Event를 먼저 함께 저장하고, 그 다음에 각각 알립니다.
 	 * 따로 완료 함수를 두 번 호출하면 첫 번째 알림 중에 게임 상태가 바뀌어
 	 * 한쪽만 저장되는 문제가 생길 수 있으므로 이 함수로 둘을 묶습니다.
@@ -480,6 +492,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Objective|Sub")
 	FDeadHospitalObjectiveState GetCurrentSubObjective() const { return CurrentSubObjective; }
+
+	/** S03처럼 오래 유지되는 목표와 현재 지역 목표를 포함한 모든 활성 서브 목표를 돌려줍니다. */
+	UFUNCTION(BlueprintPure, Category = "Objective|Sub")
+	TArray<FDeadHospitalObjectiveState> GetActiveSubObjectives() const { return ActiveSubObjectives; }
 
 	UFUNCTION(BlueprintPure, Category = "Game Records")
 	EDeadHospitalRank GetProjectedRank() const;
@@ -698,6 +714,10 @@ private:
 	/** 메인 목표와 동시에 표시할 수 있는 현재 서브 목표입니다. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Objective", meta = (AllowPrivateAccess = "true"))
 	FDeadHospitalObjectiveState CurrentSubObjective;
+
+	/** 동시에 유지되는 서브 목표 목록입니다. CurrentSubObjective는 이 목록 중 가장 최근에 바뀐 항목입니다. */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Objective", meta = (AllowPrivateAccess = "true"))
+	TArray<FDeadHospitalObjectiveState> ActiveSubObjectives;
 
 	/**
 	 * Player가 현재 어느 구역에 있는지 나타내는 논리적인 이름입니다.

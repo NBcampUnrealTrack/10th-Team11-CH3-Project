@@ -92,6 +92,7 @@ bool ADeadHospitalGameMode::StartGame()
 	CurrentAreaId = NAME_None;
 	CurrentObjective = FDeadHospitalObjectiveState();
 	CurrentSubObjective = FDeadHospitalObjectiveState();
+	ActiveSubObjectives.Reset();
 
 	// 기록을 초기화한 다음 일반 탐색으로 넘어가 첫 목표와 1초 타이머를 설정합니다.
 	// Broadcast는 UI 등 On... 이벤트에 연결된 외부 동작에 변경 사실을 알립니다.
@@ -322,20 +323,40 @@ bool ADeadHospitalGameMode::SetSubObjective(
 	int32 CurrentProgress,
 	int32 TargetProgress)
 {
-	// 서브 목표는 메인 목표 CurrentObjective를 건드리지 않고 CurrentSubObjective에 따로 저장합니다.
-	// 그래서 예를 들어 메인에 '2층을 조사하세요', 서브에 '그림 2/3' 둘을 동시에 표시할 수 있습니다.
+	// 서브 목표는 메인 목표를 건드리지 않고 ActiveSubObjectives 배열에 따로 저장합니다.
+	// 같은 ID가 있으면 새로 중복 추가하지 않고 기존 항목을 갱신합니다.
 	if (ObjectiveId.IsNone() || IsTerminalPhase() || CurrentGamePhase == EDeadHospitalGamePhase::Ending)
 	{
 		return false;
 	}
 
-	CurrentSubObjective.ObjectiveId = ObjectiveId;
-	CurrentSubObjective.ObjectiveText = ObjectiveText;
-	CurrentSubObjective.TargetProgress = FMath::Max(TargetProgress, 0);
-	CurrentSubObjective.CurrentProgress = CurrentSubObjective.TargetProgress > 0
-		? FMath::Clamp(CurrentProgress, 0, CurrentSubObjective.TargetProgress)
+	FDeadHospitalObjectiveState NewState;
+	NewState.ObjectiveId = ObjectiveId;
+	NewState.ObjectiveText = ObjectiveText;
+	NewState.TargetProgress = FMath::Max(TargetProgress, 0);
+	NewState.CurrentProgress = NewState.TargetProgress > 0
+		? FMath::Clamp(CurrentProgress, 0, NewState.TargetProgress)
 		: 0;
-	CurrentSubObjective.IsActive = true;
+	NewState.IsActive = true;
+
+	bool ExistingObjectiveUpdated = false;
+	for (FDeadHospitalObjectiveState& ActiveState : ActiveSubObjectives)
+	{
+		if (ActiveState.ObjectiveId == ObjectiveId)
+		{
+			ActiveState = NewState;
+			ExistingObjectiveUpdated = true;
+			break;
+		}
+	}
+
+	if (!ExistingObjectiveUpdated)
+	{
+		ActiveSubObjectives.Add(NewState);
+	}
+
+	// 기존 UI가 GetCurrentSubObjective로 하나만 읽는 경우를 위해 가장 최근 변경 항목도 따로 기억합니다.
+	CurrentSubObjective = NewState;
 
 	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
 	return true;
@@ -368,22 +389,30 @@ bool ADeadHospitalGameMode::UpdateMainObjectiveProgress(FName ObjectiveId, int32
 
 bool ADeadHospitalGameMode::UpdateSubObjectiveProgress(FName ObjectiveId, int32 CurrentProgress, int32 TargetProgress)
 {
-	// 서브 목표도 현재 활성 ID가 같을 때만 숫자를 바꿉니다.
-	// TargetProgress가 3이라면 CurrentProgress는 Clamp로 0~3 범위에서만 저장됩니다.
-	if (!CurrentSubObjective.IsActive
-		|| CurrentSubObjective.ObjectiveId != ObjectiveId
-		|| TargetProgress < 0)
+	// S03이 유지된 채 S04가 추가될 수 있으므로 "가장 최근 목표 하나"만 검사하지 않습니다.
+	// 활성 배열에서 같은 ID를 찾아 그 항목만 바꾸며, 다른 서브 목표는 그대로 남깁니다.
+	if (ObjectiveId.IsNone() || TargetProgress < 0)
 	{
 		return false;
 	}
 
-	CurrentSubObjective.TargetProgress = TargetProgress;
-	CurrentSubObjective.CurrentProgress = TargetProgress > 0
-		? FMath::Clamp(CurrentProgress, 0, TargetProgress)
-		: 0;
+	for (FDeadHospitalObjectiveState& ActiveState : ActiveSubObjectives)
+	{
+		if (!ActiveState.IsActive || ActiveState.ObjectiveId != ObjectiveId)
+		{
+			continue;
+		}
 
-	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
-	return true;
+		ActiveState.TargetProgress = TargetProgress;
+		ActiveState.CurrentProgress = TargetProgress > 0
+			? FMath::Clamp(CurrentProgress, 0, TargetProgress)
+			: 0;
+		CurrentSubObjective = ActiveState;
+		OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
+		return true;
+	}
+
+	return false;
 }
 
 bool ADeadHospitalGameMode::AdvanceSubObjectiveProgress(
@@ -398,22 +427,21 @@ bool ADeadHospitalGameMode::AdvanceSubObjectiveProgress(
 		return false;
 	}
 
-	// 아직 서브 목표가 없다면 0에서 시작하고, 같은 ID가 이미 활성 중이면 기존 숫자에 더합니다.
-	// 다른 ID가 활성 중인데 새 ID가 들어오면 실수로 덮어쓰지 않고 false를 돌려줍니다.
-	if (!CurrentSubObjective.IsActive)
+	// 이미 활성화된 같은 ID를 배열에서 찾아 기존 숫자에 더합니다.
+	// 예를 들어 S04가 추가로 표시 중이어도 S03 그림 수집 숫자는 계속 올라갑니다.
+	for (const FDeadHospitalObjectiveState& ActiveState : ActiveSubObjectives)
 	{
-		return SetSubObjective(ObjectiveId, ObjectiveText, ProgressToAdd, TargetProgress);
+		if (ActiveState.IsActive && ActiveState.ObjectiveId == ObjectiveId)
+		{
+			return UpdateSubObjectiveProgress(
+				ObjectiveId,
+				ActiveState.CurrentProgress + ProgressToAdd,
+				TargetProgress);
+		}
 	}
 
-	if (CurrentSubObjective.ObjectiveId != ObjectiveId)
-	{
-		return false;
-	}
-
-	return UpdateSubObjectiveProgress(
-		ObjectiveId,
-		CurrentSubObjective.CurrentProgress + ProgressToAdd,
-		TargetProgress);
+	// 아직 없는 ID라면 0에서 시작하는 새 서브 목표를 추가합니다.
+	return SetSubObjective(ObjectiveId, ObjectiveText, ProgressToAdd, TargetProgress);
 }
 
 void ADeadHospitalGameMode::ClearCurrentObjective()
@@ -438,14 +466,57 @@ void ADeadHospitalGameMode::ClearMainObjective()
 
 void ADeadHospitalGameMode::ClearSubObjective()
 {
-	// 메인 목표는 유지하고 서브 목표 칸만 비웁니다.
-	if (!CurrentSubObjective.IsActive && CurrentSubObjective.ObjectiveId.IsNone())
+	// 메인 목표는 유지하고 현재 활성화된 모든 서브 목표를 비웁니다.
+	// Ending/GameOver처럼 HUD에서 서브 목표 영역 전체를 숨겨야 할 때 사용합니다.
+	if (ActiveSubObjectives.IsEmpty()
+		&& !CurrentSubObjective.IsActive
+		&& CurrentSubObjective.ObjectiveId.IsNone())
 	{
 		return;
 	}
 
+	ActiveSubObjectives.Reset();
 	CurrentSubObjective = FDeadHospitalObjectiveState();
 	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
+}
+
+bool ADeadHospitalGameMode::ClearSubObjectiveById(FName ObjectiveId)
+{
+	if (ObjectiveId.IsNone())
+	{
+		return false;
+	}
+
+	for (int32 Index = 0; Index < ActiveSubObjectives.Num(); ++Index)
+	{
+		if (ActiveSubObjectives[Index].ObjectiveId != ObjectiveId)
+		{
+			continue;
+		}
+
+		// UI가 어느 항목이 사라졌는지 알 수 있게 ID는 남기고 IsActive=false로 알립니다.
+		FDeadHospitalObjectiveState RemovedState = ActiveSubObjectives[Index];
+		RemovedState.IsActive = false;
+		ActiveSubObjectives.RemoveAt(Index);
+
+		// 기존 Getter를 위한 대표 값은 남은 목표 중 가장 뒤 항목으로 바꾸고, 없으면 비웁니다.
+		CurrentSubObjective = ActiveSubObjectives.IsEmpty()
+			? FDeadHospitalObjectiveState()
+			: ActiveSubObjectives.Last();
+		OnSubObjectiveChanged.Broadcast(RemovedState);
+
+		// 기존 UI 중에는 여러 목표 목록을 직접 그리지 않고, 마지막으로 전달받은 목표 하나만
+		// 화면에 표시하는 것도 있을 수 있습니다. 그런 UI가 방금 제거된 목표에서 멈추지 않도록
+		// 남아 있는 대표 목표가 있다면 한 번 더 알려 줍니다. 배열형 UI는 이 두 알림을 받아
+		// RemovedState의 ID만 지우고 CurrentSubObjective를 갱신하면 됩니다.
+		if (CurrentSubObjective.IsActive)
+		{
+			OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
+		}
+		return true;
+	}
+
+	return false;
 }
 
 bool ADeadHospitalGameMode::CompletePuzzle(FName PuzzleId)
@@ -471,7 +542,7 @@ bool ADeadHospitalGameMode::CompletePuzzle(FName PuzzleId)
 
 bool ADeadHospitalGameMode::CompletePickupEventAndPuzzle(FName PickupEventId, FName PuzzleId)
 {
-	// PZ-02의 Key가 실제로 인벤토리에 들어간 후에만 호출합니다.
+	// PZ03의 CardKeyA가 실제로 인벤토리에 들어간 후에만 호출합니다.
 	// 아이템 Event 예약이 없거나 이미 퍼즐이 끝났다면 어느 상태도 변경하지 않습니다.
 	if (CurrentGamePhase != EDeadHospitalGamePhase::Playing
 		|| PickupEventId.IsNone()
@@ -574,7 +645,7 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 	const FTransform& RespawnTransform,
 	FName AreaId)
 {
-	// ReturningToHospital은 성불 Sequence와 순간이동이 진행 중인 불안정한 단계입니다.
+	// ReturningToHospital은 예전 enum 이름을 호환용으로 유지한 것이며, 현재는 성불 Sequence가 진행 중인 불안정한 단계입니다.
 	// 이 순간을 저장하면 복구 후 Sequence를 이어갈 주체가 없어질 수 있으므로 체크포인트를 만들지 않습니다.
 	const bool IsStableCheckpointPhase = CurrentGamePhase == EDeadHospitalGamePhase::Playing
 		|| CurrentGamePhase == EDeadHospitalGamePhase::FinalObjective
@@ -623,6 +694,7 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 	NewCheckpoint.SavedGamePhase = CurrentGamePhase;
 	NewCheckpoint.SavedObjective = CurrentObjective;
 	NewCheckpoint.SavedSubObjective = CurrentSubObjective;
+	NewCheckpoint.SavedSubObjectives = ActiveSubObjectives;
 	NewCheckpoint.SavedPlayTimeSeconds = ElapsedPlayTimeSeconds;
 	NewCheckpoint.SavedKillCount = KillCount;
 	NewCheckpoint.SavedEscapeTimeSeconds = EscapeRemainingTimeSeconds;
@@ -998,7 +1070,12 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 	OnCheckpointRestored.Broadcast(LastCheckpoint.CheckpointId);
 	OnObjectiveChanged.Broadcast(CurrentObjective);
 	OnMainObjectiveChanged.Broadcast(CurrentObjective);
-	OnSubObjectiveChanged.Broadcast(CurrentSubObjective);
+	// UI가 사망 직전의 임시 목표를 먼저 비우고, 저장된 모든 서브 목표를 다시 만들 수 있게 빈 상태를 먼저 보냅니다.
+	OnSubObjectiveChanged.Broadcast(FDeadHospitalObjectiveState());
+	for (const FDeadHospitalObjectiveState& RestoredSubObjective : ActiveSubObjectives)
+	{
+		OnSubObjectiveChanged.Broadcast(RestoredSubObjective);
+	}
 	OnEscapeTimeChanged.Broadcast(EscapeRemainingTimeSeconds);
 	OnGameRecordsUpdated.Broadcast();
 	return true;
@@ -1292,6 +1369,12 @@ void ADeadHospitalGameMode::RestoreInternalCheckpointState()
 	LifeSupportShutdown = LastCheckpoint.SavedLifeSupportShutdown;
 	CurrentObjective = LastCheckpoint.SavedObjective;
 	CurrentSubObjective = LastCheckpoint.SavedSubObjective;
+	ActiveSubObjectives = LastCheckpoint.SavedSubObjectives;
+	// 이전 버전의 체크포인트 자료에는 배열이 없을 수 있으므로, 단일 저장값이 활성 상태라면 배열에 한 번 복구합니다.
+	if (ActiveSubObjectives.IsEmpty() && CurrentSubObjective.IsActive)
+	{
+		ActiveSubObjectives.Add(CurrentSubObjective);
+	}
 	CurrentAreaId = LastCheckpoint.SavedAreaId;
 	GameOverReason = EDeadHospitalGameOverReason::None;
 	ClearResultConfirmed = false;
