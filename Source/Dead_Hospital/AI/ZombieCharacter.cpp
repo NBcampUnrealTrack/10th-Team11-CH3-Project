@@ -685,7 +685,7 @@ void AZombieCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterru
 //가짜 죽음에서 일어나는 몽타주 종료 시 호출 - 살아있으면 BT 재시작
 void AZombieCharacter::OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted)
 {
-	if (CurrentState == EZombieState::Dead)
+	if (bInterrupted)
 	{
 		return;
 	}
@@ -697,6 +697,9 @@ void AZombieCharacter::OnGetUpMontageEnded(UAnimMontage* Montage, bool bInterrup
 			Brain->RestartLogic();
 		}
 	}
+
+	SetCurrentState(EZombieState::Chase);
+	AggroOnSpawn(); // 내부에서 SetZombieState(Chase)도 다시 호출되긴 하지만 기존 로직 유지
 }
 
 //ChaseTarget이 실제 공격 범위 안에 있는지 재계산해서 Blackboard 갱신
@@ -764,34 +767,35 @@ bool AZombieCharacter::IsPlayingSearchTurn() const
 //가짜 죽음에서 깨어나기 - 몽타주 있으면 재생 후 BT 재시작, 없으면 즉시 처리
 void AZombieCharacter::WakeUp()
 {
-	// 이미 일어났거나, 애초에 일어날 시체가 아니면 무시
 	if (!bIsFakeDead) return;
 
-	bIsFakeDead = false;
-	if(GetUpMontage)
+	bIsFakeDead = false; // 중복 밟힘 방지
+
+	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+
+	if (GetUpMontage && AnimInstance)
 	{
-		UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
-		if (AnimInstance)
+		const float Duration = AnimInstance->Montage_Play(GetUpMontage, 1.0f);
+
+		if (Duration > 0.0f)
 		{
+			// 몽타주가 끝나는 순간 OnGetUpMontageEnded 호출 → 그때 BT 재가동 + 추격 시작
 			FOnMontageEnded EndDelegate;
 			EndDelegate.BindUObject(this, &AZombieCharacter::OnGetUpMontageEnded);
 			AnimInstance->Montage_SetEndDelegate(EndDelegate, GetUpMontage);
-
-			PlayAnimMontage(GetUpMontage);
+			return;
 		}
 	}
-	else
+
+	// 몽타주가 없거나 재생 실패 시에는 기존처럼 즉시 추격(안전장치)
+	if (AAIController* AICon = Cast<AAIController>(GetController()))
 	{
-		//몽타주가 없으면 바로 추적 시작
-		OnGetUpMontageEnded(nullptr, false);
+		if (UBrainComponent* Brain = AICon->GetBrainComponent())
+		{
+			Brain->RestartLogic();
+		}
 	}
-
-	// 비명 소리 재생
-	// if (ScreamSound) UGameplayStatics::PlaySoundAtLocation(...);
-
-	// 여기서 AI Controller를 활성화하거나 상태 변경 신호 주기
-	UE_LOG(LogTemp, Warning, TEXT("좀비가 깨어납니다."));
-
+	AggroOnSpawn();
 }
 
 //가짜 죽음 진입 - 이동/BT 정지시켜 시체인 척
@@ -802,7 +806,6 @@ void AZombieCharacter::EnterFakeDead()
 	if (AAIController* AICon = Cast<AAIController>(GetController()))
 	{
 		AICon->StopMovement();
-
 		if (UBrainComponent* Brain = AICon->GetBrainComponent())
 		{
 			Brain->StopLogic(TEXT("FakeDead"));
