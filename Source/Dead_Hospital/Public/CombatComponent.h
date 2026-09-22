@@ -150,6 +150,9 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
     class UParticleSystem* HitEffect; // 피격 이펙트 (피 튀김, 스파크)
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+    UParticleSystem* WallHitEffect; // 벽 타격용 이펙트
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Animation")
     class UAnimMontage* FireAnimation; // 사격 애니메이션
 
