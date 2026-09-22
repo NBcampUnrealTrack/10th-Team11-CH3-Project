@@ -40,7 +40,7 @@ protected:
 	 * 전체 문자열을 정확히 비교하므로 "01796", "17960", "1795"는 모두 오답입니다.
 	 * VisibleDefaultsOnly는 에디터에서 값을 확인할 수 있지만 배치 Actor마다 실수로 바꾸지는 못하게 합니다.
 	 */
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Puzzle|Keypad")
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Puzzle|Keypad")
 	FString CorrectCode = TEXT("1796");
 
 	/** C++의 정답·진행 저장이 성공한 뒤 Blueprint에서 녹색 표시와 성공음을 실행하는 연결 지점입니다. */

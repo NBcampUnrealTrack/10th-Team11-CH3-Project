@@ -118,60 +118,124 @@ bool ADeadHospitalItemPlacementPuzzle::TryCompletePuzzle(AActor* Interactor)
 
 bool ADeadHospitalItemPlacementPuzzle::CanCompletePuzzle(AActor* Interactor) const
 {
-	if (!Super::CanCompletePuzzle(Interactor) || RequiredItemIds.IsEmpty())
+	// 1. 부모 퍼즐 조건 + RequiredItemIds 확인
+	if (!Super::CanCompletePuzzle(Interactor))
 	{
+		UE_LOG(LogTemp, Error,
+			TEXT("PZ07 DEBUG - Super::CanCompletePuzzle FAILED"));
 		return false;
 	}
 
+	if (RequiredItemIds.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("PZ07 DEBUG - RequiredItemIds is EMPTY"));
+		return false;
+	}
+
+
+	// 2. 상호작용한 대상이 플레이어인지 확인
 	const APawn* PlayerPawn = Cast<APawn>(Interactor);
-	if (!IsValid(PlayerPawn) || !PlayerPawn->IsPlayerControlled())
+
+	if (!IsValid(PlayerPawn))
 	{
+		UE_LOG(LogTemp, Error,
+			TEXT("PZ07 DEBUG - Interactor is NOT Pawn"));
 		return false;
 	}
 
-	// 아이템을 소비한 직후 부모 TryCompletePuzzle이 이 virtual 함수를 한 번 더 호출합니다.
-	// 그 한 번은 아래 수량 검사를 건너뛰지만 Player와 문 연결 검사는 그대로 유지합니다.
+	if (!PlayerPawn->IsPlayerControlled())
+	{
+		UE_LOG(LogTemp, Error,
+			TEXT("PZ07 DEBUG - Pawn is NOT PlayerControlled"));
+		return false;
+	}
+
+
+	// 3. 연결된 문 확인
 	if (RequireConnectedDoor && !IsValid(ConnectedDoor))
 	{
+		UE_LOG(LogTemp, Error,
+			TEXT("PZ07 DEBUG - ConnectedDoor INVALID"));
 		return false;
 	}
 
-	if (IsValid(ConnectedDoor) && !ConnectedDoor->CanUnlockFromPuzzle(PuzzleId))
+	if (IsValid(ConnectedDoor) &&
+		!ConnectedDoor->CanUnlockFromPuzzle(PuzzleId))
 	{
+		UE_LOG(LogTemp, Error,
+			TEXT("PZ07 DEBUG - Door rejected PuzzleId: %s"),
+			*PuzzleId.ToString());
+
 		return false;
 	}
 
+	UE_LOG(LogTemp, Warning,
+		TEXT("PZ07 DEBUG - DOOR CHECK SUCCESS"));
+
+
+	// 4. 아이템 소비 후 다시 검사하는 경우
 	if (CompletingAfterItemConsumption)
 	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("PZ07 DEBUG - CompletingAfterItemConsumption SUCCESS"));
+
 		return true;
 	}
 
-	const UInventoryComponent* Inventory = Interactor->FindComponentByClass<UInventoryComponent>();
+
+	// 5. 플레이어 인벤토리 확인
+	const UInventoryComponent* Inventory =
+		Interactor->FindComponentByClass<UInventoryComponent>();
+
 	if (!IsValid(Inventory))
 	{
+		UE_LOG(LogTemp, Error,
+			TEXT("PZ07 DEBUG - Inventory INVALID"));
 		return false;
 	}
 
-	// 같은 ID가 배열에 여러 번 있을 수 있으므로 필요한 개수를 먼저 합칩니다.
-	// 예: [Painting, Painting, Painting]이면 GetItemQuantity("Painting")가 3 이상이어야 합니다.
+
+	// 6. 필요한 아이템과 수량 계산
 	TMap<FName, int32> RequiredQuantities;
+
 	for (const FName RequiredItemId : RequiredItemIds)
 	{
 		if (RequiredItemId.IsNone())
 		{
+			UE_LOG(LogTemp, Error,
+				TEXT("PZ07 DEBUG - RequiredItemId is None"));
 			return false;
 		}
 
 		RequiredQuantities.FindOrAdd(RequiredItemId) += 1;
 	}
 
+
+	// 7. 실제 인벤토리 수량 확인
 	for (const TPair<FName, int32>& RequiredPair : RequiredQuantities)
 	{
-		if (Inventory->GetItemQuantity(RequiredPair.Key) < RequiredPair.Value)
+		const int32 HaveQuantity =
+			Inventory->GetItemQuantity(RequiredPair.Key);
+
+		UE_LOG(LogTemp, Warning,
+			TEXT("PZ07 DEBUG - Required: %s / Need: %d / Have: %d"),
+			*RequiredPair.Key.ToString(),
+			RequiredPair.Value,
+			HaveQuantity);
+
+		if (HaveQuantity < RequiredPair.Value)
 		{
+			UE_LOG(LogTemp, Error,
+				TEXT("PZ07 DEBUG - NOT ENOUGH ITEM"));
+
 			return false;
 		}
 	}
+
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("PZ07 DEBUG - ALL CHECK SUCCESS"));
 
 	return true;
 }
@@ -186,17 +250,17 @@ bool ADeadHospitalItemPlacementPuzzle::DoesSubmittedLayoutMatch(
 
 	if (RequireExactOrder)
 	{
-		// TArray의 == 비교는 원소 개수뿐 아니라 각 인덱스의 값과 순서까지 모두 비교합니다.
 		return SubmittedItemIds == RequiredItemIds;
 	}
 
-	// 순서를 무시하는 경우에는 각 ID가 몇 번 나오는지만 비교합니다.
 	TMap<FName, int32> RequiredCounts;
 	TMap<FName, int32> SubmittedCounts;
+
 	for (const FName ItemId : RequiredItemIds)
 	{
 		RequiredCounts.FindOrAdd(ItemId) += 1;
 	}
+
 	for (const FName ItemId : SubmittedItemIds)
 	{
 		SubmittedCounts.FindOrAdd(ItemId) += 1;
@@ -210,7 +274,9 @@ bool ADeadHospitalItemPlacementPuzzle::DoesSubmittedLayoutMatch(
 	for (const TPair<FName, int32>& RequiredPair : RequiredCounts)
 	{
 		const int32* SubmittedCount = SubmittedCounts.Find(RequiredPair.Key);
-		if (SubmittedCount == nullptr || *SubmittedCount != RequiredPair.Value)
+
+		if (SubmittedCount == nullptr ||
+			*SubmittedCount != RequiredPair.Value)
 		{
 			return false;
 		}
