@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 
 #include "CoreMinimal.h"
 #include "AIController.h"
@@ -12,29 +12,29 @@ class DEAD_HOSPITAL_API AWeepingAngelAIController : public AAIController
 public:
 	AWeepingAngelAIController();
 
-	// ¸Å ÇÁ·¹ÀÓ ½ÇÇà - ÇÃ·¹ÀÌ¾î À§Ä¡·Î Áö¼ÓÀûÀ¸·Î MoveTo °»½Å
+	// ë§¤ í”„ë ˆìž„ ì‹¤í–‰ - í”Œë ˆì´ì–´ ìœ„ì¹˜ë¡œ ì§€ì†ì ìœ¼ë¡œ MoveTo ê°±ì‹ 
 	virtual void Tick(float DeltaTime) override;
 
 protected:
 	virtual void BeginPlay() override;
 
-	// ºùÀÇ ½Ã ÃÊ±â ÃßÀû ´ë»ó(ÇÃ·¹ÀÌ¾î) Ä³½Ì
+	// ë¹™ì˜ ì‹œ ì´ˆê¸° ì¶”ì  ëŒ€ìƒ(í”Œë ˆì´ì–´) ìºì‹±
 	virtual void OnPossess(APawn* InPawn) override;
 
 private:
-	// ¸Å ÇÁ·¹ÀÓ MoveToActor¸¦ »õ·Î È£ÃâÇÏ¸é ³»ºÎÀûÀ¸·Î °æ·Î Àç°è»ê ºñ¿ëÀÌ µé±â ¶§¹®¿¡,
-	// ÀÏÁ¤ ÁÖ±â·Î¸¸ ¸ñÀûÁö¸¦ °»½ÅÇÑ´Ù (¿ì´Â Ãµ»ç´Â ¾îÂ÷ÇÇ ¼ø°£ÀÌµ¿ÇÏµí ºü¸£°Ô ´Ù°¡¿À´Â ÄÁ¼ÁÀÌ¶ó
-	// ¾à°£ÀÇ °»½Å Áö¿¬ÀÌ ÀÖ¾îµµ Ã¼°¨»ó ¹®Á¦ ¾øÀ½)
+	// ë§¤ í”„ë ˆìž„ MoveToActorë¥¼ ìƒˆë¡œ í˜¸ì¶œí•˜ë©´ ë‚´ë¶€ì ìœ¼ë¡œ ê²½ë¡œ ìž¬ê³„ì‚° ë¹„ìš©ì´ ë“¤ê¸° ë•Œë¬¸ì—,
+	// ì¼ì • ì£¼ê¸°ë¡œë§Œ ëª©ì ì§€ë¥¼ ê°±ì‹ í•œë‹¤ (ìš°ëŠ” ì²œì‚¬ëŠ” ì–´ì°¨í”¼ ìˆœê°„ì´ë™í•˜ë“¯ ë¹ ë¥´ê²Œ ë‹¤ê°€ì˜¤ëŠ” ì»¨ì…‰ì´ë¼
+	// ì•½ê°„ì˜ ê°±ì‹  ì§€ì—°ì´ ìžˆì–´ë„ ì²´ê°ìƒ ë¬¸ì œ ì—†ìŒ)
 	UPROPERTY(EditAnywhere, Category = "WeepingAngel")
 	float MoveToUpdateInterval = 0.2f;
 
-	// ¸ñÀûÁö °»½Å ÁÖ±â¸¦ Àç´Â ´©Àû ½Ã°£
+	// ëª©ì ì§€ ê°±ì‹  ì£¼ê¸°ë¥¼ ìž¬ëŠ” ëˆ„ì  ì‹œê°„
 	float TimeSinceLastMoveToUpdate = 0.0f;
 
-	// Ç×»ó ÂÑ¾Æ°¥ ´ë»ó(ÇÃ·¹ÀÌ¾î) - BeginPlay/OnPossess ½ÃÁ¡¿¡ ¹Ì¸® Ã£¾ÆµÒ
+	// í•­ìƒ ì«“ì•„ê°ˆ ëŒ€ìƒ(í”Œë ˆì´ì–´) - BeginPlay/OnPossess ì‹œì ì— ë¯¸ë¦¬ ì°¾ì•„ë‘ 
 	UPROPERTY()
 	class APawn* CachedPlayerPawn;
 
-	// ÇÃ·¹ÀÌ¾î PawnÀ» Ã£¾Æ CachedPlayerPawn¿¡ Ä³½Ì (¾ÆÁ÷ ¸ø Ã£¾ÒÀ¸¸é Àç½Ãµµ)
+	// í”Œë ˆì´ì–´ Pawnì„ ì°¾ì•„ CachedPlayerPawnì— ìºì‹± (ì•„ì§ ëª» ì°¾ì•˜ìœ¼ë©´ ìž¬ì‹œë„)
 	void TryCachePlayerPawn();
 };

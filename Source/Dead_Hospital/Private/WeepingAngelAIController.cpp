@@ -1,4 +1,4 @@
-#include "WeepingAngelAIController.h"
+ï»¿#include "WeepingAngelAIController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
 
@@ -13,8 +13,8 @@ void AWeepingAngelAIController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// OnPossessº¸´Ù BeginPlay°¡ ¸ÕÀú ºÒ¸®´Â ¼ø¼­ º¸ÀåÀÌ ¾Ö¸ÅÇÒ ¼ö ÀÖ¾î
-	// ¿©±â¼­µµ ÇÑ ¹ø ´õ ½ÃµµÇØµĞ´Ù (µÑ Áß ÇÏ³ª¸¸ ¼º°øÇØµµ µÊ)
+	// OnPossessë³´ë‹¤ BeginPlayê°€ ë¨¼ì € ë¶ˆë¦¬ëŠ” ìˆœì„œ ë³´ì¥ì´ ì• ë§¤í•  ìˆ˜ ìˆì–´
+	// ì—¬ê¸°ì„œë„ í•œ ë²ˆ ë” ì‹œë„í•´ë‘”ë‹¤ (ë‘˜ ì¤‘ í•˜ë‚˜ë§Œ ì„±ê³µí•´ë„ ë¨)
 	TryCachePlayerPawn();
 }
 
@@ -22,14 +22,14 @@ void AWeepingAngelAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 
-	// ¿ì´Â Ãµ»ç´Â º°µµ Behavior Tree ¾øÀÌ ÀÌ ÄÁÆ®·Ñ·¯°¡ Á÷Á¢ MoveTo¸¦ ±¼¸°´Ù.
-	// (AZombieAIControllerÃ³·³ RunBehaviorTree¸¦ È£ÃâÇÏÁö ¾ÊÀ½)
+	// ìš°ëŠ” ì²œì‚¬ëŠ” ë³„ë„ Behavior Tree ì—†ì´ ì´ ì»¨íŠ¸ë¡¤ëŸ¬ê°€ ì§ì ‘ MoveToë¥¼ êµ´ë¦°ë‹¤.
+	// (AZombieAIControllerì²˜ëŸ¼ RunBehaviorTreeë¥¼ í˜¸ì¶œí•˜ì§€ ì•ŠìŒ)
 	TryCachePlayerPawn();
 }
 
 void AWeepingAngelAIController::TryCachePlayerPawn()
 {
-	// ÀÌ¹Ì Ä³½ÌµÇ¾î ÀÖÀ¸¸é ÀçÅ½»ö ºÒÇÊ¿ä
+	// ì´ë¯¸ ìºì‹±ë˜ì–´ ìˆìœ¼ë©´ ì¬íƒìƒ‰ ë¶ˆí•„ìš”
 	if (CachedPlayerPawn)
 	{
 		return;
@@ -42,8 +42,8 @@ void AWeepingAngelAIController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// È¤½Ã BeginPlay/OnPossess ½ÃÁ¡¿¡ ÇÃ·¹ÀÌ¾î°¡ ¾ÆÁ÷ ½ºÆù ÀüÀÌ¾úÀ» °æ¿ì¸¦ ´ëºñÇØ
-	// Ä³½Ì ½ÇÆĞ ½Ã ¸Å ÇÁ·¹ÀÓ Àç½Ãµµ (¼º°øÇÏ¸é TryCachePlayerPawn ³»ºÎ¿¡¼­ Áï½Ã ½ºÅµµÇ¹Ç·Î ºñ¿ë ÀûÀ½)
+	// í˜¹ì‹œ BeginPlay/OnPossess ì‹œì ì— í”Œë ˆì´ì–´ê°€ ì•„ì§ ìŠ¤í° ì „ì´ì—ˆì„ ê²½ìš°ë¥¼ ëŒ€ë¹„í•´
+	// ìºì‹± ì‹¤íŒ¨ ì‹œ ë§¤ í”„ë ˆì„ ì¬ì‹œë„ (ì„±ê³µí•˜ë©´ TryCachePlayerPawn ë‚´ë¶€ì—ì„œ ì¦‰ì‹œ ìŠ¤í‚µë˜ë¯€ë¡œ ë¹„ìš© ì ìŒ)
 	if (!CachedPlayerPawn)
 	{
 		TryCachePlayerPawn();
@@ -56,15 +56,15 @@ void AWeepingAngelAIController::Tick(float DeltaTime)
 		return;
 	}
 
-	// ÀÏÁ¤ ÁÖ±â·Î¸¸ MoveTo ¸ñÀûÁö¸¦ °»½Å
+	// ì¼ì • ì£¼ê¸°ë¡œë§Œ MoveTo ëª©ì ì§€ë¥¼ ê°±ì‹ 
 	TimeSinceLastMoveToUpdate += DeltaTime;
 
 	if (TimeSinceLastMoveToUpdate >= MoveToUpdateInterval)
 	{
 		TimeSinceLastMoveToUpdate = 0.0f;
 
-		// Ç×»ó ÇÃ·¹ÀÌ¾î¸¦ ¸ñÀûÁö·Î ÁöÁ¤ - ½Ã¾ß/Ã»°¢ °¨Áö ¾øÀÌ ¹«Á¶°Ç ÃßÀû
-		// (AZombieAIController¿Í ´Ş¸® ChaseTarget/Blackboard °³³ä ÀÚÃ¼°¡ ¾øÀ½)
+		// í•­ìƒ í”Œë ˆì´ì–´ë¥¼ ëª©ì ì§€ë¡œ ì§€ì • - ì‹œì•¼/ì²­ê° ê°ì§€ ì—†ì´ ë¬´ì¡°ê±´ ì¶”ì 
+		// (AZombieAIControllerì™€ ë‹¬ë¦¬ ChaseTarget/Blackboard ê°œë… ìì²´ê°€ ì—†ìŒ)
 		MoveToActor(CachedPlayerPawn, 50.0f);
 	}
 }
