@@ -60,7 +60,7 @@ AZombieCharacter::AZombieCharacter()
 	//Search(두리번거림) 상태에 진입한 시점의 기준 Yaw 값.
 	SearchBaseYaw = 0.0f;
 	//데미지를 받았을 때 경직 지속 시간
-	HitstunDuration = 0.5f;
+	HitstunDuration = 2.0f;
 
 	//좀비 공격 범위 콜리전
 	AttackRangeComp = CreateDefaultSubobject<USphereComponent>(TEXT("AttackRangeComp"));
@@ -199,6 +199,26 @@ float AZombieCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 	}
 	else
 	{
+		//총에 맞았으면, 데미지를 준 플레이어를 추적 대상으로 설정
+		APawn* AttackerPawn = EventInstigator ? EventInstigator->GetPawn() : nullptr;
+
+		if (IsValid(AttackerPawn) && AttackerPawn->IsPlayerControlled())
+		{
+			if (AZombieAIController* AIController = Cast<AZombieAIController>(GetController()))
+			{
+				if (UBlackboardComponent* BlackboardComp = AIController->GetBlackboardComponent())
+				{
+					BlackboardComp->SetValueAsObject(AZombieAIController::BBKey_ChaseTarget, AttackerPawn);
+					BlackboardComp->SetValueAsVector(AZombieAIController::BBKey_LastKnownLocation, AttackerPawn->GetActorLocation());
+				}
+				//Hitstun보다 먼저 Chase로 설정해야, 경직이 끝났을 때 Chase 상태로 복귀한다.
+				if (CurrentState != EZombieState::Hitstun)
+				{
+					AIController->SetZombieState(EZombieState::Chase);
+				}
+			}
+		}
+
 		EnterHitstun();
 	}
 
@@ -291,13 +311,25 @@ void AZombieCharacter::EnterHitstun()
 		ZombieController->SetZombieState(EZombieState::Hitstun);
 	}
 
+	GetWorldTimerManager().ClearTimer(HitstunTimerHandle);
+
 	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
 	if (AnimInstance && HitReactMontage)
 	{
-		AnimInstance->Montage_Play(HitReactMontage);
+		const float MontageLength = AnimInstance->Montage_Play(HitReactMontage);
+
+		if (MontageLength > 0.0f)
+		{
+			FOnMontageEnded EndDelegate;
+			EndDelegate.BindUObject(this, &AZombieCharacter::OnHitReactMontageEnded);
+
+			AnimInstance->Montage_SetEndDelegate(EndDelegate, HitReactMontage);
+
+			return;
+		}
 	}
 
-	//경직 중 재피격 시 SetTimer가 자동으로 갱신되어 경직시간이 자연스럽게 연장됨
+	//HitReact 몽타주가 없거나 재생 실패했을 때만 타이머 사용
 	GetWorldTimerManager().SetTimer(
 		HitstunTimerHandle,
 		this,
@@ -324,6 +356,18 @@ void AZombieCharacter::OnHitstunEnded()
 
 		ZombieController->SetZombieState(PreHitstunState);
 	}
+}
+
+void AZombieCharacter::OnHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	//연사로 기존 몽타주가 끊긴 경우에는
+	//새 HitReact가 재생 중이므로 Hitstun을 해제하면 안 됨
+	if (bInterrupted || CurrentState != EZombieState::Hitstun)
+	{
+		return;
+	}
+
+	OnHitstunEnded();
 }
 
 //사망 후 일정 시간이 지나면 호출 - 액터를 완전히 제거
@@ -538,6 +582,14 @@ void AZombieCharacter::SetSearchBaseYaw(float NewYaw)
 //공격 애니메이션이 끝나는 순간 호출된다.
 void AZombieCharacter::OnAttackAnimationFinished()
 {
+	UAnimInstance* AnimInstance = GetMesh() ? GetMesh()->GetAnimInstance() : nullptr;
+
+	if (AnimInstance && AttackMontage && AnimInstance->Montage_IsPlaying(AttackMontage))
+	{
+		//공격 몽타주가 실제로 끝나기 전이면 이동 재개 금지
+		return;
+	}
+
 #if WITH_EDITOR
 	GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Red, TEXT("Attack Finished Called"));
 #endif

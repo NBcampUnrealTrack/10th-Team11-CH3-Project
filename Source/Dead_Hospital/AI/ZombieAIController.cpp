@@ -195,10 +195,23 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		//새로 감지됐으므로, 이 대상을 쫓아가야 한다고 ChaseTarget을 지정해준다.
 		BlackboardComp->SetValueAsObject(BBKey_ChaseTarget, Actor);
 
+		const FVector LastSeenLocation = Actor->GetActorLocation();
+
 		BlackboardComp->SetValueAsVector(
 			BBKey_LastKnownLocation,
 			Actor->GetActorLocation()
 		);
+#if WITH_EDITOR
+		DrawDebugSphere(
+			GetWorld(),
+			LastSeenLocation,
+			40.0f,
+			12,
+			FColor::Yellow,
+			false,
+			5.0f
+		);
+#endif
 		
 		AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
 
@@ -220,7 +233,20 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 		//진짜로 놓쳤는지 판정은 여기가 아니라 OnPerceptionForgotten(MaxAge 5초)에서 처리함
 		if (Zombie && (Zombie->GetCurrentState() == EZombieState::Chase || Zombie->GetCurrentState() == EZombieState::Attacking))
 		{
-			//SetZombieState(EZombieState::MoveToLastKnown);
+			const float LoseRadius = SightConfig ? SightConfig->LoseSightRadius : 2000.0f;
+			const float DistanceToPlayer = FVector::Dist(Zombie->GetActorLocation(), Actor->GetActorLocation());
+
+			if (DistanceToPlayer <= LoseRadius)
+			{
+				return;
+			}
+
+			BlackboardComp->SetValueAsVector(
+				BBKey_LastKnownLocation,
+				Actor->GetActorLocation()
+			);
+
+			SetZombieState(EZombieState::MoveToLastKnown);
 			return;
 		}
 
@@ -262,6 +288,14 @@ void AZombieAIController::OnPerceptionForgotten(AActor* Actor)
 {
 	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
 	if (!BlackboardComp || !Actor) {
+		return;
+	}
+
+	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
+
+	if (Zombie && Zombie->GetCurrentState() == EZombieState::MoveToLastKnown)
+	{
+		BlackboardComp->ClearValue(BBKey_ChaseTarget);
 		return;
 	}
 

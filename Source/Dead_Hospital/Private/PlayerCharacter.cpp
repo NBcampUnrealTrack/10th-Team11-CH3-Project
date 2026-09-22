@@ -213,40 +213,40 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 			}
 
 			// I키 (InventoryAction) 바인딩
-			if (CharacterController->InventoryAction)
-			{
-				EnhancedInput->BindAction(
-					CharacterController->InventoryAction,
-					ETriggerEvent::Started,
-					this,
-					&APlayerCharacter::OnInventoryPressed
-				);
-			}
+			//if (CharacterController->InventoryAction)
+			//{
+			//	EnhancedInput->BindAction(
+			//		CharacterController->InventoryAction,
+			//		ETriggerEvent::Started,
+			//		this,
+			//		&APlayerCharacter::OnInventoryPressed
+			//	);
+			//}
 
 			// J키 (DocumentAction) 바인딩
-			if (CharacterController->DocumentAction)
-			{
-				EnhancedInput->BindAction(
-					CharacterController->DocumentAction,
-					ETriggerEvent::Started,
-					this,
-					&APlayerCharacter::OnDocumentPressed
-				);
-			}
+			//if (CharacterController->DocumentAction)
+			//{
+			//	EnhancedInput->BindAction(
+			//		CharacterController->DocumentAction,
+			//		ETriggerEvent::Started,
+			//		this,
+			//		&APlayerCharacter::OnDocumentPressed
+			//	);
+			//}
 
-			// ESC키 -> 현재 메뉴 UI 닫기
-			if (CharacterController->CloseUIAction)
-			{
-				EnhancedInput->BindAction(
-					CharacterController->CloseUIAction,
-					ETriggerEvent::Started,
-					this,
-					&APlayerCharacter::OnCloseUIPressed
-				);
-			}
+			//// ESC키 -> 현재 메뉴 UI 닫기
+			//if (CharacterController->CloseUIAction)
+			//{
+			//	EnhancedInput->BindAction(
+			//		CharacterController->CloseUIAction,
+			//		ETriggerEvent::Started,
+			//		this,
+			//		&APlayerCharacter::OnCloseUIPressed
+			//	);
+			//}
 
 			// P키 - 게임 일시정지 / 해제
-			if (CharacterController->PauseAction)
+			/*if (CharacterController->PauseAction)
 			{
 				EnhancedInput->BindAction(
 					CharacterController->PauseAction,
@@ -254,7 +254,7 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 					this,
 					&APlayerCharacter::OnPausePressed
 				);
-			}
+			}*/
 
 			// 1/2/3키 (QuickSlot1/2/3Action) 바인딩
 			if (CharacterController->QuickSlot1Action)

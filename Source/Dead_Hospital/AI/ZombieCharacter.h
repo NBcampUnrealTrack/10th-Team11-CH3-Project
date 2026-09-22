@@ -245,4 +245,6 @@ protected:
 	
 	//BindUObject로 바인딩되므로 (AddDynamic 아님) UFUNCTION 없이도 동작
 	void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	void OnHitReactMontageEnded(UAnimMontage* Montage, bool bInterrupted);
 };
