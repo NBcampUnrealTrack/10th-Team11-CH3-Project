@@ -3,6 +3,7 @@
 #include "PlayerCharacter.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "Components/CapsuleComponent.h"
 
 AItemBaitSpawner::AItemBaitSpawner()
 {
@@ -51,3 +52,14 @@ void AItemBaitSpawner::TriggerScare(APlayerCharacter* TargetPlayer)
         SpawnedZombie->AggroOnSpawn();
 
         // 카메라 셰이크는 플레이어를 조종하는 로컬 컨트롤러에서 재생해야 함
+        if (ScareCameraShake)
+        {
+            if (APlayerController* PC = Cast<APlayerController>(TargetPlayer->GetController()))
+            {
+                PC->ClientStartCameraShake(ScareCameraShake, CameraShakeScale);
+            }
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("등 뒤에 좀비가 소환되었습니다."));
+    }
+}
