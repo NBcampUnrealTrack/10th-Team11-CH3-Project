@@ -2,6 +2,7 @@
 #include "../AI/ZombieCharacter.h"
 #include "PlayerCharacter.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 
 AItemBaitSpawner::AItemBaitSpawner()
 {
@@ -10,27 +11,32 @@ AItemBaitSpawner::AItemBaitSpawner()
 
 void AItemBaitSpawner::TriggerScare(APlayerCharacter* TargetPlayer)
 {
-    // 플레이어 정보가 없거나, 에디터에서 스폰할 좀비 클래스를 안 넣었으면 무시
+    if (bHasTriggered) return;
     if (TargetPlayer == nullptr || ZombieClassToSpawn == nullptr) return;
 
-    // 플레이어의 등 뒤 위치 계산
+    bHasTriggered = true;
+
     FVector PlayerLocation = TargetPlayer->GetActorLocation();
     FVector PlayerForward = TargetPlayer->GetActorForwardVector();
 
-    // 등 뒤 좌표 = 플레이어 위치 - (플레이어 앞방향 벡터 * 거리)
     FVector SpawnLocation = PlayerLocation - (PlayerForward * SpawnDistance);
-
-    // 높이는 플레이어와 동일하게 맞춰서 공중에 뜨거나 땅에 박히지 않게 함
     SpawnLocation.Z = PlayerLocation.Z;
 
-    // 좀비가 스폰되자마자 플레이어를 바라보도록 회전값 계산
+    // 바닥 높이 보정 (계단/경사 등에서 파묻히거나 공중에 뜨는 것 방지)
+    FHitResult HitResult;
+    FVector TraceStart = SpawnLocation + FVector(0, 0, 200.f);
+    FVector TraceEnd = SpawnLocation - FVector(0, 0, 500.f);
+
+    if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility))
+    {
+        SpawnLocation.Z = HitResult.Location.Z + GetDefault<AZombieCharacter>(ZombieClassToSpawn)->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    }
+
     FRotator SpawnRotation = (PlayerLocation - SpawnLocation).Rotation();
 
-    // 월드에 좀비 스폰 설정 (벽에 끼면 살짝 밀어내서라도 무조건 소환)
     FActorSpawnParameters SpawnParams;
     SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-    // 좀비 소환
     AZombieCharacter* SpawnedZombie = GetWorld()->SpawnActor<AZombieCharacter>(
         ZombieClassToSpawn,
         SpawnLocation,
@@ -40,6 +46,8 @@ void AItemBaitSpawner::TriggerScare(APlayerCharacter* TargetPlayer)
 
     if (SpawnedZombie)
     {
-        UE_LOG(LogTemp, Warning, TEXT("등 뒤에 좀비가 소환되었습니다."));
-    }
-}
+        // AutoPossessAI = PlacedInWorldOrSpawned 이므로 SpawnActor가 끝난 시점엔
+        // 이미 AIController가 Possess + BT 시작까지 완료된 상태 → 안전하게 바로 호출 가능
+        SpawnedZombie->AggroOnSpawn();
+
+        // 카메라 셰이크는 플레이어를 조종하는 로컬 컨트롤러에서 재생해야 함
