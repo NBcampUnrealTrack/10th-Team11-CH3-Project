@@ -111,6 +111,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interact")
 	void SetUIOpen(bool bNewUIOpen);
 
+	// 현재 상호작용 대상과 HUD 프롬프트를 즉시 초기화
+	UFUNCTION(BlueprintCallable, Category = "Interact")
+	void ClearInteractionTarget();
+
 	// 은신 중이거나 사망 상태면 false. 공격/아이템 사용 등 다른 액션 시스템에서
 	// 공격/아이템 사용 등 다른 핵션 시스템에서
 	// 함수 맨 앞에 "if (!CanPerformAction()) return;" 형태로 가져다 쓰면 된다

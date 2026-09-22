@@ -861,6 +861,12 @@ void APlayerCharacter::SetUIOpen(bool bNewUIOpen)
 	}
 }
 
+void APlayerCharacter::ClearInteractionTarget()
+{
+	CurrentInteractableActor.Reset();
+	HideInteractionPrompt();
+}
+
 void APlayerCharacter::ToggleFlashlight()
 {
 	// 손전등 미보유 -> 아무 동작 안 함
