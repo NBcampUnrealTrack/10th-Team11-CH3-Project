@@ -211,14 +211,8 @@ void UCombatComponent::PrimaryAttack()
         QueryParams
     );
 
-    // 테스트용 빨간색 궤적 그리기 (에디터에서 눈으로 확인하기 위함, 2초간 유지)
-    DrawDebugLine(GetWorld(), EyeLocation, TraceEnd, FColor::Red, false, 2.0f, 0, 2.0f);
-
     if (bSuccess)
     {
-        // 맞은 지점에 초록색 점 표시
-        DrawDebugPoint(GetWorld(), HitResult.ImpactPoint, 20.0f, FColor::Green, false, 2.0f);
-
         // 어떤 액터를 맞췄는지, 데미지는 얼마를 줘야 하는지 계산해서 ProcessHit로 넘김
         AActor* HitActor = HitResult.GetActor();
         float DamageToApply = GetEquippedWeaponDamage();
@@ -241,10 +235,24 @@ void UCombatComponent::PrimaryAttack()
         // 계산된 최종 데미지를 전달
         ProcessHit(HitActor, DamageToApply, bIsHeadshot);
 
-        // 타격 위치에 피 튀김/스파크 이펙트 생성
-        if (HitEffect)
+        // --- 여기서부터 이펙트 분리 로직 ---
+        AZombieCharacter* HitZombie = Cast<AZombieCharacter>(HitActor);
+
+        if (HitZombie)
         {
-            UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitEffect, HitResult.ImpactPoint);
+            // 1. 맞은 대상이 좀비일 경우 (피 튀김 이펙트)
+            if (HitEffect)
+            {
+                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitEffect, HitResult.ImpactPoint);
+            }
+        }
+        else
+        {
+            // 2. 좀비가 아닐 경우 (벽, 바닥, 오브젝트 등 - 벽 전용 이펙트)
+            if (WallHitEffect)
+            {
+                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), WallHitEffect, HitResult.ImpactPoint);
+            }
         }
     }
 }
