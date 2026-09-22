@@ -7,6 +7,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "PlayerCharacter.h"
 
 ADeadHospitalProgressionItem::ADeadHospitalProgressionItem()
 {
@@ -210,6 +211,11 @@ void ADeadHospitalProgressionItem::Interact_Implementation(AActor* Interactor)
 
 	ItemCollected = true;
 	PickupEnabled = false;
+
+	if (APlayerCharacter* Player = Cast<APlayerCharacter>(Interactor))
+	{
+		Player->ClearInteractionTarget();
+	}
 
 	ApplyVisibleState();
 	OnItemCollected(ItemData);

@@ -117,6 +117,9 @@ void AItemPickup::Interact_Implementation(AActor* PlayerActor){
 
 		UE_LOG(LogTemp, Warning, TEXT("Flashlight Acquired"));
 
+		// Destroy 전에 프롬프트 정리
+		Player->ClearInteractionTarget();
+
 		// 획득 완료 후 월드의 손전등 제거
 		Destroy();
 
@@ -140,6 +143,12 @@ void AItemPickup::Interact_Implementation(AActor* PlayerActor){
 		Inventory->OnItemAcquired.Broadcast(ItemData.ItemID, ItemData.Quantity);
 
 		UE_LOG(LogTemp, Warning, TEXT("Item Acquired / Item: %s / Quantity: %d"), *ItemData.ItemID.ToString(), ItemData.Quantity);
+
+		// 아이템이 사라지기 전에 상호작용 대상과 HUD 프롬프트 정리
+		if (APlayerCharacter* Player = Cast<APlayerCharacter>(PlayerActor))
+		{
+			Player->ClearInteractionTarget();
+		}
 
 		// 획득이 완료되었으므로 월드의 아이템 제거
 		Destroy();
