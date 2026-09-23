@@ -24,6 +24,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Door")
 	bool CanUnlockFromPuzzle(FName PuzzleIdToCheck) const;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Door")
+	bool AutoOpenWhenPuzzleSolved = false;
+
 	// 카드리더 전용
 	// 카드리더가 올바른 카드키를 확인한 뒤 호출
 	// 성공하면 잠금을 해제하고 문을 바로 연다.
