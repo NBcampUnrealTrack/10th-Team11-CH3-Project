@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Components/CapsuleComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 AItemBaitSpawner::AItemBaitSpawner()
 {
@@ -50,6 +51,11 @@ void AItemBaitSpawner::TriggerScare(APlayerCharacter* TargetPlayer)
         // AutoPossessAI = PlacedInWorldOrSpawned 이므로 SpawnActor가 끝난 시점엔
         // 이미 AIController가 Possess + BT 시작까지 완료된 상태 → 안전하게 바로 호출 가능
         SpawnedZombie->AggroOnSpawn();
+
+        if (SpawnSound)
+        {
+            UGameplayStatics::PlaySoundAtLocation(this, SpawnSound, SpawnLocation);
+        }
 
         // 카메라 셰이크는 플레이어를 조종하는 로컬 컨트롤러에서 재생해야 함
         if (ScareCameraShake)

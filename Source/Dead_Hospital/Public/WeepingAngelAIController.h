@@ -15,6 +15,10 @@ public:
 	// 매 프레임 실행 - 플레이어 위치로 지속적으로 MoveTo 갱신
 	virtual void Tick(float DeltaTime) override;
 
+	// 에디터에서 방금 만든 필터를 넣을 변수
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "WeepingAngel")
+	TSubclassOf<class UNavigationQueryFilter> AngelNavFilter;
+
 protected:
 	virtual void BeginPlay() override;
 
