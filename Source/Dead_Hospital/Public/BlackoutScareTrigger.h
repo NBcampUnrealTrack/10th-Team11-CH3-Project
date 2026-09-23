@@ -42,9 +42,25 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Setting")
     float LightOffDuration = 0.2f;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Component")
+    USceneComponent* FinalPoint;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Animation")
+    class UAnimMontage* PointingAnimMontage;
+
     // 블루프린트에서 조명 끄고 켜기를 구현할 이벤트
     UFUNCTION(BlueprintImplementableEvent, Category = "JumpScare|Event")
     void OnToggleLights(bool bTurnOn);
+
+    // 맵에 배치된 조명 액터들을 담을 배열
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Light")
+    TArray<class ALight*> TargetLights;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Audio")
+    class USoundBase* JumpScareSound;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Audio")
+    class UAudioComponent* TensionAudioComp;
 
 private:
     UFUNCTION()

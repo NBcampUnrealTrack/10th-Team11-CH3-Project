@@ -3,6 +3,9 @@
 #include "TimerManager.h"
 #include "../AI/ZombieCharacter.h"
 #include "PlayerCharacter.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/PlayerController.h"
 
 ABlackoutScareTrigger::ABlackoutScareTrigger()
 {
@@ -21,6 +24,13 @@ ABlackoutScareTrigger::ABlackoutScareTrigger()
 
     ClosePoint = CreateDefaultSubobject<USceneComponent>(TEXT("ClosePoint"));
     ClosePoint->SetupAttachment(RootComponent);
+
+    FinalPoint = CreateDefaultSubobject<USceneComponent>(TEXT("FinalPoint"));
+    FinalPoint->SetupAttachment(RootComponent);
+
+    TensionAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("TensionAudioComp"));
+    TensionAudioComp->SetupAttachment(RootComponent);
+    TensionAudioComp->bAutoActivate = false; // 트리거 밟기 전에는 소리 끄기
 }
 
 void ABlackoutScareTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -28,8 +38,16 @@ void ABlackoutScareTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, 
     APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
     if (Player != nullptr && GhostClass != nullptr)
     {
+
         // 중복 실행 방지를 위해 콜리전 끄기
         TriggerBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+        // 플레이어의 이동 입력을 막음 (시야는 회전 가능)
+        APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+        if (PC)
+        {
+            PC->SetIgnoreMoveInput(true);
+        }
 
         // 귀신을 미리 한 번만 소환해 두고 투명하게 숨김
         FActorSpawnParameters SpawnParams;
@@ -39,7 +57,12 @@ void ABlackoutScareTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, 
         if (SpawnedGhost)
         {
             SpawnedGhost->SetActorHiddenInGame(true); // 안 보이게 숨김
-            SpawnedGhost->SetActorEnableCollision(false); // 충돌체 끄기
+            //SpawnedGhost->SetActorEnableCollision(false); // 충돌체 끄기
+        }
+
+        if (TensionAudioComp && !TensionAudioComp->IsPlaying())
+        {
+            TensionAudioComp->Play();
         }
 
         // 연출 상태 머신 시작
@@ -104,21 +127,47 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
             SpawnedGhost->SetActorLocationAndRotation(ClosePoint->GetComponentLocation(), ClosePoint->GetComponentRotation());
             SpawnedGhost->SetActorHiddenInGame(false);
 
-            // 사운드 부착 가능 (마지막 귀신 나타날 때)
+            if (JumpScareSound)
+            {
+                UGameplayStatics::PlaySoundAtLocation(this, JumpScareSound, ClosePoint->GetComponentLocation());
+            }
         }
         NextDelay = LightOnDuration;
         break;
 
     case 6:
-        // [불 꺼짐] 귀신 소멸
+        // [불 꺼짐] 3번째 귀신 모습 감추기
         OnToggleLights(false);
-        if (SpawnedGhost) SpawnedGhost->Destroy(); // 연출이 끝났으므로 완전 삭제
+        if (SpawnedGhost)
+        {
+            SpawnedGhost->SetActorHiddenInGame(true); // Destroy() 대신 숨기기만 함
+        }
         NextDelay = LightOffDuration;
         break;
 
     case 7:
         // [불 켜짐] 상황 종료, 트리거 자체 파괴
         OnToggleLights(true);
+
+        // 플레이어 이동 다시 활성화
+        if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+        {
+            PC->SetIgnoreMoveInput(false);
+        }
+
+        // [최종 등장] 원하는 위치(FinalPoint)에 귀신 배치 및 애니메이션 재생
+        if (SpawnedGhost)
+        {
+            SpawnedGhost->SetActorLocationAndRotation(FinalPoint->GetComponentLocation(), FinalPoint->GetComponentRotation());
+            SpawnedGhost->SetActorHiddenInGame(false);
+
+            if (PointingAnimMontage)
+            {
+                SpawnedGhost->PlayAnimMontage(PointingAnimMontage);
+            }
+        }
+
+        // 연출을 담당하던 트리거 액터만 파괴 (귀신은 맵에 계속 남음)
         Destroy();
         return; // 타이머 종료
     }
