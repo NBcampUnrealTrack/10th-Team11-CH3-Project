@@ -77,6 +77,13 @@ bool ADocumentPickup::CanInteract_Implementation(AActor* Interactor) const{
 		return false;
 	}
 
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("DOCUMENT DEBUG - DocumentID: [%s]"),
+		*DocumentData.DocumentID.ToString()
+	);
+
 	// 문서 데이터가 정상적이지 않으면 상호작용 불가능
 	if (DocumentData.DocumentID.IsNone()){
 		return false;
