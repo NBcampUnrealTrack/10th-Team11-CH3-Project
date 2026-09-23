@@ -3,6 +3,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "../AI/ZombieCharacter.h"
 #include "PlayerCharacter.h"
+#include "Components/AudioComponent.h"
 
 APuzzleScareSpawner::APuzzleScareSpawner()
 {
@@ -24,20 +25,29 @@ void APuzzleScareSpawner::OnPuzzleSolved(APlayerCharacter* Player)
     // 단발성 재생 대신 오디오 컴포넌트를 생성하여 서서히 볼륨 증가(Fade-In)
     if (ScareSound)
     {
-        UAudioComponent* AudioComp = UGameplayStatics::SpawnSoundAtLocation(this, ScareSound, SpawnLocation);
-        if (AudioComp)
+        // 생성된 사운드를 PlayingAudioComp 변수에 저장합니다.
+        PlayingAudioComp = UGameplayStatics::SpawnSoundAtLocation(this, ScareSound, SpawnLocation);
+        if (PlayingAudioComp)
         {
-            // DelayBeforeScare(예: 2.5초) 동안 볼륨이 0에서 최종 볼륨(1.0f)까지 커짐
-            AudioComp->FadeIn(DelayBeforeScare, 1.0f);
+            PlayingAudioComp->FadeIn(DelayBeforeScare, 1.0f);
         }
     }
 
-    // 설정된 시간(DelayBeforeScare)만큼 기다렸다가 ExecuteScare 실행
+    // 좀비 소환 타이머
     GetWorld()->GetTimerManager().SetTimer(
         ScareTimerHandle,
         this,
         &APuzzleScareSpawner::ExecuteScare,
         DelayBeforeScare,
+        false
+    );
+
+    // 사운드 강제 종료 타이머 추가 (SoundDuration인 7초 뒤에 StopScareSound 실행)
+    GetWorld()->GetTimerManager().SetTimer(
+        AudioStopTimerHandle,
+        this,
+        &APuzzleScareSpawner::StopScareSound,
+        SoundDuration,
         false
     );
 
@@ -69,5 +79,16 @@ void APuzzleScareSpawner::ExecuteScare()
     if (SpawnedZombie)
     {
         UE_LOG(LogTemp, Warning, TEXT("플레이어 등 뒤에 좀비가 나타났습니다."));
+    }
+}
+
+
+void APuzzleScareSpawner::StopScareSound()
+{
+    // 오디오 컴포넌트가 존재하고, 아직 재생 중인지 안전하게 검사
+    if (IsValid(PlayingAudioComp) && PlayingAudioComp->IsPlaying())
+    {
+        // 1초에 걸쳐 스르륵 자연스럽게 소리 끄기 (뚝 끊기면 어색하므로 FadeOut 사용)
+        PlayingAudioComp->FadeOut(1.0f, 0.0f);
     }
 }
