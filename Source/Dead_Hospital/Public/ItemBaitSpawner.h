@@ -30,6 +30,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare", meta = (ClampMin = "0.0"))
     float CameraShakeScale = 1.0f;
 
+    // 스폰 효과음
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Audio")
+    class USoundBase* SpawnSound;
+
     UPROPERTY()
     bool bHasTriggered = false;
 

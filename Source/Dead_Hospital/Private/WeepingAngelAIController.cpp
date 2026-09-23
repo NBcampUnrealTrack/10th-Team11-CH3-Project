@@ -65,6 +65,6 @@ void AWeepingAngelAIController::Tick(float DeltaTime)
 
 		// 항상 플레이어를 목적지로 지정 - 시야/청각 감지 없이 무조건 추적
 		// (AZombieAIController와 달리 ChaseTarget/Blackboard 개념 자체가 없음)
-		MoveToActor(CachedPlayerPawn, 50.0f);
+		MoveToActor(CachedPlayerPawn, 50.0f, true, true, true, AngelNavFilter);
 	}
 }
