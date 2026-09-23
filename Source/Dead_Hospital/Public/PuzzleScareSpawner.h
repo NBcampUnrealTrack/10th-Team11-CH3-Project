@@ -26,7 +26,7 @@ public:
 
     // 퍼즐 완료 후 적이 등장하기까지의 안심 시간 (기본값 2.5초)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Puzzle")
-    float DelayBeforeScare = 2.5f;
+    float DelayBeforeScare = 3.5f;
 
     // 등 뒤 얼만큼 떨어져서 스폰될지
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Puzzle")
@@ -35,6 +35,10 @@ public:
     // 퍼즐 성공 시 호출해 줄 함수
     UFUNCTION(BlueprintCallable, Category = "JumpScare|Puzzle")
     void OnPuzzleSolved(APlayerCharacter* Player);
+
+    // 에디터에서 마음대로 설정할 수 있는 사운드 총 재생 시간 (기본값 7초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Puzzle")
+    float SoundDuration = 7.0f;
 
 private:
     // 안심 시간이 끝난 뒤 실제로 적을 소환하는 내부 함수
@@ -45,4 +49,14 @@ private:
 
     // 시간차 공격을 위한 타이머 핸들
     FTimerHandle ScareTimerHandle;
+
+    // 재생 중인 사운드를 기억해 둘 변수
+    UPROPERTY()
+    UAudioComponent* PlayingAudioComp;
+
+    // 사운드를 끌 때 사용할 타이머 핸들
+    FTimerHandle AudioStopTimerHandle;
+
+    // 사운드 종료 함수
+    void StopScareSound();
 };
