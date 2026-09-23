@@ -1109,6 +1109,13 @@ AActor* APlayerCharacter::FindInteractableTarget() const
 		return nullptr;
 	}
 
+	UE_LOG(
+		LogTemp,
+		Warning,
+		TEXT("INTERACT DEBUG - Hit Actor: %s"),
+		*HitActor->GetName()
+	);
+
 	const bool bImplementsPlayerInterface = HitActor->GetClass()->ImplementsInterface(UPlayerInterface::StaticClass());
 	const bool bImplementsInteractable = HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass());
 
@@ -1174,11 +1181,8 @@ void APlayerCharacter::UpdateInteractionPrompt()
 	// 아무것도 안 바라봄 / 거리 벗어남 / Actor Destroy -> 프롬프트 숨김
 	if (!NewTarget)
 	{
-		if (CurrentInteractableActor.IsValid())
-		{
-			CurrentInteractableActor.Reset();
-			HideInteractionPrompt();
-		}
+		CurrentInteractableActor.Reset();
+		HideInteractionPrompt();
 		return;
 	}
 
