@@ -5,6 +5,7 @@
 #include "DocumentComponent.h"
 #include "InventoryComponent.h"
 #include "PlayerCharacter.h"
+#include "../AI/ZombieCharacter.h"
 #include "Engine/DamageEvents.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -12,6 +13,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "TimerManager.h"
 #include "CombatComponent.h"
+#include "DeadHospitalSaveSubsystem.h"
+#include "Engine/GameInstance.h"
 
 ADeadHospitalGameMode::ADeadHospitalGameMode()
 {
@@ -781,12 +784,45 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 			*CheckpointId.ToString());
 	}
 
+	TArray<AActor*> ZombieActors;
+	UGameplayStatics::GetAllActorsOfClass(
+		this,
+		AZombieCharacter::StaticClass(),
+		ZombieActors);
+
+	for (AActor* Actor : ZombieActors)
+	{
+		AZombieCharacter* Zombie = Cast<AZombieCharacter>(Actor);
+
+		if (!IsValid(Zombie)
+			|| Zombie->GetCurrentState() == EZombieState::Dead)
+		{
+			continue;
+		}
+
+		FDeadHospitalZombieTransformData ZombieData;
+		ZombieData.ZombieActorName = Zombie->GetFName();
+		ZombieData.Transform = Zombie->GetActorTransform();
+		ZombieData.Health = Zombie->GetHealth();
+
+		NewCheckpoint.ZombieTransforms.Add(ZombieData);
+	}
+
 	// 모든 자료를 채운 뒤 마지막 기록을 교체합니다. MoveTemp는 배열처럼
 	// 내부 데이터를 복사하지 않고 새 저장 기록으로 넘기기 위한 도구입니다.
 	LastCheckpoint = MoveTemp(NewCheckpoint);
 	CurrentAreaId = LastCheckpoint.SavedAreaId;
 	ActivatedCheckpointIds.Add(CheckpointId);
 	OnCheckpointSaved.Broadcast(LastCheckpoint.CheckpointId);
+
+	if (UGameInstance* GameInstance = GetWorld()->GetGameInstance())
+	{
+		if (UDeadHospitalSaveSubsystem* SaveSubsystem = GameInstance->GetSubsystem<UDeadHospitalSaveSubsystem>())
+		{
+			SaveSubsystem->SaveNextAutoSlot();
+		}
+	}
+
 	return true;
 }
 
@@ -795,11 +831,26 @@ bool ADeadHospitalGameMode::HasCheckpointBeenActivated(FName CheckpointId) const
 	return !CheckpointId.IsNone() && ActivatedCheckpointIds.Contains(CheckpointId);
 }
 
+bool ADeadHospitalGameMode::GetCheckpointSnapshot(FDeadHospitalCheckpointData& OutCheckpoint) const
+{
+	if (!LastCheckpoint.IsValid) return false;
+	OutCheckpoint = LastCheckpoint;
+	return true;
+}
+
+bool ADeadHospitalGameMode::RestoreCheckpointSnapshot(const FDeadHospitalCheckpointData& InCheckpoint)
+{
+	if (!InCheckpoint.IsValid) return false;
+	LastCheckpoint = InCheckpoint;
+	CurrentAreaId = LastCheckpoint.SavedAreaId;
+	return RestartFromLastCheckpoint();
+}
+
 bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 {
 	// 메모리에 마지막 기록이 있고 GameOver인 경우에만 재시작합니다.
 	// 중간에 한 단계라도 실패하면 기존 Pawn/저장 기록을 가능하면 그대로 둡니다.
-	if (CurrentGamePhase != EDeadHospitalGamePhase::GameOver || !LastCheckpoint.IsValid)
+	if (!LastCheckpoint.IsValid)
 	{
 		return false;
 	}
@@ -1061,6 +1112,39 @@ bool ADeadHospitalGameMode::RestartFromLastCheckpoint()
 	// 현재 플레이 숫자/메인·서브 목표/퍼즐 목록을 저장 시점으로 되돌리고,
 	// 새 Pawn 입력과 1초 타이머를 복구합니다. HP와 손전등은 바로 위에서 이미 복구되었습니다.
 	RestoreInternalCheckpointState();
+
+	TMap<FName, FTransform> SavedZombieTransforms;
+
+	for (const FDeadHospitalZombieTransformData& ZombieData :
+		LastCheckpoint.ZombieTransforms)
+	{
+		SavedZombieTransforms.Add(
+			ZombieData.ZombieActorName,
+			ZombieData.Transform);
+	}
+
+	TArray<AActor*> ZombieActors;
+	UGameplayStatics::GetAllActorsOfClass(
+		this,
+		AZombieCharacter::StaticClass(),
+		ZombieActors);
+
+	for (AActor* Actor : ZombieActors)
+	{
+		AZombieCharacter* Zombie = Cast<AZombieCharacter>(Actor);
+
+		if (!IsValid(Zombie))
+		{
+			continue;
+		}
+
+		if (const FTransform* SavedTransform =
+			SavedZombieTransforms.Find(Zombie->GetFName()))
+		{
+			Zombie->RestoreCheckpointTransform(*SavedTransform);
+		}
+	}
+
 	SetLocalPlayerInputEnabled(true);
 	RestartGameTimer();
 

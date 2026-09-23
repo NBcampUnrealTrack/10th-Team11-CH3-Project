@@ -123,6 +123,31 @@ void AZombieCharacter::BeginPlay()
 	}
 }
 
+void AZombieCharacter::RestoreCheckpointTransform(
+	const FTransform& SavedTransform)
+{
+	if (CurrentState == EZombieState::Dead)
+	{
+		return;
+	}
+
+	if (AZombieAIController* AIController =
+		Cast<AZombieAIController>(GetController()))
+	{
+		AIController->StopMovement();
+		AIController->SetZombieState(EZombieState::Patrol);
+	}
+
+	GetCharacterMovement()->StopMovementImmediately();
+	ChaseTarget = nullptr;
+
+	SetActorTransform(
+		SavedTransform,
+		false,
+		nullptr,
+		ETeleportType::TeleportPhysics);
+}
+
 //AI/플레이어가 이 좀비를 "보는" 기준점(눈 위치/방향)을 정의.
 //AI Perception(시야 감지) 등에서 이 값을 기준으로 시야 판정을 하게 된다.
 void AZombieCharacter::GetActorEyesViewPoint(FVector& OutLocation, FRotator& OutRotation) const
