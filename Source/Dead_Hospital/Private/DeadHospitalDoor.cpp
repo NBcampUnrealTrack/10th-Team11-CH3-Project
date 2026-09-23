@@ -153,7 +153,18 @@ bool ADeadHospitalDoor::UnlockFromPuzzle(
 		return false;
 	}
 
-	return UnlockDoor();
+	if (!UnlockDoor())
+	{
+		return false;
+	}
+
+	if (AutoOpenWhenPuzzleSolved && !IsOpen)
+	{
+		IsOpen = true;
+		OnDoorMovementRequested(true);
+	}
+
+	return true;
 }
 
 bool ADeadHospitalDoor::CanUnlockFromPuzzle(
