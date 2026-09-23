@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -83,6 +83,21 @@ struct FDeadHospitalObjectiveState
 
 	UPROPERTY(BlueprintReadOnly, Category = "Objective")
 	bool IsActive = false;
+};
+
+USTRUCT()
+struct FDeadHospitalZombieTransformData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName ZombieActorName = NAME_None;
+
+	UPROPERTY()
+	FTransform Transform;
+
+	UPROPERTY()
+	float Health = 0.0f;
 };
 
 /**
@@ -222,6 +237,9 @@ struct FDeadHospitalCheckpointData
 	// 체크포인트 저장 시 Magnum의 현재 탄창에 남아 있는 탄약 수를 저장합니다.
 	UPROPERTY()
 	int32 SavedMagnumMagazineAmmo = 0;
+
+	UPROPERTY()
+	TArray<FDeadHospitalZombieTransformData> ZombieTransforms;
 };
 
 /**
@@ -454,6 +472,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Checkpoint")
 	bool RestartFromLastCheckpoint();
+
+	bool GetCheckpointSnapshot(FDeadHospitalCheckpointData& OutCheckpoint) const;
+	bool RestoreCheckpointSnapshot(const FDeadHospitalCheckpointData& InCheckpoint);
 
 	/** MainMenuLevelName이 설정되면 해당 레벨로 이동하고, 비어 있으면 UI 연결 이벤트만 보냅니다. */
 	UFUNCTION(BlueprintCallable, Category = "Game Flow")

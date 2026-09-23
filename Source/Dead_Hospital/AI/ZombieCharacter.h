@@ -210,6 +210,8 @@ public:
 	//다음 순찰 지점 좌표 계산(왕복 로직 포함)
 	bool GetNextPatrolLocation(FVector& OutLocation);
 
+	void RestoreCheckpointTransform(const FTransform& SavedTransform);
+
 protected:
 	virtual void BeginPlay() override;
 	
