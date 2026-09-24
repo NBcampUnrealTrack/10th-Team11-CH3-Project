@@ -9,6 +9,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/ArrowComponent.h"
+#include "Components/AudioComponent.h"
 #include "Engine/DataTable.h"
 #include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -261,6 +262,11 @@ void AZombieCharacter::Die()
 
 	// Dead 상태로 변경
 	SetCurrentState(EZombieState::Dead);
+
+	if (UAudioComponent* GrowAudio = FindComponentByClass<UAudioComponent>())
+	{
+		GrowAudio->FadeOut(0.2f, 0.0f);
+	}
 
 	HandleItemDrop();
 
