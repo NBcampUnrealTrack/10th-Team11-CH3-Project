@@ -56,7 +56,9 @@ APlayerCharacter::APlayerCharacter()
 
 	// 손전등 라이트 생성. 메시는 안 쓰고 캐릭터 몸 메시의 상체 소켓에 바로 붙인다.
 	FlashlightLightComp = CreateDefaultSubobject<USpotLightComponent>(TEXT("FlashlightLightComp"));
-	FlashlightLightComp->SetupAttachment(GetMesh(), TEXT("FlashlightSocket")); // 스켈레톤에 미리 만들어둔 소켓 이름
+	//FlashlightLightComp->SetupAttachment(GetMesh(), TEXT("FlashlightSocket")); // 스켈레톤에 미리 만들어둔 소켓 이름
+	// 1인칭 카메라(CameraComp)에 바로 부착합니다. (소켓 이름 삭제)
+	FlashlightLightComp->SetupAttachment(CameraComp);
 	FlashlightLightComp->Intensity = 5000.f;
 	FlashlightLightComp->AttenuationRadius = 1500.f;
 	FlashlightLightComp->InnerConeAngle = 15.f;

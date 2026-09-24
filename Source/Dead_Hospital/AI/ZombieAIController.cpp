@@ -202,7 +202,7 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 			Actor->GetActorLocation()
 		);
 #if WITH_EDITOR
-		DrawDebugSphere(
+		/*DrawDebugSphere(
 			GetWorld(),
 			LastSeenLocation,
 			40.0f,
@@ -210,7 +210,7 @@ void AZombieAIController::OnPerceptionUpdated(AActor* Actor, FAIStimulus Stimulu
 			FColor::Yellow,
 			false,
 			5.0f
-		);
+		);*/
 #endif
 		
 		AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
