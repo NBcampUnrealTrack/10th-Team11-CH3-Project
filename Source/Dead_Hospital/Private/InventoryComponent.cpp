@@ -1,4 +1,4 @@
-#include "InventoryComponent.h"
+ï»¿#include "InventoryComponent.h"
 #include "PlayerCharacter.h"
 #include "Engine/DataTable.h"
 #include "CombatComponent.h"
@@ -8,10 +8,10 @@ UInventoryComponent::UInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
-	//Ã³À½¿¡´Â ÀåÂøµÈ ¹«±â°¡ ¾øÀ½
+	//ì²˜ìŒì—ëŠ” ì¥ì°©ëœ ë¬´ê¸°ê°€ ì—†ìŒ
 	EquippedWeaponID = NAME_None;
 
-	// Äü½½·Ô 3Ä­ »ı¼º
+	// í€µìŠ¬ë¡¯ 3ì¹¸ ìƒì„±
 	QuickSlots.SetNum(3);
 }
 
@@ -20,29 +20,29 @@ void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Grid Inventory ½½·Ô ÃÊ±âÈ­
+	// Grid Inventory ìŠ¬ë¡¯ ì´ˆê¸°í™”
 	InventorySlots.Empty();
 
 	for (int32 i = 0; i < MaxInventorySlots; i++){
 		FInventorySlot NewSlot;
 
-		// ½½·Ô ¹øÈ£ ¼³Á¤
+		// ìŠ¬ë¡¯ ë²ˆí˜¸ ì„¤ì •
 		NewSlot.SlotIndex = i;
 
-		// Ã³À½¿¡´Â ¸ğµç ½½·ÔÀÌ ºñ¾îÀÖÀ½
+		// ì²˜ìŒì—ëŠ” ëª¨ë“  ìŠ¬ë¡¯ì´ ë¹„ì–´ìˆìŒ
 		NewSlot.bIsEmpty = true;
 
-		// ½½·Ô ¹è¿­¿¡ Ãß°¡
+		// ìŠ¬ë¡¯ ë°°ì—´ì— ì¶”ê°€
 		InventorySlots.Add(NewSlot);
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Inventory Slots Initialized: %d"), InventorySlots.Num());
 }
 
-// ¾ÆÀÌÅÛ Ãß°¡
+// ì•„ì´í…œ ì¶”ê°€
 bool UInventoryComponent::AddItem(const FItemData& NewItem){
 
-	// Àß¸øµÈ ¾ÆÀÌÅÛ µ¥ÀÌÅÍ ¹æÁö
+	// ì˜ëª»ëœ ì•„ì´í…œ ë°ì´í„° ë°©ì§€
 	if (NewItem.Quantity <= 0 || NewItem.MaxStack <= 0){
 
 		UE_LOG(LogTemp, Warning, TEXT("Invalid item data: %s"), *NewItem.ItemID.ToString());
@@ -50,22 +50,22 @@ bool UInventoryComponent::AddItem(const FItemData& NewItem){
 		return false;
 	}
 
-	// CoinÀº ÀÏ¹İ ÀÎº¥Åä¸® ½½·ÔÀ» »ç¿ëÇÏÁö ¾Ê°í
-	// º°µµÀÇ CoinQuantity¿¡ ¹Ù·Î ´©Àû
+	// Coinì€ ì¼ë°˜ ì¸ë²¤í† ë¦¬ ìŠ¬ë¡¯ì„ ì‚¬ìš©í•˜ì§€ ì•Šê³ 
+	// ë³„ë„ì˜ CoinQuantityì— ë°”ë¡œ ëˆ„ì 
 	if (NewItem.ItemID == FName(TEXT("Coin"))) {
 
 		CoinQuantity += NewItem.Quantity;
 
 		UE_LOG(LogTemp, Warning, TEXT("Coin added / Amount: %d / Total: %d"), NewItem.Quantity, CoinQuantity);
 
-		// Coin UI °»½ÅÀ» À§ÇØ ÀÎº¥Åä¸® º¯°æ ÀÌº¥Æ® ¹ß»ı
+		// Coin UI ê°±ì‹ ì„ ìœ„í•´ ì¸ë²¤í† ë¦¬ ë³€ê²½ ì´ë²¤íŠ¸ ë°œìƒ
 		OnInventoryChanged.Broadcast();
 
 		return true;
 	}
 
-	// ¾ÆÀÌÅÛ ÀüÃ¼¸¦ ³ÖÀ» °ø°£ÀÌ ÀÖ´ÂÁö ¸ÕÀú È®ÀÎ
-	// °ø°£ÀÌ ºÎÁ·ÇÏ¸é ¾Æ¹«°Íµµ Ãß°¡ÇÏÁö ¾ÊÀ½
+	// ì•„ì´í…œ ì „ì²´ë¥¼ ë„£ì„ ê³µê°„ì´ ìˆëŠ”ì§€ ë¨¼ì € í™•ì¸
+	// ê³µê°„ì´ ë¶€ì¡±í•˜ë©´ ì•„ë¬´ê²ƒë„ ì¶”ê°€í•˜ì§€ ì•ŠìŒ
 	if (!CanAddItem(NewItem)){
 
 		UE_LOG(LogTemp, Warning, TEXT("Inventory is full: %s"), *NewItem.ItemID.ToString());
@@ -73,44 +73,44 @@ bool UInventoryComponent::AddItem(const FItemData& NewItem){
 		return false;
 	}
 
-	// ¾ÆÁ÷ Ãß°¡ÇØ¾ß ÇÏ´Â ¼ö·®
+	// ì•„ì§ ì¶”ê°€í•´ì•¼ í•˜ëŠ” ìˆ˜ëŸ‰
 	int32 RemainingQuantity = NewItem.Quantity;
 
-	// 1. ±âÁ¸¿¡ ÀÖ´Â °°Àº ¾ÆÀÌÅÛ ½ºÅÃºÎÅÍ Ã¤¿ò
+	// 1. ê¸°ì¡´ì— ìˆëŠ” ê°™ì€ ì•„ì´í…œ ìŠ¤íƒë¶€í„° ì±„ì›€
 	for (FInventorySlot& Slot : InventorySlots){
 
-		// ºó ½½·ÔÀÌ¸é ±âÁ¸ ½ºÅÃÀÌ ¾Æ´Ï¹Ç·Î °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì´ë©´ ê¸°ì¡´ ìŠ¤íƒì´ ì•„ë‹ˆë¯€ë¡œ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// °°Àº ¾ÆÀÌÅÛÀÎÁö È®ÀÎ
+		// ê°™ì€ ì•„ì´í…œì¸ì§€ í™•ì¸
 		if (Slot.ItemData.ItemID == NewItem.ItemID){
 
-			// ÀÌ¹Ì ÃÖ´ë ¼ö·®ÀÌ¸é °Ç³Ê¶Ü
+			// ì´ë¯¸ ìµœëŒ€ ìˆ˜ëŸ‰ì´ë©´ ê±´ë„ˆëœ€
 			if (Slot.ItemData.Quantity >= Slot.ItemData.MaxStack){
 				continue;
 			}
 
-			// ÇöÀç ½½·Ô¿¡ ³²¾ÆÀÖ´Â °ø°£
+			// í˜„ì¬ ìŠ¬ë¡¯ì— ë‚¨ì•„ìˆëŠ” ê³µê°„
 			int32 AvailableSpace = Slot.ItemData.MaxStack - Slot.ItemData.Quantity;
 
-			// ½ÇÁ¦·Î ÀÌ¹ø ½½·Ô¿¡ ³ÖÀ» ¼ö·®
+			// ì‹¤ì œë¡œ ì´ë²ˆ ìŠ¬ë¡¯ì— ë„£ì„ ìˆ˜ëŸ‰
 			int32 AddQuantity = FMath::Min(AvailableSpace, RemainingQuantity);
 
-			// ½½·Ô ¼ö·® Áõ°¡
+			// ìŠ¬ë¡¯ ìˆ˜ëŸ‰ ì¦ê°€
 			Slot.ItemData.Quantity += AddQuantity;
 
-			// Ãß°¡ÇÑ ¸¸Å­ ³²Àº ¼ö·® °¨¼Ò
+			// ì¶”ê°€í•œ ë§Œí¼ ë‚¨ì€ ìˆ˜ëŸ‰ ê°ì†Œ
 			RemainingQuantity -= AddQuantity;
 
-			// ÀüºÎ Ãß°¡ÇßÀ¸¸é ¼º°ø
+			// ì „ë¶€ ì¶”ê°€í–ˆìœ¼ë©´ ì„±ê³µ
 			if (RemainingQuantity <= 0){
 
 				UE_LOG(LogTemp, Warning, TEXT("Item added: %s / Amount: %d"), *NewItem.ItemID.ToString(), NewItem.Quantity);
 
 
-				// ÀÎº¥Åä¸®°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+				// ì¸ë²¤í† ë¦¬ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 				OnInventoryChanged.Broadcast();
 
 				return true;
@@ -118,14 +118,14 @@ bool UInventoryComponent::AddItem(const FItemData& NewItem){
 		}
 	}
 
-	// 2. ±âÁ¸ ½ºÅÃ¿¡ ´Ù ¸ø ³Ö¾ú´Ù¸é ºó ½½·Ô »ç¿ë
+	// 2. ê¸°ì¡´ ìŠ¤íƒì— ë‹¤ ëª» ë„£ì—ˆë‹¤ë©´ ë¹ˆ ìŠ¬ë¡¯ ì‚¬ìš©
 	while (RemainingQuantity > 0){
 
-		// ºñ¾îÀÖ´Â Ã¹ ¹øÂ° ½½·Ô Ã£±â
+		// ë¹„ì–´ìˆëŠ” ì²« ë²ˆì§¸ ìŠ¬ë¡¯ ì°¾ê¸°
 		int32 EmptySlotIndex = FindEmptySlotIndex();
 
-		// CanAddItem¿¡¼­ ÀÌ¹Ì È®ÀÎÇß±â ¶§¹®¿¡
-		// Á¤»óÀÌ¶ó¸é ¿©±â¼­ -1ÀÌ ³ª¿À¸é ¾È µÊ
+		// CanAddItemì—ì„œ ì´ë¯¸ í™•ì¸í–ˆê¸° ë•Œë¬¸ì—
+		// ì •ìƒì´ë¼ë©´ ì—¬ê¸°ì„œ -1ì´ ë‚˜ì˜¤ë©´ ì•ˆ ë¨
 		if (EmptySlotIndex == -1){
 
 			UE_LOG(LogTemp, Error, TEXT("Failed to find empty inventory slot"));
@@ -133,35 +133,35 @@ bool UInventoryComponent::AddItem(const FItemData& NewItem){
 			return false;
 		}
 
-		// ºó ½½·Ô °¡Á®¿À±â
+		// ë¹ˆ ìŠ¬ë¡¯ ê°€ì ¸ì˜¤ê¸°
 		FInventorySlot& EmptySlot = InventorySlots[EmptySlotIndex];
 
-		// »õ·Î¿î ¾ÆÀÌÅÛ µ¥ÀÌÅÍ¸¦ º¹»ç
+		// ìƒˆë¡œìš´ ì•„ì´í…œ ë°ì´í„°ë¥¼ ë³µì‚¬
 		EmptySlot.ItemData = NewItem;
 
-		// ÇÑ ½½·Ô¿¡´Â MaxStack±îÁö¸¸ ³ÖÀ½
+		// í•œ ìŠ¬ë¡¯ì—ëŠ” MaxStackê¹Œì§€ë§Œ ë„£ìŒ
 		EmptySlot.ItemData.Quantity = FMath::Min(RemainingQuantity, NewItem.MaxStack);
 
-		// ÀÌÁ¦ ºó ½½·ÔÀÌ ¾Æ´Ô
+		// ì´ì œ ë¹ˆ ìŠ¬ë¡¯ì´ ì•„ë‹˜
 		EmptySlot.bIsEmpty = false;
 
-		// ³ÖÀº ¼ö·®¸¸Å­ °¨¼Ò
+		// ë„£ì€ ìˆ˜ëŸ‰ë§Œí¼ ê°ì†Œ
 		RemainingQuantity -= EmptySlot.ItemData.Quantity;
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("Item added: %s / Amount: %d"), *NewItem.ItemID.ToString(), NewItem.Quantity);
 
-	// ÀÎº¥Åä¸®°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+	// ì¸ë²¤í† ë¦¬ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 	OnInventoryChanged.Broadcast();
 
 	return true;
 }
 
-// ItemID¸¦ ÀÌ¿ëÇØ DT_ItemData¿¡¼­ ¾ÆÀÌÅÛ Á¤º¸¸¦ Ã£¾Æ ÀÎº¥Åä¸®¿¡ Ãß°¡
-// ÆÛÁñ, ÀÌº¥Æ® µî ´Ù¸¥ Blueprint¿¡¼­ ¾ÆÀÌÅÛÀ» Áö±ŞÇÒ ¶§ »ç¿ë
+// ItemIDë¥¼ ì´ìš©í•´ DT_ItemDataì—ì„œ ì•„ì´í…œ ì •ë³´ë¥¼ ì°¾ì•„ ì¸ë²¤í† ë¦¬ì— ì¶”ê°€
+// í¼ì¦, ì´ë²¤íŠ¸ ë“± ë‹¤ë¥¸ Blueprintì—ì„œ ì•„ì´í…œì„ ì§€ê¸‰í•  ë•Œ ì‚¬ìš©
 bool UInventoryComponent::AddItemByID(FName ItemID, int32 Quantity){
 
-	// Àß¸øµÈ ItemID ¶Ç´Â ¼ö·® ¹æÁö
+	// ì˜ëª»ëœ ItemID ë˜ëŠ” ìˆ˜ëŸ‰ ë°©ì§€
 	if (ItemID.IsNone() || Quantity <= 0){
 
 		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: Invalid ItemID or Quantity"));
@@ -169,7 +169,7 @@ bool UInventoryComponent::AddItemByID(FName ItemID, int32 Quantity){
 		return false;
 	}
 
-	// DT_ItemData°¡ ¿¬°áµÇ¾î ÀÖ´ÂÁö È®ÀÎ
+	// DT_ItemDataê°€ ì—°ê²°ë˜ì–´ ìˆëŠ”ì§€ í™•ì¸
 	if (!ItemDataTable){
 
 		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: ItemDataTable is not set"));
@@ -177,10 +177,10 @@ bool UInventoryComponent::AddItemByID(FName ItemID, int32 Quantity){
 		return false;
 	}
 
-	// ItemID¿Í °°Àº Row NameÀ» DT_ItemData¿¡¼­ Ã£À½
+	// ItemIDì™€ ê°™ì€ Row Nameì„ DT_ItemDataì—ì„œ ì°¾ìŒ
 	const FItemData* FoundItemData = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("AddItemByID"));
 
-	// ÇØ´ç Row¸¦ Ã£Áö ¸øÇÑ °æ¿ì
+	// í•´ë‹¹ Rowë¥¼ ì°¾ì§€ ëª»í•œ ê²½ìš°
 	if (!FoundItemData){
 
 		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: Item not found. ItemID = %s"), *ItemID.ToString());
@@ -188,25 +188,25 @@ bool UInventoryComponent::AddItemByID(FName ItemID, int32 Quantity){
 		return false;
 	}
 
-	// DataTableÀÇ ¿øº» µ¥ÀÌÅÍ¸¦ Á÷Á¢ ¼öÁ¤ÇÏÁö ¾Êµµ·Ï º¹»ç
+	// DataTableì˜ ì›ë³¸ ë°ì´í„°ë¥¼ ì§ì ‘ ìˆ˜ì •í•˜ì§€ ì•Šë„ë¡ ë³µì‚¬
 	FItemData ItemToAdd = *FoundItemData;
 
-	// ÆÛÁñ¿¡¼­ Áö±ŞÇÏ·Á´Â ¼ö·® Àû¿ë
+	// í¼ì¦ì—ì„œ ì§€ê¸‰í•˜ë ¤ëŠ” ìˆ˜ëŸ‰ ì ìš©
 	ItemToAdd.Quantity = Quantity;
 
-	// ±âÁ¸ ÀÎº¥Åä¸® Ãß°¡ ±â´É »ç¿ë
+	// ê¸°ì¡´ ì¸ë²¤í† ë¦¬ ì¶”ê°€ ê¸°ëŠ¥ ì‚¬ìš©
 	return AddItem(ItemToAdd);
 }
 
-// ¾ÆÀÌÅÛ Á¦°Å
+// ì•„ì´í…œ ì œê±°
 bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 
-	// Àß¸øµÈ ¼ö·® ¿äÃ»
+	// ì˜ëª»ëœ ìˆ˜ëŸ‰ ìš”ì²­
 	if (RemoveQuantity <= 0){
 		return false;
 	}
 
-	// Key, Painting °°Àº ÁøÇà ¾ÆÀÌÅÛÀº ÀÏ¹İ Á¦°Å ºÒ°¡
+	// Key, Painting ê°™ì€ ì§„í–‰ ì•„ì´í…œì€ ì¼ë°˜ ì œê±° ë¶ˆê°€
 	if (IsProtectedItem(ItemID)){
 
 		UE_LOG(LogTemp, Warning, TEXT("Protected item cannot be removed: %s"), *ItemID.ToString());
@@ -214,10 +214,10 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 		return false;
 	}
 
-	// °¡Áö°í ÀÖ´Â ÀüÃ¼ ¼ö·® È®ÀÎ
+	// ê°€ì§€ê³  ìˆëŠ” ì „ì²´ ìˆ˜ëŸ‰ í™•ì¸
 	int32 TotalQuantity = GetItemQuantity(ItemID);
 
-	// °¡Áö°í ÀÖ´Â ¼ö·®º¸´Ù ¸¹ÀÌ Á¦°ÅÇÏ·Á°í ÇÏ¸é ½ÇÆĞ
+	// ê°€ì§€ê³  ìˆëŠ” ìˆ˜ëŸ‰ë³´ë‹¤ ë§ì´ ì œê±°í•˜ë ¤ê³  í•˜ë©´ ì‹¤íŒ¨
 	if (TotalQuantity < RemoveQuantity){
 
 		UE_LOG(LogTemp, Warning, TEXT("Not enough item quantity: %s"), *ItemID.ToString());
@@ -225,50 +225,50 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 		return false;
 	}
 
-	// ½ÇÁ¦·Î Á¦°ÅÇØ¾ß ÇÏ´Â ³²Àº ¼ö·®
+	// ì‹¤ì œë¡œ ì œê±°í•´ì•¼ í•˜ëŠ” ë‚¨ì€ ìˆ˜ëŸ‰
 	int32 RemainingQuantity = RemoveQuantity;
 
-	// µÚÂÊ ½½·ÔºÎÅÍ È®ÀÎ
+	// ë’¤ìª½ ìŠ¬ë¡¯ë¶€í„° í™•ì¸
 	for (int32 i = InventorySlots.Num() - 1; i >= 0; i--) {
 		FInventorySlot& Slot = InventorySlots[i];
 
-		// ºó ½½·ÔÀº °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// Á¦°ÅÇÏ·Á´Â ¾ÆÀÌÅÛÀÌ ¾Æ´Ï¸é °Ç³Ê¶Ü
+		// ì œê±°í•˜ë ¤ëŠ” ì•„ì´í…œì´ ì•„ë‹ˆë©´ ê±´ë„ˆëœ€
 		if (Slot.ItemData.ItemID != ItemID){
 			continue;
 		}
 
-		// ÇöÀç ½½·ÔÀÇ ¾ÆÀÌÅÛÀ» ÀüºÎ Á¦°ÅÇØ¾ß ÇÏ´Â °æ¿ì
+		// í˜„ì¬ ìŠ¬ë¡¯ì˜ ì•„ì´í…œì„ ì „ë¶€ ì œê±°í•´ì•¼ í•˜ëŠ” ê²½ìš°
 		if (Slot.ItemData.Quantity <= RemainingQuantity){
 
 			RemainingQuantity -= Slot.ItemData.Quantity;
 
-			// ½½·Ô ÀÚÃ¼¸¦ »èÁ¦ÇÏÁö ¾Ê°í ºó ½½·ÔÀ¸·Î º¯°æ
+			// ìŠ¬ë¡¯ ìì²´ë¥¼ ì‚­ì œí•˜ì§€ ì•Šê³  ë¹ˆ ìŠ¬ë¡¯ìœ¼ë¡œ ë³€ê²½
 			Slot.ItemData = FItemData();
 			Slot.bIsEmpty = true;
 		}
 		else{
-			// ÇöÀç ½½·Ô¿¡¼­ ÀÏºÎ¸¸ Á¦°Å
+			// í˜„ì¬ ìŠ¬ë¡¯ì—ì„œ ì¼ë¶€ë§Œ ì œê±°
 			Slot.ItemData.Quantity -= RemainingQuantity;
 
 			RemainingQuantity = 0;
 		}
 
-		// ÇÊ¿äÇÑ ¸¸Å­ ÀüºÎ Á¦°ÅÇß´Ù¸é Á¾·á
+		// í•„ìš”í•œ ë§Œí¼ ì „ë¶€ ì œê±°í–ˆë‹¤ë©´ ì¢…ë£Œ
 		if (RemainingQuantity <= 0){
 
-			// ÀåÂø ÁßÀÎ ¹«±â¸¦ ÀüºÎ Á¦°ÅÇß´Ù¸é ÀåÂø »óÅÂµµ ÇØÁ¦
+			// ì¥ì°© ì¤‘ì¸ ë¬´ê¸°ë¥¼ ì „ë¶€ ì œê±°í–ˆë‹¤ë©´ ì¥ì°© ìƒíƒœë„ í•´ì œ
 			if (EquippedWeaponID == ItemID && GetItemQuantity(ItemID) <= 0){
 				UnequipWeapon();
 			}
 
 			UE_LOG(LogTemp, Warning, TEXT("Item removed: %s / Amount: %d"), *ItemID.ToString(), RemoveQuantity);
 
-			// ÀÎº¥Åä¸®°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+			// ì¸ë²¤í† ë¦¬ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 			OnInventoryChanged.Broadcast();
 
 			return true;
@@ -278,15 +278,15 @@ bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
 	return false;
 }
 
-// ÆÛÁñ¿¡¼­ KeyItemÀ» Á¤»ó »ç¿ëÇßÀ» ¶§ Á¦°Å
+// í¼ì¦ì—ì„œ KeyItemì„ ì •ìƒ ì‚¬ìš©í–ˆì„ ë•Œ ì œê±°
 bool UInventoryComponent::ConsumeKeyItem(FName ItemID, int32 Quantity){
 
-	// Àß¸øµÈ ¼ö·® ¿äÃ»
+	// ì˜ëª»ëœ ìˆ˜ëŸ‰ ìš”ì²­
 	if (Quantity <= 0){
 		return false;
 	}
 
-	// ÇØ´ç KeyItemÀ» ÇÊ¿äÇÑ ¼ö·®¸¸Å­ °¡Áö°í ÀÖ´ÂÁö È®ÀÎ
+	// í•´ë‹¹ KeyItemì„ í•„ìš”í•œ ìˆ˜ëŸ‰ë§Œí¼ ê°€ì§€ê³  ìˆëŠ”ì§€ í™•ì¸
 	if (GetItemQuantity(ItemID) < Quantity){
 
 		UE_LOG(LogTemp, Warning, TEXT("Not enough KeyItem quantity: %s"), *ItemID.ToString());
@@ -294,20 +294,20 @@ bool UInventoryComponent::ConsumeKeyItem(FName ItemID, int32 Quantity){
 		return false;
 	}
 
-	// ½ÇÁ¦ Grid Inventory¿¡¼­ ÇØ´ç ¾ÆÀÌÅÛ Ã£±â
+	// ì‹¤ì œ Grid Inventoryì—ì„œ í•´ë‹¹ ì•„ì´í…œ ì°¾ê¸°
 	bool bIsKeyItem = false;
 
 	for (const FInventorySlot& Slot : InventorySlots){
 
-		// ºó ½½·ÔÀº °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// ÇØ´ç ¾ÆÀÌÅÛ Ã£±â
+		// í•´ë‹¹ ì•„ì´í…œ ì°¾ê¸°
 		if (Slot.ItemData.ItemID == ItemID){
 
-			// KeyItem Å¸ÀÔÀÎÁö È®ÀÎ
+			// KeyItem íƒ€ì…ì¸ì§€ í™•ì¸
 			if (Slot.ItemData.ItemType != EItemType::KeyItem){
 
 				UE_LOG(LogTemp, Warning, TEXT("Item is not KeyItem: %s"), *ItemID.ToString());
@@ -320,52 +320,52 @@ bool UInventoryComponent::ConsumeKeyItem(FName ItemID, int32 Quantity){
 		}
 	}
 
-	// È¤½Ã KeyItemÀ» Ã£Áö ¸øÇÑ °æ¿ì
+	// í˜¹ì‹œ KeyItemì„ ì°¾ì§€ ëª»í•œ ê²½ìš°
 	if (!bIsKeyItem){
 		return false;
 	}
 
-	// ½ÇÁ¦·Î Á¦°ÅÇØ¾ß ÇÏ´Â ³²Àº ¼ö·®
+	// ì‹¤ì œë¡œ ì œê±°í•´ì•¼ í•˜ëŠ” ë‚¨ì€ ìˆ˜ëŸ‰
 	int32 RemainingQuantity = Quantity;
 
-	// µÚÂÊ ½½·ÔºÎÅÍ È®ÀÎ
+	// ë’¤ìª½ ìŠ¬ë¡¯ë¶€í„° í™•ì¸
 	for (int32 i = InventorySlots.Num() - 1; i >= 0; i--){
 
 		FInventorySlot& Slot = InventorySlots[i];
 
-		// ºó ½½·ÔÀº °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// »ç¿ëÇÒ KeyItemÀÌ ¾Æ´Ï¸é °Ç³Ê¶Ü
+		// ì‚¬ìš©í•  KeyItemì´ ì•„ë‹ˆë©´ ê±´ë„ˆëœ€
 		if (Slot.ItemData.ItemID != ItemID){
 			continue;
 		}
 
-		// ÇöÀç ½½·ÔÀ» ÀüºÎ »ç¿ëÇØ¾ß ÇÏ´Â °æ¿ì
+		// í˜„ì¬ ìŠ¬ë¡¯ì„ ì „ë¶€ ì‚¬ìš©í•´ì•¼ í•˜ëŠ” ê²½ìš°
 		if (Slot.ItemData.Quantity <= RemainingQuantity){
 
 			RemainingQuantity -= Slot.ItemData.Quantity;
 
-			// ½½·Ô ÀÚÃ¼´Â »èÁ¦ÇÏÁö ¾Ê°í ºó ½½·ÔÀ¸·Î º¯°æ
+			// ìŠ¬ë¡¯ ìì²´ëŠ” ì‚­ì œí•˜ì§€ ì•Šê³  ë¹ˆ ìŠ¬ë¡¯ìœ¼ë¡œ ë³€ê²½
 			Slot.ItemData = FItemData();
 			Slot.bIsEmpty = true;
 		}
 		else{
 
-			// ÇöÀç ½½·Ô¿¡¼­ ÇÊ¿äÇÑ ¼ö·®¸¸ °¨¼Ò
+			// í˜„ì¬ ìŠ¬ë¡¯ì—ì„œ í•„ìš”í•œ ìˆ˜ëŸ‰ë§Œ ê°ì†Œ
 			Slot.ItemData.Quantity -= RemainingQuantity;
 
 			RemainingQuantity = 0;
 		}
 
-		// ÇÊ¿äÇÑ ¼ö·®À» ÀüºÎ »ç¿ëÇß´Ù¸é ¼º°ø
+		// í•„ìš”í•œ ìˆ˜ëŸ‰ì„ ì „ë¶€ ì‚¬ìš©í–ˆë‹¤ë©´ ì„±ê³µ
 		if (RemainingQuantity <= 0){
 
 			UE_LOG(LogTemp, Warning, TEXT("KeyItem consumed: %s / Amount: %d"), *ItemID.ToString(), Quantity);
 
-			// ÀÎº¥Åä¸®°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+			// ì¸ë²¤í† ë¦¬ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 			OnInventoryChanged.Broadcast();
 
 			return true;
@@ -375,57 +375,57 @@ bool UInventoryComponent::ConsumeKeyItem(FName ItemID, int32 Quantity){
 	return false;
 }
 
-// ÇØ´ç ItemIDÀÇ ÀüÃ¼ ¼ö·® È®ÀÎ
+// í•´ë‹¹ ItemIDì˜ ì „ì²´ ìˆ˜ëŸ‰ í™•ì¸
 int32 UInventoryComponent::GetItemQuantity(FName ItemID) const{
 
-	// °°Àº ItemIDÀÇ ÀüÃ¼ ¼ö·®À» ÀúÀå
+	// ê°™ì€ ItemIDì˜ ì „ì²´ ìˆ˜ëŸ‰ì„ ì €ì¥
 	int32 TotalQuantity = 0;
 
-	// Grid InventoryÀÇ ¸ğµç ½½·Ô È®ÀÎ
+	// Grid Inventoryì˜ ëª¨ë“  ìŠ¬ë¡¯ í™•ì¸
 	for (const FInventorySlot& Slot : InventorySlots){
 
-		// ºó ½½·ÔÀº È®ÀÎÇÒ ÇÊ¿ä°¡ ¾øÀ½
+		// ë¹ˆ ìŠ¬ë¡¯ì€ í™•ì¸í•  í•„ìš”ê°€ ì—†ìŒ
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// Ã£°í ÀÖ´Â ¾ÆÀÌÅÛÀÎÁö È®ÀÎ
+		// ì°¾ê³  ìˆëŠ” ì•„ì´í…œì¸ì§€ í™•ì¸
 		if (Slot.ItemData.ItemID == ItemID){
 
-			// °°Àº ¾ÆÀÌÅÛÀÌ¸é ¼ö·®À» °è¼Ó ´õÇÔ
+			// ê°™ì€ ì•„ì´í…œì´ë©´ ìˆ˜ëŸ‰ì„ ê³„ì† ë”í•¨
 			TotalQuantity += Slot.ItemData.Quantity;
 		}
 	}
 
-	// ÇØ´ç ¾ÆÀÌÅÛÀÌ ¾øÀ¸¸é 0 ¹İÈ¯
+	// í•´ë‹¹ ì•„ì´í…œì´ ì—†ìœ¼ë©´ 0 ë°˜í™˜
 	return TotalQuantity;
 }
 
-// ÇöÀç º¸À¯ ÁßÀÎ Coin ¼ö·® È®ÀÎ
+// í˜„ì¬ ë³´ìœ  ì¤‘ì¸ Coin ìˆ˜ëŸ‰ í™•ì¸
 int32 UInventoryComponent::GetCoinQuantity() const
 {
-	// Coinµµ ÀÏ¹İ ¾ÆÀÌÅÛÃ³·³ InventorySlots¿¡ ÀúÀåµÇ¹Ç·Î
-	// ±âÁ¸ GetItemQuantity()¸¦ ÀÌ¿ëÇØ¼­ ÀüÃ¼ Coin ¼ö·®À» ¹İÈ¯
+	// Coinë„ ì¼ë°˜ ì•„ì´í…œì²˜ëŸ¼ InventorySlotsì— ì €ì¥ë˜ë¯€ë¡œ
+	// ê¸°ì¡´ GetItemQuantity()ë¥¼ ì´ìš©í•´ì„œ ì „ì²´ Coin ìˆ˜ëŸ‰ì„ ë°˜í™˜
 	return CoinQuantity;
 }
 
-// Coin ¼ö·®À» Á÷Á¢ ¼³Á¤
-// Ã¼Å©Æ÷ÀÎÆ®¿¡¼­ Coin ¼ö·®À» º¹±¸ÇÒ ¶§ »ç¿ë
+// Coin ìˆ˜ëŸ‰ì„ ì§ì ‘ ì„¤ì •
+// ì²´í¬í¬ì¸íŠ¸ì—ì„œ Coin ìˆ˜ëŸ‰ì„ ë³µêµ¬í•  ë•Œ ì‚¬ìš©
 void UInventoryComponent::SetCoinQuantity(int32 NewQuantity){
 
-	// Coin ¼ö·®ÀÌ À½¼ö°¡ µÇÁö ¾Êµµ·Ï 0 ÀÌ»óÀ¸·Î ¼³Á¤
+	// Coin ìˆ˜ëŸ‰ì´ ìŒìˆ˜ê°€ ë˜ì§€ ì•Šë„ë¡ 0 ì´ìƒìœ¼ë¡œ ì„¤ì •
 	CoinQuantity = FMath::Max(0, NewQuantity);
 
 	UE_LOG(LogTemp, Warning, TEXT("Coin quantity set / Total: %d"), CoinQuantity);
 
-	// Coin ¼ö·®ÀÌ º¯°æµÇ¾úÀ¸¹Ç·Î UI °»½Å
+	// Coin ìˆ˜ëŸ‰ì´ ë³€ê²½ë˜ì—ˆìœ¼ë¯€ë¡œ UI ê°±ì‹ 
 	OnInventoryChanged.Broadcast();
 }
 
-// CoinÀ» ÇÊ¿äÇÑ ¼ö·®¸¸Å­ »ç¿ë
+// Coinì„ í•„ìš”í•œ ìˆ˜ëŸ‰ë§Œí¼ ì‚¬ìš©
 bool UInventoryComponent::SpendCoin(int32 Amount){
 
-	// 0°³ ¶Ç´Â À½¼ö Coin »ç¿ë ¿äÃ»Àº Àß¸øµÈ ¿äÃ»
+	// 0ê°œ ë˜ëŠ” ìŒìˆ˜ Coin ì‚¬ìš© ìš”ì²­ì€ ì˜ëª»ëœ ìš”ì²­
 	if (Amount <= 0){
 
 		UE_LOG(LogTemp, Warning, TEXT("Invalid Coin spend amount: %d"), Amount);
@@ -433,7 +433,7 @@ bool UInventoryComponent::SpendCoin(int32 Amount){
 		return false;
 	}
 
-	// ÇöÀç º¸À¯ ÁßÀÎ Coinº¸´Ù ¸¹ÀÌ »ç¿ëÇÏ·Á°í ÇÏ¸é ½ÇÆĞ
+	// í˜„ì¬ ë³´ìœ  ì¤‘ì¸ Coinë³´ë‹¤ ë§ì´ ì‚¬ìš©í•˜ë ¤ê³  í•˜ë©´ ì‹¤íŒ¨
 	if (CoinQuantity < Amount){
 
 		UE_LOG(LogTemp, Warning, TEXT("Not enough Coin / Current: %d / Required: %d"), CoinQuantity, Amount);
@@ -441,24 +441,24 @@ bool UInventoryComponent::SpendCoin(int32 Amount){
 		return false;
 	}
 
-	// ÇÊ¿äÇÑ ¸¸Å­ Coin Â÷°¨
+	// í•„ìš”í•œ ë§Œí¼ Coin ì°¨ê°
 	CoinQuantity -= Amount;
 
 	UE_LOG(LogTemp, Warning, TEXT("Coin spent / Amount: %d / Remaining: %d"), Amount, CoinQuantity);
 
-	// Coin UI°¡ ÇöÀç º¸À¯·®À» ´Ù½Ã °»½ÅÇÒ ¼ö ÀÖµµ·Ï ¾Ë¸²
+	// Coin UIê°€ í˜„ì¬ ë³´ìœ ëŸ‰ì„ ë‹¤ì‹œ ê°±ì‹ í•  ìˆ˜ ìˆë„ë¡ ì•Œë¦¼
 	OnInventoryChanged.Broadcast();
 
 	return true;
 }
 
-// ÇØ´ç ¾ÆÀÌÅÛÀ» °¡Áö°í ÀÖ´ÂÁö È®ÀÎ
+// í•´ë‹¹ ì•„ì´í…œì„ ê°€ì§€ê³  ìˆëŠ”ì§€ í™•ì¸
 bool UInventoryComponent::HasItem(FName ItemID) const
 {
 	return GetItemQuantity(ItemID) > 0;
 }
 
-// ÁøÇà¿¡ ÇÊ¿äÇÑ º¸È£ ¾ÆÀÌÅÛÀÎÁö È®ÀÎ
+// ì§„í–‰ì— í•„ìš”í•œ ë³´í˜¸ ì•„ì´í…œì¸ì§€ í™•ì¸
 bool UInventoryComponent::IsProtectedItem(FName ItemID) const
 {
 	return ItemID == FName(TEXT("CardKeyA")) ||
@@ -471,44 +471,44 @@ bool UInventoryComponent::IsProtectedItem(FName ItemID) const
 		ItemID == FName(TEXT("DemonHead"));
 }
 
-// ÇØ´ç ¾ÆÀÌÅÛÀ» ÀÎº¥Åä¸®¿¡¼­ ¹ö¸± ¼ö ÀÖ´ÂÁö È®ÀÎ
+// í•´ë‹¹ ì•„ì´í…œì„ ì¸ë²¤í† ë¦¬ì—ì„œ ë²„ë¦´ ìˆ˜ ìˆëŠ”ì§€ í™•ì¸
 bool UInventoryComponent::CanDiscardItem(FName ItemID) const{
 
-	// ÀÎº¥Åä¸®¿¡ ¾ø´Â ¾ÆÀÌÅÛÀº ¹ö¸± ¼ö ¾øÀ½
+	// ì¸ë²¤í† ë¦¬ì— ì—†ëŠ” ì•„ì´í…œì€ ë²„ë¦´ ìˆ˜ ì—†ìŒ
 	if (!HasItem(ItemID)){
 		return false;
 	}
 
-	// Key, Painting °°Àº º¸È£ ¾ÆÀÌÅÛÀº ¹ö¸± ¼ö ¾øÀ½
+	// Key, Painting ê°™ì€ ë³´í˜¸ ì•„ì´í…œì€ ë²„ë¦´ ìˆ˜ ì—†ìŒ
 	if (IsProtectedItem(ItemID)){
 		return false;
 	}
 
-	// ±× ¿Ü ¾ÆÀÌÅÛÀº ¹ö¸± ¼ö ÀÖÀ½
+	// ê·¸ ì™¸ ì•„ì´í…œì€ ë²„ë¦´ ìˆ˜ ìˆìŒ
 	return true;
 }
 
-// ÇØ´ç ¾ÆÀÌÅÛÀ» ÇöÀç ÀÏ¹İ »ç¿ë °¡´ÉÇÑÁö È®ÀÎ
+// í•´ë‹¹ ì•„ì´í…œì„ í˜„ì¬ ì¼ë°˜ ì‚¬ìš© ê°€ëŠ¥í•œì§€ í™•ì¸
 bool UInventoryComponent::CanUseItem(FName ItemID) const{
 
-	// ÀÎº¥Åä¸® ½½·ÔÀ» ÇÏ³ª¾¿ È®ÀÎ
+	// ì¸ë²¤í† ë¦¬ ìŠ¬ë¡¯ì„ í•˜ë‚˜ì”© í™•ì¸
 	for (const FInventorySlot& Slot : InventorySlots){
-		// ºó ½½·ÔÀº °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// Ã£°í ÀÖ´Â ¾ÆÀÌÅÛÀÌ ¾Æ´Ï¸é °Ç³Ê¶Ü
+		// ì°¾ê³  ìˆëŠ” ì•„ì´í…œì´ ì•„ë‹ˆë©´ ê±´ë„ˆëœ€
 		if (Slot.ItemData.ItemID != ItemID){
 			continue;
 		}
 
-		// ¼Òºñ ¾ÆÀÌÅÛ¸¸ ÀÏ¹İ »ç¿ë °¡´É
+		// ì†Œë¹„ ì•„ì´í…œë§Œ ì¼ë°˜ ì‚¬ìš© ê°€ëŠ¥
 		if (Slot.ItemData.ItemType != EItemType::Consumable){
 			return false;
 		}
 
-		// ÇöÀç ½ÇÁ¦ »ç¿ë ±â´ÉÀÌ ±¸ÇöµÈ ¾ÆÀÌÅÛÀº Bandage
+		// í˜„ì¬ ì‹¤ì œ ì‚¬ìš© ê¸°ëŠ¥ì´ êµ¬í˜„ëœ ì•„ì´í…œì€ Bandage
 		if (Slot.ItemData.ItemID == FName(TEXT("Bandage"))){
 			return true;
 		}
@@ -516,14 +516,14 @@ bool UInventoryComponent::CanUseItem(FName ItemID) const{
 		return false;
 	}
 
-	// ÀÎº¥Åä¸®¿¡ ÇØ´ç ¾ÆÀÌÅÛÀÌ ¾øÀ½
+	// ì¸ë²¤í† ë¦¬ì— í•´ë‹¹ ì•„ì´í…œì´ ì—†ìŒ
 	return false;
 }
 
-// ¼Òºñ ¾ÆÀÌÅÛ »ç¿ë
+// ì†Œë¹„ ì•„ì´í…œ ì‚¬ìš©
 bool UInventoryComponent::UseItem(FName ItemID){
 
-	// ÇØ´ç ¾ÆÀÌÅÛÀ» °¡Áö°í ÀÖ´ÂÁö È®ÀÎ
+	// í•´ë‹¹ ì•„ì´í…œì„ ê°€ì§€ê³  ìˆëŠ”ì§€ í™•ì¸
 	if (!HasItem(ItemID)){
 
 		UE_LOG(LogTemp, Warning, TEXT("Item not found: %s"), *ItemID.ToString());
@@ -531,7 +531,7 @@ bool UInventoryComponent::UseItem(FName ItemID){
 		return false;
 	}
 
-	// InventoryComponent¸¦ °¡Áö°í ÀÖ´Â Player °¡Á®¿À±â
+	// InventoryComponentë¥¼ ê°€ì§€ê³  ìˆëŠ” Player ê°€ì ¸ì˜¤ê¸°
 	APlayerCharacter* Player = Cast<APlayerCharacter>(GetOwner());
 
 	if (!Player){
@@ -541,7 +541,7 @@ bool UInventoryComponent::UseItem(FName ItemID){
 		return false;
 	}
 
-	// »ç¸Á, Àº½Å, Àº½Å ÀüÈ¯ Áß¿¡´Â ¾ÆÀÌÅÛ »ç¿ë ºÒ°¡
+	// ì‚¬ë§, ì€ì‹ , ì€ì‹  ì „í™˜ ì¤‘ì—ëŠ” ì•„ì´í…œ ì‚¬ìš© ë¶ˆê°€
 	if (!Player->CanPerformAction()){
 
 		UE_LOG(LogTemp, Warning, TEXT("Cannot use item: Player cannot perform action"));
@@ -549,20 +549,20 @@ bool UInventoryComponent::UseItem(FName ItemID){
 		return false;
 	}
 
-	// Grid Inventory¿¡¼­ »ç¿ëÇÒ ¾ÆÀÌÅÛ Ã£±â
+	// Grid Inventoryì—ì„œ ì‚¬ìš©í•  ì•„ì´í…œ ì°¾ê¸°
 	for (const FInventorySlot& Slot : InventorySlots){
 
-		// ºó ½½·ÔÀº °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// »ç¿ëÇÏ·Á´Â ¾ÆÀÌÅÛÀÌ ¾Æ´Ï¸é °Ç³Ê¶Ü
+		// ì‚¬ìš©í•˜ë ¤ëŠ” ì•„ì´í…œì´ ì•„ë‹ˆë©´ ê±´ë„ˆëœ€
 		if (Slot.ItemData.ItemID != ItemID){
 			continue;
 		}
 
-		// ¼Òºñ ¾ÆÀÌÅÛ¸¸ »ç¿ë °¡´É
+		// ì†Œë¹„ ì•„ì´í…œë§Œ ì‚¬ìš© ê°€ëŠ¥
 		if (Slot.ItemData.ItemType != EItemType::Consumable){
 
 			UE_LOG(LogTemp, Warning, TEXT("Item is not consumable: %s"), *ItemID.ToString());
@@ -570,10 +570,10 @@ bool UInventoryComponent::UseItem(FName ItemID){
 			return false;
 		}
 
-		// ÇöÀç´Â Bandage¸¸ ¼Òºñ ¾ÆÀÌÅÛÀ¸·Î Ã³¸®
+		// í˜„ì¬ëŠ” Bandageë§Œ ì†Œë¹„ ì•„ì´í…œìœ¼ë¡œ ì²˜ë¦¬
 		if (Slot.ItemData.ItemID == FName(TEXT("Bandage"))){
 
-			// HP°¡ ÀÌ¹Ì ÃÖ´ë¶ó¸é »ç¿ëÇÏÁö ¾ÊÀ½
+			// HPê°€ ì´ë¯¸ ìµœëŒ€ë¼ë©´ ì‚¬ìš©í•˜ì§€ ì•ŠìŒ
 			if (Player->GetCurrentHP() >= Player->GetMaxHP()){
 
 				UE_LOG(LogTemp, Warning, TEXT("Cannot use Bandage: HP is full"));
@@ -581,7 +581,7 @@ bool UInventoryComponent::UseItem(FName ItemID){
 				return false;
 			}
 
-			// È¿°ú·®ÀÌ Àß¸ø ¼³Á¤µÈ °æ¿ì »ç¿ëÇÏÁö ¾ÊÀ½
+			// íš¨ê³¼ëŸ‰ì´ ì˜ëª» ì„¤ì •ëœ ê²½ìš° ì‚¬ìš©í•˜ì§€ ì•ŠìŒ
 			if (Slot.ItemData.EffectAmount <= 0.0f){
 
 				UE_LOG(LogTemp, Warning, TEXT("Invalid Bandage EffectAmount"));
@@ -589,16 +589,16 @@ bool UInventoryComponent::UseItem(FName ItemID){
 				return false;
 			}
 
-			// RemoveItem()À» È£ÃâÇÏ±â Àü¿¡ È¸º¹·® ÀúÀå
+			// RemoveItem()ì„ í˜¸ì¶œí•˜ê¸° ì „ì— íšŒë³µëŸ‰ ì €ì¥
 			float HealAmount = Slot.ItemData.EffectAmount;
 
-			// Bandage 1°³ Á¦°Å
+			// Bandage 1ê°œ ì œê±°
 			if (!RemoveItem(ItemID, 1)){
 
 				return false;
 			}
 
-			// HP È¸º¹
+			// HP íšŒë³µ
 			Player->Heal(HealAmount);
 
 			UE_LOG(LogTemp, Warning,
@@ -614,22 +614,22 @@ bool UInventoryComponent::UseItem(FName ItemID){
 	return false;
 }
 
-// ÇØ´ç ¾ÆÀÌÅÛÀ» ÀåÂøÇÒ ¼ö ÀÖ´ÂÁö È®ÀÎ
+// í•´ë‹¹ ì•„ì´í…œì„ ì¥ì°©í•  ìˆ˜ ìˆëŠ”ì§€ í™•ì¸
 bool UInventoryComponent::CanEquipItem(FName ItemID) const{
 
-	// ÀÎº¥Åä¸® ½½·ÔÀ» ÇÏ³ª¾¿ È®ÀÎ
+	// ì¸ë²¤í† ë¦¬ ìŠ¬ë¡¯ì„ í•˜ë‚˜ì”© í™•ì¸
 	for (const FInventorySlot& Slot : InventorySlots){
-		// ºó ½½·ÔÀº °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// Ã£°í ÀÖ´Â ¾ÆÀÌÅÛÀÌ ¾Æ´Ï¸é °Ç³Ê¶Ü
+		// ì°¾ê³  ìˆëŠ” ì•„ì´í…œì´ ì•„ë‹ˆë©´ ê±´ë„ˆëœ€
 		if (Slot.ItemData.ItemID != ItemID){
 			continue;
 		}
 
-		// Weapon Å¸ÀÔ¸¸ ÀåÂø °¡´É
+		// Weapon íƒ€ì…ë§Œ ì¥ì°© ê°€ëŠ¥
 		if (Slot.ItemData.ItemType != EItemType::Weapon){
 			return false;
 		}
@@ -637,27 +637,27 @@ bool UInventoryComponent::CanEquipItem(FName ItemID) const{
 		return true;
 	}
 
-	// ÀÎº¥Åä¸®¿¡ ÇØ´ç ¾ÆÀÌÅÛÀÌ ¾øÀ½
+	// ì¸ë²¤í† ë¦¬ì— í•´ë‹¹ ì•„ì´í…œì´ ì—†ìŒ
 	return false;
 }
 
-// ¹«±â ÀåÂø ÇÔ¼ö
+// ë¬´ê¸° ì¥ì°© í•¨ìˆ˜
 bool UInventoryComponent::EquipWeapon(FName ItemID){
 
-	// Grid Inventory¿¡¼­ ÇØ´ç ¾ÆÀÌÅÛ Ã£±â
+	// Grid Inventoryì—ì„œ í•´ë‹¹ ì•„ì´í…œ ì°¾ê¸°
 	for (const FInventorySlot& Slot : InventorySlots){
 
-		// ºó ½½·ÔÀº °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// ÀåÂøÇÏ·Á´Â ¾ÆÀÌÅÛÀÌ ¾Æ´Ï¸é °Ç³Ê¶Ü
+		// ì¥ì°©í•˜ë ¤ëŠ” ì•„ì´í…œì´ ì•„ë‹ˆë©´ ê±´ë„ˆëœ€
 		if (Slot.ItemData.ItemID != ItemID){
 			continue;
 		}
 
-		// ¹«±â Å¸ÀÔÀÎÁö È®ÀÎ
+		// ë¬´ê¸° íƒ€ì…ì¸ì§€ í™•ì¸
 		if (Slot.ItemData.ItemType != EItemType::Weapon){
 
 			UE_LOG(LogTemp, Warning, TEXT("Item is not a weapon: %s"), *ItemID.ToString());
@@ -665,15 +665,15 @@ bool UInventoryComponent::EquipWeapon(FName ItemID){
 			return false;
 		}
 
-		// ÇöÀç ÀåÂø ¹«±â·Î ¼³Á¤
+		// í˜„ì¬ ì¥ì°© ë¬´ê¸°ë¡œ ì„¤ì •
 		EquippedWeaponID = ItemID;
 
 		UE_LOG(LogTemp, Warning, TEXT("Weapon equipped: %s"), *ItemID.ToString());
 
-		// ÀåÂø ¹«±â°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+		// ì¥ì°© ë¬´ê¸°ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 		OnInventoryChanged.Broadcast();
 
-		// CombatComponent¿¡ ¹«±â º¯°æÀ» ¾Ë·Á UI °»½Å
+		// CombatComponentì— ë¬´ê¸° ë³€ê²½ì„ ì•Œë ¤ UI ê°±ì‹ 
 		if (UCombatComponent* CombatComp = GetOwner()->FindComponentByClass<UCombatComponent>()){
 
 			CombatComp->NotifyWeaponChanged();
@@ -682,13 +682,13 @@ bool UInventoryComponent::EquipWeapon(FName ItemID){
 		return true;
 	}
 
-	// ÀÎº¥Åä¸®¿¡ ÇØ´ç ¹«±â°¡ ¾øÀ½
+	// ì¸ë²¤í† ë¦¬ì— í•´ë‹¹ ë¬´ê¸°ê°€ ì—†ìŒ
 	UE_LOG(LogTemp, Warning, TEXT("Weapon not found in inventory: %s"), *ItemID.ToString());
 
 	return false;
 }
 
-// ¹«±â ÇØÁ¦ ÇÔ¼ö
+// ë¬´ê¸° í•´ì œ í•¨ìˆ˜
 void UInventoryComponent::UnequipWeapon(){
 
 	if (EquippedWeaponID.IsNone()){
@@ -700,122 +700,122 @@ void UInventoryComponent::UnequipWeapon(){
 
 	EquippedWeaponID = NAME_None;
 
-	// ÀåÂø ¹«±â°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+	// ì¥ì°© ë¬´ê¸°ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 	OnInventoryChanged.Broadcast();
 
-	// CombatComponent¿¡ ¹«±â ÇØÁ¦¸¦ ¾Ë·Á UI °»½Å
+	// CombatComponentì— ë¬´ê¸° í•´ì œë¥¼ ì•Œë ¤ UI ê°±ì‹ 
 	if (UCombatComponent* CombatComp = GetOwner()->FindComponentByClass<UCombatComponent>()){
 
 		CombatComp->NotifyWeaponChanged();
 	}
 }
 
-// ÇØ´ç ¾ÆÀÌÅÛÀÌ ÇöÀç ÀåÂø ÁßÀÎÁö È®ÀÎ
+// í•´ë‹¹ ì•„ì´í…œì´ í˜„ì¬ ì¥ì°© ì¤‘ì¸ì§€ í™•ì¸
 bool UInventoryComponent::IsItemEquipped(FName ItemID) const{
 
-	// ItemID°¡ ºñ¾îÀÖÀ¸¸é ÀåÂø »óÅÂ°¡ ¾Æ´Ô
+	// ItemIDê°€ ë¹„ì–´ìˆìœ¼ë©´ ì¥ì°© ìƒíƒœê°€ ì•„ë‹˜
 	if (ItemID.IsNone()){
 		return false;
 	}
 
-	// ÇöÀç ÀåÂø ÁßÀÎ ¹«±â ID¿Í °°ÀºÁö È®ÀÎ
+	// í˜„ì¬ ì¥ì°© ì¤‘ì¸ ë¬´ê¸° IDì™€ ê°™ì€ì§€ í™•ì¸
 	return EquippedWeaponID == ItemID;
 }
 
-//ÇöÀç ÀåÂø ¹«±â È®ÀÎ
+//í˜„ì¬ ì¥ì°© ë¬´ê¸° í™•ì¸
 FName UInventoryComponent::GetEquippedWeaponID() const {
 	return EquippedWeaponID;
 }
 
-// ÀåÂø ¿©ºÎ È®ÀÎ
+// ì¥ì°© ì—¬ë¶€ í™•ì¸
 bool UInventoryComponent::HasEquippedWeapon() const {
 	return !EquippedWeaponID.IsNone();
 }
 
-// ºñ¾îÀÖ´Â Ã¹ ¹øÂ° ½½·Ô ¹øÈ£ Ã£±â
+// ë¹„ì–´ìˆëŠ” ì²« ë²ˆì§¸ ìŠ¬ë¡¯ ë²ˆí˜¸ ì°¾ê¸°
 int32 UInventoryComponent::FindEmptySlotIndex() const{
 	for (int32 i = 0; i < InventorySlots.Num(); i++){
-		// ºñ¾îÀÖ´Â ½½·Ô ¹ß°ß
+		// ë¹„ì–´ìˆëŠ” ìŠ¬ë¡¯ ë°œê²¬
 		if (InventorySlots[i].bIsEmpty){
 			return i;
 		}
 	}
 
-	// ºó ½½·ÔÀÌ ¾øÀ¸¸é -1 ¹İÈ¯
+	// ë¹ˆ ìŠ¬ë¡¯ì´ ì—†ìœ¼ë©´ -1 ë°˜í™˜
 	return -1;
 }
 
-// ¾ÆÀÌÅÛÀ» ÀüºÎ Ãß°¡ÇÒ °ø°£ÀÌ ÀÖ´ÂÁö È®ÀÎ
+// ì•„ì´í…œì„ ì „ë¶€ ì¶”ê°€í•  ê³µê°„ì´ ìˆëŠ”ì§€ í™•ì¸
 bool UInventoryComponent::CanAddItem(const FItemData& NewItem) const{
 
-	// Àß¸øµÈ ¾ÆÀÌÅÛ µ¥ÀÌÅÍ¸é Ãß°¡ ºÒ°¡
+	// ì˜ëª»ëœ ì•„ì´í…œ ë°ì´í„°ë©´ ì¶”ê°€ ë¶ˆê°€
 	if (NewItem.Quantity <= 0 || NewItem.MaxStack <= 0){
 		return false;
 	}
 
-	// Ãß°¡ÇØ¾ß ÇÏ´Â ³²Àº ¼ö·®
+	// ì¶”ê°€í•´ì•¼ í•˜ëŠ” ë‚¨ì€ ìˆ˜ëŸ‰
 	int32 RemainingQuantity = NewItem.Quantity;
 
-	// 1. ±âÁ¸¿¡ ÀÖ´Â °°Àº ¾ÆÀÌÅÛ ½½·ÔÀÇ ³²Àº °ø°£ È®ÀÎ
+	// 1. ê¸°ì¡´ì— ìˆëŠ” ê°™ì€ ì•„ì´í…œ ìŠ¬ë¡¯ì˜ ë‚¨ì€ ê³µê°„ í™•ì¸
 	for (const FInventorySlot& Slot : InventorySlots){
 
-		// ºó ½½·ÔÀº ÀÏ´Ü °Ç³Ê¶Ü
+		// ë¹ˆ ìŠ¬ë¡¯ì€ ì¼ë‹¨ ê±´ë„ˆëœ€
 		if (Slot.bIsEmpty){
 			continue;
 		}
 
-		// °°Àº ¾ÆÀÌÅÛÀÎÁö È®ÀÎ
+		// ê°™ì€ ì•„ì´í…œì¸ì§€ í™•ì¸
 		if (Slot.ItemData.ItemID == NewItem.ItemID){
 
-			// ÀÌ ½½·Ô¿¡ Ãß°¡·Î µé¾î°¥ ¼ö ÀÖ´Â ¼ö·®
+			// ì´ ìŠ¬ë¡¯ì— ì¶”ê°€ë¡œ ë“¤ì–´ê°ˆ ìˆ˜ ìˆëŠ” ìˆ˜ëŸ‰
 			int32 AvailableSpace =
 				Slot.ItemData.MaxStack - Slot.ItemData.Quantity;
 
-			// ½ÇÁ¦·Î ³ÖÀ» ¼ö ÀÖ´Â ¼ö·®¸¸Å­ °è»ê
+			// ì‹¤ì œë¡œ ë„£ì„ ìˆ˜ ìˆëŠ” ìˆ˜ëŸ‰ë§Œí¼ ê³„ì‚°
 			int32 AddQuantity =
 				FMath::Min(AvailableSpace, RemainingQuantity);
 
 			RemainingQuantity -= AddQuantity;
 
-			// ±âÁ¸ ½ºÅÃµé¸¸À¸·Î ÀüºÎ µé¾î°£´Ù¸é Ãß°¡ °¡´É
+			// ê¸°ì¡´ ìŠ¤íƒë“¤ë§Œìœ¼ë¡œ ì „ë¶€ ë“¤ì–´ê°„ë‹¤ë©´ ì¶”ê°€ ê°€ëŠ¥
 			if (RemainingQuantity <= 0){
 				return true;
 			}
 		}
 	}
 
-	// 2. ºó ½½·Ô¿¡ µé¾î°¥ ¼ö ÀÖ´Â °ø°£ È®ÀÎ
+	// 2. ë¹ˆ ìŠ¬ë¡¯ì— ë“¤ì–´ê°ˆ ìˆ˜ ìˆëŠ” ê³µê°„ í™•ì¸
 
 	for (const FInventorySlot& Slot : InventorySlots){
 		if (Slot.bIsEmpty){
 
-			// ºó ½½·Ô ÇÏ³ª¿¡´Â ÃÖ´ë MaxStack¸¸Å­ µé¾î°¥ ¼ö ÀÖÀ½
+			// ë¹ˆ ìŠ¬ë¡¯ í•˜ë‚˜ì—ëŠ” ìµœëŒ€ MaxStackë§Œí¼ ë“¤ì–´ê°ˆ ìˆ˜ ìˆìŒ
 			RemainingQuantity -= NewItem.MaxStack;
 
-			// ÇÊ¿äÇÑ ¼ö·®À» ÀüºÎ ³ÖÀ» ¼ö ÀÖÀ½
+			// í•„ìš”í•œ ìˆ˜ëŸ‰ì„ ì „ë¶€ ë„£ì„ ìˆ˜ ìˆìŒ
 			if (RemainingQuantity <= 0){
 				return true;
 			}
 		}
 	}
 
-	// ±âÁ¸ ½ºÅÃ + ºó ½½·ÔÀ» ¸ğµÎ »ç¿ëÇØµµ °ø°£ ºÎÁ·
+	// ê¸°ì¡´ ìŠ¤íƒ + ë¹ˆ ìŠ¬ë¡¯ì„ ëª¨ë‘ ì‚¬ìš©í•´ë„ ê³µê°„ ë¶€ì¡±
 	return false;
 }
 
-// Á¦ÀÛ Àç·á¸¦ ¼ÒºñÇÑ µÚ °á°ú ¾ÆÀÌÅÛÀ» ³ÖÀ» °ø°£ÀÌ »ı±â´ÂÁö È®ÀÎ
+// ì œì‘ ì¬ë£Œë¥¼ ì†Œë¹„í•œ ë’¤ ê²°ê³¼ ì•„ì´í…œì„ ë„£ì„ ê³µê°„ì´ ìƒê¸°ëŠ”ì§€ í™•ì¸
 bool UInventoryComponent::CanAddCraftResultAfterConsumingMaterials(FName ResultItemID, const FItemData& ResultItemData) const
 {
-	// ÇöÀç »óÅÂ¿¡¼­µµ °á°ú ¾ÆÀÌÅÛÀÌ µé¾î°¥ ¼ö ÀÖ´Ù¸é ¹Ù·Î Á¦ÀÛ °¡´É
+	// í˜„ì¬ ìƒíƒœì—ì„œë„ ê²°ê³¼ ì•„ì´í…œì´ ë“¤ì–´ê°ˆ ìˆ˜ ìˆë‹¤ë©´ ë°”ë¡œ ì œì‘ ê°€ëŠ¥
 	if (CanAddItem(ResultItemData)){
 		return true;
 	}
 
-	// ÇöÀç´Â °ø°£ÀÌ ºÎÁ·ÇÑ °æ¿ì
-	// Á¦ÀÛ Àç·á¸¦ »ç¿ëÇÏ¸é¼­ ½½·Ô ÇÏ³ª°¡ ¿ÏÀüÈ÷ ºñ¿öÁö´ÂÁö È®ÀÎÇÑ´Ù.
+	// í˜„ì¬ëŠ” ê³µê°„ì´ ë¶€ì¡±í•œ ê²½ìš°
+	// ì œì‘ ì¬ë£Œë¥¼ ì‚¬ìš©í•˜ë©´ì„œ ìŠ¬ë¡¯ í•˜ë‚˜ê°€ ì™„ì „íˆ ë¹„ì›Œì§€ëŠ”ì§€ í™•ì¸í•œë‹¤.
 
-	// HandGunAmmo Á¦ÀÛ
-	// Gunpowder 2°³¸¦ »ç¿ëÇßÀ» ¶§ Gunpowder ½½·Ô ÇÏ³ª°¡ ºñ¿öÁú ¼ö ÀÖ´ÂÁö È®ÀÎ
+	// HandGunAmmo ì œì‘
+	// Gunpowder 2ê°œë¥¼ ì‚¬ìš©í–ˆì„ ë•Œ Gunpowder ìŠ¬ë¡¯ í•˜ë‚˜ê°€ ë¹„ì›Œì§ˆ ìˆ˜ ìˆëŠ”ì§€ í™•ì¸
 	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
 
 		for (const FInventorySlot& Slot : InventorySlots){
@@ -829,8 +829,8 @@ bool UInventoryComponent::CanAddCraftResultAfterConsumingMaterials(FName ResultI
 		return false;
 	}
 
-	// MasterCardKey Á¦ÀÛ
-	// CardKeyA ¶Ç´Â CardKeyB¸¦ 1°³ »ç¿ëÇØ¼­ ½½·ÔÀÌ ºñ¿öÁö´ÂÁö È®ÀÎ
+	// MasterCardKey ì œì‘
+	// CardKeyA ë˜ëŠ” CardKeyBë¥¼ 1ê°œ ì‚¬ìš©í•´ì„œ ìŠ¬ë¡¯ì´ ë¹„ì›Œì§€ëŠ”ì§€ í™•ì¸
 	if (ResultItemID == FName(TEXT("MasterCardKey"))){
 
 		for (const FInventorySlot& Slot : InventorySlots){
@@ -852,10 +852,10 @@ bool UInventoryComponent::CanAddCraftResultAfterConsumingMaterials(FName ResultI
 	return false;
 }
 
-// Grid Inventory¿¡¼­ ¾ÆÀÌÅÛ À§Ä¡ ÀÌµ¿
+// Grid Inventoryì—ì„œ ì•„ì´í…œ ìœ„ì¹˜ ì´ë™
 bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
 
-	// Ãâ¹ß ½½·Ô ¹øÈ£°¡ ¿Ã¹Ù¸¥Áö È®ÀÎ
+	// ì¶œë°œ ìŠ¬ë¡¯ ë²ˆí˜¸ê°€ ì˜¬ë°”ë¥¸ì§€ í™•ì¸
 	if (!InventorySlots.IsValidIndex(FromIndex)){
 
 		UE_LOG(LogTemp, Warning, TEXT("Invalid FromIndex: %d"), FromIndex);
@@ -863,7 +863,7 @@ bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
 		return false;
 	}
 
-	// µµÂø ½½·Ô ¹øÈ£°¡ ¿Ã¹Ù¸¥Áö È®ÀÎ
+	// ë„ì°© ìŠ¬ë¡¯ ë²ˆí˜¸ê°€ ì˜¬ë°”ë¥¸ì§€ í™•ì¸
 	if (!InventorySlots.IsValidIndex(ToIndex)){
 
 		UE_LOG(LogTemp, Warning, TEXT("Invalid ToIndex: %d"), ToIndex);
@@ -871,45 +871,45 @@ bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
 		return false;
 	}
 
-	// °°Àº ½½·ÔÀ¸·Î ÀÌµ¿ÇÏ·Á´Â °æ¿ì
+	// ê°™ì€ ìŠ¬ë¡¯ìœ¼ë¡œ ì´ë™í•˜ë ¤ëŠ” ê²½ìš°
 	if (FromIndex == ToIndex){
 		return false;
 	}
 
-	// Ãâ¹ß ½½·ÔÀÌ ºñ¾îÀÖÀ¸¸é ÀÌµ¿ÇÒ ¾ÆÀÌÅÛÀÌ ¾øÀ½
+	// ì¶œë°œ ìŠ¬ë¡¯ì´ ë¹„ì–´ìˆìœ¼ë©´ ì´ë™í•  ì•„ì´í…œì´ ì—†ìŒ
 	if (InventorySlots[FromIndex].bIsEmpty){
 		UE_LOG(LogTemp, Warning, TEXT("From slot is empty: %d"), FromIndex);
 
 		return false;
 	}
 
-	// µµÂø ½½·Ô¿¡ ÀÌ¹Ì ¾ÆÀÌÅÛÀÌ ÀÖ´Â °æ¿ì
+	// ë„ì°© ìŠ¬ë¡¯ì— ì´ë¯¸ ì•„ì´í…œì´ ìˆëŠ” ê²½ìš°
 	if (!InventorySlots[ToIndex].bIsEmpty){
 
-		// µÎ ½½·ÔÀÇ ¾ÆÀÌÅÛÀÌ ¼­·Î ´Ù¸¥ ¾ÆÀÌÅÛÀÎÁö È®ÀÎ
+		// ë‘ ìŠ¬ë¡¯ì˜ ì•„ì´í…œì´ ì„œë¡œ ë‹¤ë¥¸ ì•„ì´í…œì¸ì§€ í™•ì¸
 		if (InventorySlots[FromIndex].ItemData.ItemID != InventorySlots[ToIndex].ItemData.ItemID){
 
-			// Ãâ¹ß ½½·ÔÀÇ ¾ÆÀÌÅÛÀ» ÀÓ½Ã·Î ÀúÀå
+			// ì¶œë°œ ìŠ¬ë¡¯ì˜ ì•„ì´í…œì„ ì„ì‹œë¡œ ì €ì¥
 			FItemData TempItem = InventorySlots[FromIndex].ItemData;
 
-			// µµÂø ½½·Ô ¾ÆÀÌÅÛÀ» Ãâ¹ß ½½·Ô·Î ÀÌµ¿
+			// ë„ì°© ìŠ¬ë¡¯ ì•„ì´í…œì„ ì¶œë°œ ìŠ¬ë¡¯ë¡œ ì´ë™
 			InventorySlots[FromIndex].ItemData = InventorySlots[ToIndex].ItemData;
 
-			// ÀÓ½Ã ÀúÀåÇß´ø Ãâ¹ß ¾ÆÀÌÅÛÀ» µµÂø ½½·ÔÀ¸·Î ÀÌµ¿
+			// ì„ì‹œ ì €ì¥í–ˆë˜ ì¶œë°œ ì•„ì´í…œì„ ë„ì°© ìŠ¬ë¡¯ìœ¼ë¡œ ì´ë™
 			InventorySlots[ToIndex].ItemData = TempItem;
 
 			UE_LOG(LogTemp, Warning, TEXT("Items swapped: Slot %d <-> Slot %d"), FromIndex, ToIndex);
 
-			// ÀÎº¥Åä¸®°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+			// ì¸ë²¤í† ë¦¬ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 			OnInventoryChanged.Broadcast();
 
 			return true;
 		}
 
-		// °°Àº ¾ÆÀÌÅÛÀÌ¸é Stack ÇÕÄ¡±â
+		// ê°™ì€ ì•„ì´í…œì´ë©´ Stack í•©ì¹˜ê¸°
 		int32 AvailableSpace = InventorySlots[ToIndex].ItemData.MaxStack - InventorySlots[ToIndex].ItemData.Quantity;
 
-		// µµÂø ½½·ÔÀÌ ÀÌ¹Ì MaxStack±îÁö °¡µæ Âù °æ¿ì
+		// ë„ì°© ìŠ¬ë¡¯ì´ ì´ë¯¸ MaxStackê¹Œì§€ ê°€ë“ ì°¬ ê²½ìš°
 		if (AvailableSpace <= 0){
 
 			UE_LOG(LogTemp, Warning, TEXT("Target stack is already full"));
@@ -917,16 +917,16 @@ bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
 			return false;
 		}
 
-		// ½ÇÁ¦·Î ¿Å±æ ¼ö·® °è»ê
+		// ì‹¤ì œë¡œ ì˜®ê¸¸ ìˆ˜ëŸ‰ ê³„ì‚°
 		int32 MoveQuantity = FMath::Min(InventorySlots[FromIndex].ItemData.Quantity, AvailableSpace);
 
-		// µµÂø ½½·Ô¿¡ ¼ö·® Ãß°¡
+		// ë„ì°© ìŠ¬ë¡¯ì— ìˆ˜ëŸ‰ ì¶”ê°€
 		InventorySlots[ToIndex].ItemData.Quantity += MoveQuantity;
 
-		// Ãâ¹ß ½½·Ô¿¡¼­ ¿Å±ä ¸¸Å­ ¼ö·® °¨¼Ò
+		// ì¶œë°œ ìŠ¬ë¡¯ì—ì„œ ì˜®ê¸´ ë§Œí¼ ìˆ˜ëŸ‰ ê°ì†Œ
 		InventorySlots[FromIndex].ItemData.Quantity -= MoveQuantity;
 
-		// Ãâ¹ß ½½·ÔÀÇ ¼ö·®ÀÌ 0ÀÌ µÇ¾ú´Ù¸é ºó ½½·ÔÀ¸·Î º¯°æ
+		// ì¶œë°œ ìŠ¬ë¡¯ì˜ ìˆ˜ëŸ‰ì´ 0ì´ ë˜ì—ˆë‹¤ë©´ ë¹ˆ ìŠ¬ë¡¯ìœ¼ë¡œ ë³€ê²½
 		if (InventorySlots[FromIndex].ItemData.Quantity <= 0){
 			InventorySlots[FromIndex].ItemData = FItemData();
 			InventorySlots[FromIndex].bIsEmpty = true;
@@ -938,63 +938,63 @@ bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
 			ToIndex,
 			MoveQuantity);
 
-		// ÀÎº¥Åä¸® ½½·Ô À§Ä¡°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+		// ì¸ë²¤í† ë¦¬ ìŠ¬ë¡¯ ìœ„ì¹˜ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 		OnInventoryChanged.Broadcast();
 
 		return true;
 	}
 
-	// Ãâ¹ß ½½·ÔÀÇ ¾ÆÀÌÅÛ µ¥ÀÌÅÍ¸¦ µµÂø ½½·ÔÀ¸·Î º¹»ç
+	// ì¶œë°œ ìŠ¬ë¡¯ì˜ ì•„ì´í…œ ë°ì´í„°ë¥¼ ë„ì°© ìŠ¬ë¡¯ìœ¼ë¡œ ë³µì‚¬
 	InventorySlots[ToIndex].ItemData = InventorySlots[FromIndex].ItemData;
 
-	// µµÂø ½½·ÔÀ» »ç¿ë ÁßÀÎ »óÅÂ·Î º¯°æ
+	// ë„ì°© ìŠ¬ë¡¯ì„ ì‚¬ìš© ì¤‘ì¸ ìƒíƒœë¡œ ë³€ê²½
 	InventorySlots[ToIndex].bIsEmpty = false;
 
-	// Ãâ¹ß ½½·ÔÀÇ ¾ÆÀÌÅÛ µ¥ÀÌÅÍ Á¦°Å
+	// ì¶œë°œ ìŠ¬ë¡¯ì˜ ì•„ì´í…œ ë°ì´í„° ì œê±°
 	InventorySlots[FromIndex].ItemData = FItemData();
 
-	// Ãâ¹ß ½½·ÔÀ» ºó ½½·ÔÀ¸·Î º¯°æ
+	// ì¶œë°œ ìŠ¬ë¡¯ì„ ë¹ˆ ìŠ¬ë¡¯ìœ¼ë¡œ ë³€ê²½
 	InventorySlots[FromIndex].bIsEmpty = true;
 
 	UE_LOG(LogTemp, Warning, TEXT("Item moved: Slot %d -> Slot %d"), FromIndex, ToIndex);
 
-	// ÀÎº¥Åä¸® ½½·Ô À§Ä¡°¡ º¯°æµÇ¾úÀ½À» ¾Ë¸²
+	// ì¸ë²¤í† ë¦¬ ìŠ¬ë¡¯ ìœ„ì¹˜ê°€ ë³€ê²½ë˜ì—ˆìŒì„ ì•Œë¦¼
 	OnInventoryChanged.Broadcast();
 
 	return true;
 }
 
-// ÇöÀç Grid InventoryÀÇ ÀüÃ¼ ½½·Ô µ¥ÀÌÅÍ ¹İÈ¯
+// í˜„ì¬ Grid Inventoryì˜ ì „ì²´ ìŠ¬ë¡¯ ë°ì´í„° ë°˜í™˜
 const TArray<FInventorySlot>& UInventoryComponent::GetInventorySlots() const
 {
 	return InventorySlots;
 }
 
-// ÇØ´ç ¾ÆÀÌÅÛÀ» Á¦ÀÛÇÒ ¼ö ÀÖ´ÂÁö È®ÀÎ
+// í•´ë‹¹ ì•„ì´í…œì„ ì œì‘í•  ìˆ˜ ìˆëŠ”ì§€ í™•ì¸
 bool UInventoryComponent::CanCraftItem(FName ResultItemID) const
 {
-	// HandGunAmmo Á¦ÀÛ
-	// È­¾àÀÌ 2°³ ÀÌ»ó ÀÖÀ¸¸é Á¦ÀÛ °¡´É
+	// HandGunAmmo ì œì‘
+	// í™”ì•½ì´ 2ê°œ ì´ìƒ ìˆìœ¼ë©´ ì œì‘ ê°€ëŠ¥
 	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
 
 		return GetItemQuantity(FName(TEXT("Gunpowder"))) >= 2;
 	}
 
-	// MasterCardKey Á¦ÀÛ
-	// CardKeyA¿Í CardKeyB¸¦ °¢°¢ 1°³ ÀÌ»ó °¡Áö°í ÀÖ¾î¾ß Á¦ÀÛ °¡´É
+	// MasterCardKey ì œì‘
+	// CardKeyAì™€ CardKeyBë¥¼ ê°ê° 1ê°œ ì´ìƒ ê°€ì§€ê³  ìˆì–´ì•¼ ì œì‘ ê°€ëŠ¥
 	if (ResultItemID == FName(TEXT("MasterCardKey"))){
 
 		return GetItemQuantity(FName(TEXT("CardKeyA"))) >= 1 && GetItemQuantity(FName(TEXT("CardKeyB"))) >= 1;
 	}
 
-	// µî·ÏµÇÁö ¾ÊÀº Á¦ÀÛ ¾ÆÀÌÅÛ
+	// ë“±ë¡ë˜ì§€ ì•Šì€ ì œì‘ ì•„ì´í…œ
 	return false;
 }
 
-// Àç·á¸¦ ¼ÒºñÇÏ°í ¾ÆÀÌÅÛÀ» ½ÇÁ¦·Î Á¦ÀÛ
+// ì¬ë£Œë¥¼ ì†Œë¹„í•˜ê³  ì•„ì´í…œì„ ì‹¤ì œë¡œ ì œì‘
 bool UInventoryComponent::CraftItem(FName ResultItemID){
 
-	// Á¦ÀÛ °¡´ÉÇÑ Àç·á¸¦ °¡Áö°í ÀÖ´ÂÁö È®ÀÎ
+	// ì œì‘ ê°€ëŠ¥í•œ ì¬ë£Œë¥¼ ê°€ì§€ê³  ìˆëŠ”ì§€ í™•ì¸
 	if (!CanCraftItem(ResultItemID)){
 
 		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Not enough materials. ResultItemID = %s"), *ResultItemID.ToString());
@@ -1002,7 +1002,7 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		return false;
 	}
 
-	// ItemDataTableÀÌ ¿¬°áµÇ¾î ÀÖ´ÂÁö È®ÀÎ
+	// ItemDataTableì´ ì—°ê²°ë˜ì–´ ìˆëŠ”ì§€ í™•ì¸
 	if (!ItemDataTable){
 
 		UE_LOG(LogTemp, Warning, TEXT("Craft failed: ItemDataTable is not set"));
@@ -1010,10 +1010,10 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		return false;
 	}
 
-	// DT_ItemData¿¡¼­ Á¦ÀÛ °á°ú ¾ÆÀÌÅÛ Á¤º¸ °¡Á®¿À±â
+	// DT_ItemDataì—ì„œ ì œì‘ ê²°ê³¼ ì•„ì´í…œ ì •ë³´ ê°€ì ¸ì˜¤ê¸°
 	const FItemData* ResultItemData = ItemDataTable->FindRow<FItemData>(ResultItemID, TEXT("CraftItem"));
 
-	// DataTable¿¡ ÇØ´ç ¾ÆÀÌÅÛÀÌ ¾ø´Â °æ¿ì
+	// DataTableì— í•´ë‹¹ ì•„ì´í…œì´ ì—†ëŠ” ê²½ìš°
 	if (!ResultItemData){
 
 		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Item data not found. ResultItemID = %s"), *ResultItemID.ToString());
@@ -1021,8 +1021,8 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		return false;
 	}
 
-	// Á¦ÀÛ Àç·á¸¦ ¼ÒºñÇÑ µÚ¿¡µµ
-	// °á°ú ¾ÆÀÌÅÛÀ» ³ÖÀ» °ø°£ÀÌ ÀÖ´ÂÁö È®ÀÎ
+	// ì œì‘ ì¬ë£Œë¥¼ ì†Œë¹„í•œ ë’¤ì—ë„
+	// ê²°ê³¼ ì•„ì´í…œì„ ë„£ì„ ê³µê°„ì´ ìˆëŠ”ì§€ í™•ì¸
 	if (!CanAddCraftResultAfterConsumingMaterials(ResultItemID, *ResultItemData)){
 
 		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Not enough inventory space. ResultItemID = %s"), *ResultItemID.ToString());
@@ -1030,28 +1030,28 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		return false;
 	}
 
-	// HandGunAmmo Á¦ÀÛ
+	// HandGunAmmo ì œì‘
 	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
 
-		// È­¾à 2°³ ¼Òºñ
+		// í™”ì•½ 2ê°œ ì†Œë¹„
 		if (!RemoveItem(FName(TEXT("Gunpowder")), 2)){
 
 			return false;
 		}
 
-		// Á¦ÀÛµÈ Åº¾à Ãß°¡
+		// ì œì‘ëœ íƒ„ì•½ ì¶”ê°€
 		if (!AddItem(*ResultItemData)){
 
 			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add HandGunAmmo"));
 
-			// °á°ú ¾ÆÀÌÅÛ Ãß°¡¿¡ ½ÇÆĞÇßÀ¸¹Ç·Î
-			// ÀÌ¹Ì »ç¿ëÇÑ Gunpowder 2°³¸¦ ´Ù½Ã º¹±¸
+			// ê²°ê³¼ ì•„ì´í…œ ì¶”ê°€ì— ì‹¤íŒ¨í–ˆìœ¼ë¯€ë¡œ
+			// ì´ë¯¸ ì‚¬ìš©í•œ Gunpowder 2ê°œë¥¼ ë‹¤ì‹œ ë³µêµ¬
 			const FItemData* GunpowderData = ItemDataTable->FindRow<FItemData>(FName(TEXT("Gunpowder")), TEXT("CraftRollback"));
 
 			if (GunpowderData){
 
-				// DataTableÀÇ ¿øº» µ¥ÀÌÅÍ¸¦ º¹»çÇÑ µÚ
-				// º¹±¸ÇØ¾ß ÇÏ´Â ¼ö·®À» 2°³·Î ¼³Á¤
+				// DataTableì˜ ì›ë³¸ ë°ì´í„°ë¥¼ ë³µì‚¬í•œ ë’¤
+				// ë³µêµ¬í•´ì•¼ í•˜ëŠ” ìˆ˜ëŸ‰ì„ 2ê°œë¡œ ì„¤ì •
 				FItemData RestoreGunpowder = *GunpowderData;
 				RestoreGunpowder.Quantity = 2;
 
@@ -1066,20 +1066,20 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 		return true;
 	}
 
-	// MasterCardKey Á¦ÀÛ
+	// MasterCardKey ì œì‘
 	if (ResultItemID == FName(TEXT("MasterCardKey"))){
 
-		// CardKeyA 1°³ ¼Òºñ
+		// CardKeyA 1ê°œ ì†Œë¹„
 		if (!ConsumeKeyItem(FName(TEXT("CardKeyA")), 1)){
 
 			return false;
 		}
 
-		// CardKeyB 1°³ ¼Òºñ
+		// CardKeyB 1ê°œ ì†Œë¹„
 		if (!ConsumeKeyItem(FName(TEXT("CardKeyB")), 1)){
 
-			// CardKeyA´Â ÀÌ¹Ì ¼ÒºñµÈ »óÅÂÀÌ¹Ç·Î
-			// CardKeyB ¼Òºñ¿¡ ½ÇÆĞÇÏ¸é CardKeyA¸¦ ´Ù½Ã º¹±¸
+			// CardKeyAëŠ” ì´ë¯¸ ì†Œë¹„ëœ ìƒíƒœì´ë¯€ë¡œ
+			// CardKeyB ì†Œë¹„ì— ì‹¤íŒ¨í•˜ë©´ CardKeyAë¥¼ ë‹¤ì‹œ ë³µêµ¬
 			const FItemData* CardKeyAData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyA")), TEXT("CraftRollback"));
 
 			if (CardKeyAData){
@@ -1093,19 +1093,19 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 			return false;
 		}
 
-		// Á¦ÀÛµÈ MasterCardKey Ãß°¡
+		// ì œì‘ëœ MasterCardKey ì¶”ê°€
 		if (!AddItem(*ResultItemData)){
 
 			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add MasterCardKey"));
 
-			// °á°ú ¾ÆÀÌÅÛ Ãß°¡¿¡ ½ÇÆĞÇßÀ¸¹Ç·Î
-			// ÀÌ¹Ì »ç¿ëÇÑ CardKeyA¿Í CardKeyB¸¦ ´Ù½Ã º¹±¸
+			// ê²°ê³¼ ì•„ì´í…œ ì¶”ê°€ì— ì‹¤íŒ¨í–ˆìœ¼ë¯€ë¡œ
+			// ì´ë¯¸ ì‚¬ìš©í•œ CardKeyAì™€ CardKeyBë¥¼ ë‹¤ì‹œ ë³µêµ¬
 
 			const FItemData* CardKeyAData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyA")), TEXT("CraftRollback"));
 
 			const FItemData* CardKeyBData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyB")), TEXT("CraftRollback"));
 
-			// CardKeyA º¹±¸
+			// CardKeyA ë³µêµ¬
 			if (CardKeyAData){
 
 				FItemData RestoreCardKeyA = *CardKeyAData;
@@ -1114,7 +1114,7 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 				AddItem(RestoreCardKeyA);
 			}
 
-			// CardKeyB º¹±¸
+			// CardKeyB ë³µêµ¬
 			if (CardKeyBData){
 
 				FItemData RestoreCardKeyB = *CardKeyBData;
@@ -1134,17 +1134,29 @@ bool UInventoryComponent::CraftItem(FName ResultItemID){
 	return false;
 }
 
-// ¾ÆÀÌÅÛÀ» ÁöÁ¤ÇÑ Äü½½·Ô¿¡ µî·Ï
+// ì•„ì´í…œì„ ì§€ì •í•œ í€µìŠ¬ë¡¯ì— ë“±ë¡
 bool UInventoryComponent::SetQuickSlot(int32 QuickSlotIndex, FName ItemID){
 
-	// Äü½½·Ô ¹øÈ£°¡ 0~2 ¹üÀ§¸¦ ¹ş¾î³ª¸é ½ÇÆĞ
+	// í€µìŠ¬ë¡¯ ë²ˆí˜¸ê°€ 0~2 ë²”ìœ„ë¥¼ ë²—ì–´ë‚˜ë©´ ì‹¤íŒ¨
 	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
 
 		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Invalid quick slot index"));
 		return false;
 	}
 
-	// ½ÇÁ¦ ÀÎº¥Åä¸®¿¡ ¾ø´Â ¾ÆÀÌÅÛÀÌ¸é µî·Ï ºÒ°¡
+	//ItemIDê°€ Noneì´ë©´ í€µìŠ¬ë¡¯ í•´ì œ
+	if (ItemID.IsNone())
+	{
+		QuickSlots[QuickSlotIndex] = NAME_None;
+		// í€µìŠ¬ë¡¯ì´ ë¹„ì›Œì¡Œë‹¤ê³  UIì— ì•Œë¦¼
+		OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+
+		UE_LOG(LogTemp, Log, TEXT("QuickSlot %d cleared"), QuickSlotIndex + 1);
+
+		return true;
+	}
+
+	// ì‹¤ì œ ì¸ë²¤í† ë¦¬ì— ì—†ëŠ” ì•„ì´í…œì´ë©´ ë“±ë¡ ë¶ˆê°€
 	if (!HasItem(ItemID)){
 
 		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Item not found. ItemID = %s"), *ItemID.ToString());
@@ -1152,7 +1164,7 @@ bool UInventoryComponent::SetQuickSlot(int32 QuickSlotIndex, FName ItemID){
 		return false;
 	}
 
-	// ÀÎº¥Åä¸®¿¡¼­ ÇØ´ç ¾ÆÀÌÅÛÀÇ Á¤º¸¸¦ Ã£À½
+	// ì¸ë²¤í† ë¦¬ì—ì„œ í•´ë‹¹ ì•„ì´í…œì˜ ì •ë³´ë¥¼ ì°¾ìŒ
 	const FInventorySlot* FoundSlot = nullptr;
 
 	for (const FInventorySlot& Slot : InventorySlots){
@@ -1169,7 +1181,7 @@ bool UInventoryComponent::SetQuickSlot(int32 QuickSlotIndex, FName ItemID){
 		return false;
 	}
 
-	// ¹«±â ¶Ç´Â ¼Òºñ ¾ÆÀÌÅÛ¸¸ Äü½½·Ô µî·Ï °¡´É
+	// ë¬´ê¸° ë˜ëŠ” ì†Œë¹„ ì•„ì´í…œë§Œ í€µìŠ¬ë¡¯ ë“±ë¡ ê°€ëŠ¥
 	if (FoundSlot->ItemData.ItemType != EItemType::Weapon && FoundSlot->ItemData.ItemType != EItemType::Consumable){
 
 		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Item cannot be registered. ItemID = %s"), *ItemID.ToString());
@@ -1177,10 +1189,15 @@ bool UInventoryComponent::SetQuickSlot(int32 QuickSlotIndex, FName ItemID){
 		return false;
 	}
 
-	// Äü½½·Ô¿¡ ItemID ÀúÀå
+	// í€µìŠ¬ë¡¯ì— ItemID ì €ì¥
 	QuickSlots[QuickSlotIndex] = ItemID;
 
-	// Äü½½·ÔÀÌ º¯°æµÇ¾ú´Ù°í UI¿¡ ¾Ë¸²
+	UE_LOG(LogTemp, Warning,
+		TEXT("BROADCAST QuickSlotIndex = %d, ItemID = %s"),
+		QuickSlotIndex,
+		*ItemID.ToString());
+
+	// í€µìŠ¬ë¡¯ì´ ë³€ê²½ë˜ì—ˆë‹¤ê³  UIì— ì•Œë¦¼
 	OnQuickSlotChanged.Broadcast(QuickSlotIndex, ItemID);
 
 	UE_LOG(LogTemp, Log,
@@ -1191,23 +1208,23 @@ bool UInventoryComponent::SetQuickSlot(int32 QuickSlotIndex, FName ItemID){
 	return true;
 }
 
-// ÁöÁ¤ÇÑ Äü½½·Ô¿¡ µî·ÏµÈ ¾ÆÀÌÅÛ ID ¹İÈ¯
+// ì§€ì •í•œ í€µìŠ¬ë¡¯ì— ë“±ë¡ëœ ì•„ì´í…œ ID ë°˜í™˜
 FName UInventoryComponent::GetQuickSlotItem(int32 QuickSlotIndex) const{
 
-	// Àß¸øµÈ Äü½½·Ô ¹øÈ£¸é None ¹İÈ¯
+	// ì˜ëª»ëœ í€µìŠ¬ë¡¯ ë²ˆí˜¸ë©´ None ë°˜í™˜
 	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
 
 		return NAME_None;
 	}
 
-	// ÇØ´ç Äü½½·Ô¿¡ ÀúÀåµÈ ¾ÆÀÌÅÛ ID ¹İÈ¯
+	// í•´ë‹¹ í€µìŠ¬ë¡¯ì— ì €ì¥ëœ ì•„ì´í…œ ID ë°˜í™˜
 	return QuickSlots[QuickSlotIndex];
 }
 
-// ÁöÁ¤ÇÑ Äü½½·Ô¿¡ µî·ÏµÈ ¾ÆÀÌÅÛ »ç¿ë
+// ì§€ì •í•œ í€µìŠ¬ë¡¯ì— ë“±ë¡ëœ ì•„ì´í…œ ì‚¬ìš©
 bool UInventoryComponent::UseQuickSlot(int32 QuickSlotIndex){
 
-	// Àß¸øµÈ Äü½½·Ô ¹øÈ£ÀÎÁö È®ÀÎ
+	// ì˜ëª»ëœ í€µìŠ¬ë¡¯ ë²ˆí˜¸ì¸ì§€ í™•ì¸
 	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
 
 		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: Invalid quick slot index"));
@@ -1215,10 +1232,10 @@ bool UInventoryComponent::UseQuickSlot(int32 QuickSlotIndex){
 		return false;
 	}
 
-	// Äü½½·Ô¿¡ µî·ÏµÈ ¾ÆÀÌÅÛ ID °¡Á®¿À±â
+	// í€µìŠ¬ë¡¯ì— ë“±ë¡ëœ ì•„ì´í…œ ID ê°€ì ¸ì˜¤ê¸°
 	const FName ItemID = QuickSlots[QuickSlotIndex];
 
-	// Äü½½·ÔÀÌ ºñ¾îÀÖÀ¸¸é »ç¿ë ºÒ°¡
+	// í€µìŠ¬ë¡¯ì´ ë¹„ì–´ìˆìœ¼ë©´ ì‚¬ìš© ë¶ˆê°€
 	if (ItemID.IsNone()){
 
 		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: QuickSlot %d is empty"), QuickSlotIndex + 1);
@@ -1226,51 +1243,51 @@ bool UInventoryComponent::UseQuickSlot(int32 QuickSlotIndex){
 		return false;
 	}
 
-	// µî·ÏµÈ ¾ÆÀÌÅÛÀ» ÇöÀç °¡Áö°í ÀÖ´ÂÁö È®ÀÎ
+	// ë“±ë¡ëœ ì•„ì´í…œì„ í˜„ì¬ ê°€ì§€ê³  ìˆëŠ”ì§€ í™•ì¸
 	if (!HasItem(ItemID)){
 
 		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: Item not found. ItemID = %s"), *ItemID.ToString());
 
-		// ´õ ÀÌ»ó °¡Áö°í ÀÖÁö ¾ÊÀ¸¸é Äü½½·Ôµµ ºñ¿öÁÜ
+		// ë” ì´ìƒ ê°€ì§€ê³  ìˆì§€ ì•Šìœ¼ë©´ í€µìŠ¬ë¡¯ë„ ë¹„ì›Œì¤Œ
 		QuickSlots[QuickSlotIndex] = NAME_None;
 
-		// ÀÚµ¿À¸·Î ºñ¿öÁ³´Ù°í UI¿¡ ¾Ë¸²
+		// ìë™ìœ¼ë¡œ ë¹„ì›Œì¡Œë‹¤ê³  UIì— ì•Œë¦¼
 		OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
 
 		return false;
 	}
 
-	// ÀÎº¥Åä¸®¿¡¼­ ¾ÆÀÌÅÛ Á¤º¸ Ã£±â
+	// ì¸ë²¤í† ë¦¬ì—ì„œ ì•„ì´í…œ ì •ë³´ ì°¾ê¸°
 	for (const FInventorySlot& Slot : InventorySlots){
 
 		if (!Slot.bIsEmpty && Slot.ItemData.ItemID == ItemID){
 
-			// ¼Òºñ ¾ÆÀÌÅÛÀÌ¸é ±âÁ¸ UseItem »ç¿ë
+			// ì†Œë¹„ ì•„ì´í…œì´ë©´ ê¸°ì¡´ UseItem ì‚¬ìš©
 			if (Slot.ItemData.ItemType == EItemType::Consumable){
 
-				// ±âÁ¸ ¾ÆÀÌÅÛ »ç¿ë ÇÔ¼ö È£Ãâ
+				// ê¸°ì¡´ ì•„ì´í…œ ì‚¬ìš© í•¨ìˆ˜ í˜¸ì¶œ
 				const bool bUsed = UseItem(ItemID);
 
-				// ¾ÆÀÌÅÛ »ç¿ë¿¡ ½ÇÆĞÇß´Ù¸é Á¾·á
+				// ì•„ì´í…œ ì‚¬ìš©ì— ì‹¤íŒ¨í–ˆë‹¤ë©´ ì¢…ë£Œ
 				if (!bUsed){
 
 					return false;
 				}
 
-				// »ç¿ë ÈÄ ÇØ´ç ¾ÆÀÌÅÛÀ» ´õ ÀÌ»ó °¡Áö°í ÀÖÁö ¾ÊÀ¸¸é
-				// Äü½½·Ô¿¡¼­µµ ÀÚµ¿À¸·Î Á¦°Å
+				// ì‚¬ìš© í›„ í•´ë‹¹ ì•„ì´í…œì„ ë” ì´ìƒ ê°€ì§€ê³  ìˆì§€ ì•Šìœ¼ë©´
+				// í€µìŠ¬ë¡¯ì—ì„œë„ ìë™ìœ¼ë¡œ ì œê±°
 				if (!HasItem(ItemID)){
 
 					QuickSlots[QuickSlotIndex] = NAME_None;
 
-					// Äü½½·ÔÀÌ ºñ¿öÁ³´Ù°í UI¿¡ ¾Ë¸²
+					// í€µìŠ¬ë¡¯ì´ ë¹„ì›Œì¡Œë‹¤ê³  UIì— ì•Œë¦¼
 					OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
 				}
 
 				return true;
 			}
 
-			// ¹«±â¸é ±âÁ¸ EquipWeapon »ç¿ë
+			// ë¬´ê¸°ë©´ ê¸°ì¡´ EquipWeapon ì‚¬ìš©
 			if (Slot.ItemData.ItemType == EItemType::Weapon){
 
 				return EquipWeapon(ItemID);
@@ -1283,10 +1300,10 @@ bool UInventoryComponent::UseQuickSlot(int32 QuickSlotIndex){
 	return false;
 }
 
-// ÁöÁ¤ÇÑ Äü½½·ÔÀÇ µî·Ï ¾ÆÀÌÅÛ ÇØÁ¦
+// ì§€ì •í•œ í€µìŠ¬ë¡¯ì˜ ë“±ë¡ ì•„ì´í…œ í•´ì œ
 bool UInventoryComponent::ClearQuickSlot(int32 QuickSlotIndex){
 
-	// Àß¸øµÈ Äü½½·Ô ¹øÈ£ÀÎÁö È®ÀÎ
+	// ì˜ëª»ëœ í€µìŠ¬ë¡¯ ë²ˆí˜¸ì¸ì§€ í™•ì¸
 	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
 
 		UE_LOG(LogTemp, Warning, TEXT("ClearQuickSlot failed: Invalid quick slot index"));
@@ -1294,16 +1311,16 @@ bool UInventoryComponent::ClearQuickSlot(int32 QuickSlotIndex){
 		return false;
 	}
 
-	// ÀÌ¹Ì ºñ¾îÀÖ´Â Äü½½·ÔÀÌ¸é ÇØÁ¦ÇÒ ÇÊ¿ä ¾øÀ½
+	// ì´ë¯¸ ë¹„ì–´ìˆëŠ” í€µìŠ¬ë¡¯ì´ë©´ í•´ì œí•  í•„ìš” ì—†ìŒ
 	if (QuickSlots[QuickSlotIndex].IsNone()){
 
 		return false;
 	}
 
-	// Äü½½·Ô ºñ¿ì±â
+	// í€µìŠ¬ë¡¯ ë¹„ìš°ê¸°
 	QuickSlots[QuickSlotIndex] = NAME_None;
 
-	// Äü½½·ÔÀÌ ºñ¿öÁ³´Ù°í UI¿¡ ¾Ë¸²
+	// í€µìŠ¬ë¡¯ì´ ë¹„ì›Œì¡Œë‹¤ê³  UIì— ì•Œë¦¼
 	OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
 
 	UE_LOG(LogTemp, Log, TEXT("QuickSlot %d cleared"), QuickSlotIndex + 1);
