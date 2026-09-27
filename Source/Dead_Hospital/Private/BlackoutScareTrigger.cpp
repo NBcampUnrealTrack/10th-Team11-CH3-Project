@@ -14,7 +14,6 @@ ABlackoutScareTrigger::ABlackoutScareTrigger()
     TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
     RootComponent = TriggerBox;
     TriggerBox->SetCollisionProfileName(TEXT("Trigger"));
-    TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ABlackoutScareTrigger::OnOverlapBegin);
 
     FarPoint = CreateDefaultSubobject<USceneComponent>(TEXT("FarPoint"));
     FarPoint->SetupAttachment(RootComponent);
@@ -25,50 +24,42 @@ ABlackoutScareTrigger::ABlackoutScareTrigger()
     ClosePoint = CreateDefaultSubobject<USceneComponent>(TEXT("ClosePoint"));
     ClosePoint->SetupAttachment(RootComponent);
 
-    FinalPoint = CreateDefaultSubobject<USceneComponent>(TEXT("FinalPoint"));
-    FinalPoint->SetupAttachment(RootComponent);
-
     TensionAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("TensionAudioComp"));
     TensionAudioComp->SetupAttachment(RootComponent);
     TensionAudioComp->bAutoActivate = false; // 트리거 밟기 전에는 소리 끄기
 }
 
-void ABlackoutScareTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void ABlackoutScareTrigger::StartScare(ACharacter* Player)
 {
-    APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
-    if (Player != nullptr && GhostClass != nullptr)
+    if (Player == nullptr || GhostClass == nullptr) return;
+
+    // 중복 실행 방지
+    TriggerBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    TargetPlayer = Player;
+
+    APlayerController* PC = Cast<APlayerController>(Player->GetController());
+    if (PC)
     {
-
-        // 중복 실행 방지를 위해 콜리전 끄기
-        TriggerBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-        // 플레이어의 이동 입력을 막음 (시야는 회전 가능)
-        APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-        if (PC)
-        {
-            PC->SetIgnoreMoveInput(true);
-        }
-
-        // 귀신을 미리 한 번만 소환해 두고 투명하게 숨김
-        FActorSpawnParameters SpawnParams;
-        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-        SpawnedGhost = GetWorld()->SpawnActor<AZombieCharacter>(GhostClass, FarPoint->GetComponentLocation(), FarPoint->GetComponentRotation(), SpawnParams);
-
-        if (SpawnedGhost)
-        {
-            SpawnedGhost->SetActorHiddenInGame(true); // 안 보이게 숨김
-            //SpawnedGhost->SetActorEnableCollision(false); // 충돌체 끄기
-        }
-
-        if (TensionAudioComp && !TensionAudioComp->IsPlaying())
-        {
-            TensionAudioComp->Play();
-        }
-
-        // 연출 상태 머신 시작
-        CurrentStage = 0;
-        AdvanceScareSequence();
+        PC->SetIgnoreMoveInput(true);
+        PC->SetIgnoreLookInput(true);
     }
+
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    SpawnedGhost = GetWorld()->SpawnActor<AZombieCharacter>(GhostClass, FarPoint->GetComponentLocation(), FarPoint->GetComponentRotation(), SpawnParams);
+
+    if (SpawnedGhost)
+    {
+        SpawnedGhost->SetActorHiddenInGame(true);
+    }
+
+    if (TensionAudioComp && !TensionAudioComp->IsPlaying())
+    {
+        TensionAudioComp->Play();
+    }
+
+    CurrentStage = 0;
+    AdvanceScareSequence();
 }
 
 void ABlackoutScareTrigger::AdvanceScareSequence()
@@ -93,6 +84,8 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
         }
         NextDelay = LightOnDuration;
         break;
+
+
 
     case 2:
         // [불 꺼짐]
@@ -146,34 +139,39 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
         break;
 
     case 7:
-        // [불 켜짐] 상황 종료, 트리거 자체 파괴
-        OnToggleLights(true);
-
-        // 플레이어 이동 다시 활성화
-        if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+        // [옵션 처리] JS06에서는 불을 켜지 않음
+        if (!bKeepLightsOffAtEnd)
         {
-            PC->SetIgnoreMoveInput(false);
+            OnToggleLights(true);
         }
 
-        // [최종 등장] 원하는 위치(FinalPoint)에 귀신 배치 및 애니메이션 재생
-        if (SpawnedGhost)
+        // [옵션 처리] JS06에서는 텔레포트가 끝날 때까지 입력을 복구하지 않음
+        if (bRestoreInputWhenScareEnds)
         {
-            SpawnedGhost->SetActorLocationAndRotation(FinalPoint->GetComponentLocation(), FinalPoint->GetComponentRotation());
-            SpawnedGhost->SetActorHiddenInGame(false);
-
-            if (PointingAnimMontage)
+            if (APlayerController* PC = Cast<APlayerController>(TargetPlayer->GetController()))
             {
-                SpawnedGhost->PlayAnimMontage(PointingAnimMontage);
+                PC->SetIgnoreMoveInput(false);
+                PC->SetIgnoreLookInput(false);
             }
         }
 
-        // 연출을 담당하던 트리거 액터만 파괴 (귀신은 맵에 계속 남음)
-        Destroy();
-        return; // 타이머 종료
+        // Actor를 파괴하기 전에 텔레포트를 실행하도록 블루프린트에 신호 발송
+        OnScareFinished.Broadcast(TargetPlayer);
+
+        return;
     }
 
     CurrentStage++;
 
     // 계산된 지연 시간 후에 다음 단계를 자동으로 실행
     GetWorld()->GetTimerManager().SetTimer(SequenceTimerHandle, this, &ABlackoutScareTrigger::AdvanceScareSequence, NextDelay, false);
+}
+
+void ABlackoutScareTrigger::ResetLightsAndDestroy()
+{
+    // 블루프린트에 만들어둔 조명 켜기 이벤트를 다시 호출
+    OnToggleLights(true);
+
+    // 조명을 켠 후 안전하게 스스로 파괴
+    Destroy();
 }

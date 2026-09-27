@@ -6,6 +6,10 @@
 
 class UBoxComponent;
 class AZombieCharacter;
+class ACharacter;
+
+// 블루프린트로 연출 종료를 알릴 이벤트 디스패처 선언
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBlackoutScareFinished, ACharacter*, Player);
 
 UCLASS()
 class DEAD_HOSPITAL_API ABlackoutScareTrigger : public AActor
@@ -14,6 +18,26 @@ class DEAD_HOSPITAL_API ABlackoutScareTrigger : public AActor
 	
 public:
     ABlackoutScareTrigger();
+
+    // 외부(문)에서 겹침 없이 수동으로 연출을 시작할 때 호출
+    UFUNCTION(BlueprintCallable, Category = "JumpScare|Event")
+    void StartScare(ACharacter* Player);
+
+    // 텔레포트 완료 후 조명을 켜고 액터를 파괴하기 위한 새 함수
+    UFUNCTION(BlueprintCallable, Category = "JumpScare|Event")
+    void ResetLightsAndDestroy();
+
+    // 연출 마지막에 조명을 꺼진 상태로 둘지 여부 (JS06은 true)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Setting")
+    bool bKeepLightsOffAtEnd = false;
+
+    // 연출 마지막에 이동 입력을 즉시 복구할지 여부 (JS06은 false)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Setting")
+    bool bRestoreInputWhenScareEnds = true;
+
+    // 연출 종료 시 호출되는 이벤트 디스패처
+    UPROPERTY(BlueprintAssignable, Category = "JumpScare|Event")
+    FOnBlackoutScareFinished OnScareFinished;
 
 protected:
     // 플레이어가 밟을 트리거
@@ -42,12 +66,6 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Setting")
     float LightOffDuration = 0.2f;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Component")
-    USceneComponent* FinalPoint;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Animation")
-    class UAnimMontage* PointingAnimMontage;
-
     // 블루프린트에서 조명 끄고 켜기를 구현할 이벤트
     UFUNCTION(BlueprintImplementableEvent, Category = "JumpScare|Event")
     void OnToggleLights(bool bTurnOn);
@@ -63,13 +81,15 @@ protected:
     class UAudioComponent* TensionAudioComp;
 
 private:
-    UFUNCTION()
-    void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-
     // 연출 단계를 진행하는 핵심 함수
     void AdvanceScareSequence();
 
     FTimerHandle SequenceTimerHandle;
     int32 CurrentStage = 0;
     AZombieCharacter* SpawnedGhost = nullptr;
+
+    // 연출을 당하는 플레이어를 기억해두기 위한 변수
+    UPROPERTY()
+    ACharacter* TargetPlayer = nullptr;
+
 };
