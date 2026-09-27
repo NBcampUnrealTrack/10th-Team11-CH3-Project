@@ -77,6 +77,14 @@ protected:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Audio")
     class USoundBase* JumpScareSound;
 
+    // 블루프린트에서 볼륨을 쉽게 조절하기 위한 변수 (기본값 0.5로 낮춤)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "JumpScare|Audio")
+    float JumpScareVolumeMultiplier = 0.5f;
+
+    // 재생 중인 점프스케어 사운드를 추적하여 멈추기 위한 참조 변수
+    UPROPERTY()
+    class UAudioComponent* SpawnedJumpScareAudio = nullptr;
+
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "JumpScare|Audio")
     class UAudioComponent* TensionAudioComp;
 

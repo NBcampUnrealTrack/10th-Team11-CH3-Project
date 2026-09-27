@@ -170,7 +170,7 @@ void UCombatComponent::PrimaryAttack()
     // 총기 사운드 및 애니메이션 재생
     if (FireSound)
     {
-        UGameplayStatics::PlaySoundAtLocation(this, FireSound, EyeLocation);
+        UGameplayStatics::PlaySoundAtLocation(this, FireSound, EyeLocation, FireSoundVolume);
     }
 
     // 총소리 -> 좀비 청각 감지 (발소리보다 훨씬 크게: Loudness 최대치)

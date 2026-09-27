@@ -122,7 +122,15 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
 
             if (JumpScareSound)
             {
-                UGameplayStatics::PlaySoundAtLocation(this, JumpScareSound, ClosePoint->GetComponentLocation());
+                // PlaySoundAtLocation 대신 SpawnSoundAtLocation 사용
+                // 볼륨 조절(JumpScareVolumeMultiplier)을 적용하고, 참조를 SpawnedJumpScareAudio에 저장합니다.
+                SpawnedJumpScareAudio = UGameplayStatics::SpawnSoundAtLocation(
+                    this,
+                    JumpScareSound,
+                    ClosePoint->GetComponentLocation(),
+                    FRotator::ZeroRotator,
+                    JumpScareVolumeMultiplier
+                );
             }
         }
         NextDelay = LightOnDuration;
@@ -139,13 +147,12 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
         break;
 
     case 7:
-        // [옵션 처리] JS06에서는 불을 켜지 않음
+        // [불 꺼짐/켜짐 및 입력 복구 옵션 처리 - 기존 코드와 동일]
         if (!bKeepLightsOffAtEnd)
         {
             OnToggleLights(true);
         }
 
-        // [옵션 처리] JS06에서는 텔레포트가 끝날 때까지 입력을 복구하지 않음
         if (bRestoreInputWhenScareEnds)
         {
             if (APlayerController* PC = Cast<APlayerController>(TargetPlayer->GetController()))
@@ -153,6 +160,17 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
                 PC->SetIgnoreMoveInput(false);
                 PC->SetIgnoreLookInput(false);
             }
+        }
+
+        // 연출이 끝날 때 점프스케어 사운드 강제 종료
+        if (SpawnedJumpScareAudio && SpawnedJumpScareAudio->IsPlaying())
+        {
+            SpawnedJumpScareAudio->Stop();
+        }
+
+        if (TensionAudioComp && TensionAudioComp->IsPlaying())
+        {
+            TensionAudioComp->Stop();
         }
 
         // Actor를 파괴하기 전에 텔레포트를 실행하도록 블루프린트에 신호 발송
