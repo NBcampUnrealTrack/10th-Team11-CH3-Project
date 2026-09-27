@@ -42,6 +42,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|AI")
 	bool bAggroOnSpawn;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|AI")
+	bool bSearchOnSpawn;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Zombie|AI")
+	bool bStationarySearch;//true면 Search 진입 시마다 LastKnownLocation을 항상 자기 위치로 고정(제자리 수색형)
+
+	bool bIsGuardingAtPost = false;
+
 	int32 SearchTurnCount = 0;
 	UPROPERTY(EditAnywhere, Category = "Zombie|Search")
 	int32 MaxSearchTurnCount = 3;
@@ -67,6 +75,8 @@ protected:
 	//메시 기본 상대 회전/위치 (BeginPlay 시점 캐싱, 흐트러졌을 때 복원 기준값)
 	FRotator DefaultMeshRelativeRotation;
 	FVector DefaultMeshRelativeLocation;
+
+	FVector SpawnLocation;
 
 	//P2P 왕복 순찰 지점들. EditInstanceOnly라서 같은 Bp를 여러 곳에 배치해도
 	//인스턴스마다 다른 순찰 경로를 지정할 수 있음
@@ -158,6 +168,7 @@ public:
 	FORCEINLINE FString GetZombieName() const { return ZombieName; }
 	FORCEINLINE FRotator GetDefaultMeshRelativeRotation() const { return DefaultMeshRelativeRotation; }
 	FORCEINLINE FVector GetDefaultMeshRelativeLocation() const { return DefaultMeshRelativeLocation; }
+	FORCEINLINE FVector GetSpawnLocation() const { return SpawnLocation; }
 
 	//체력 직접 세팅
 	void SetHealth(float NewHealth);
@@ -187,6 +198,7 @@ public:
 	void PlaySearchTurnMontage();
 	void ToggleSearchTurnDirection();//Search 반전 방향 토글(현재 실제 반전 재생은 보류)
 	void AggroOnSpawn();//스폰 즉시 어그로
+	void SearchOnSpawn();//스폰 즉시 제자리에서 Search 시작(이동없음)
 
 	//SearchTurn 몽타주 재생 중여부
 	UFUNCTION(BlueprintCallable, Category = "Zombie|Search")
