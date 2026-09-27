@@ -85,6 +85,8 @@ void ABlackoutScareTrigger::AdvanceScareSequence()
         NextDelay = LightOnDuration;
         break;
 
+
+
     case 2:
         // [불 꺼짐]
         OnToggleLights(false);

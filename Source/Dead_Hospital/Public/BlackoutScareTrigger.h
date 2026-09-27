@@ -91,4 +91,5 @@ private:
     // 연출을 당하는 플레이어를 기억해두기 위한 변수
     UPROPERTY()
     ACharacter* TargetPlayer = nullptr;
+
 };
