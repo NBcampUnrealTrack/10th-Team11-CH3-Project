@@ -51,47 +51,54 @@ void ADeadHospitalCardReader::BeginPlay()
 	}
 }
 
-void ADeadHospitalCardReader::Interact_Implementation(
-	AActor* Interactor)
+void ADeadHospitalCardReader::Interact_Implementation(AActor* Interactor)
 {
 	if (!CanInteract_Implementation(Interactor))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("PZ07 DEBUG: CanInteract FAILED"));
 		return;
 	}
 
-	// Player의 Inventory 찾기
 	UInventoryComponent* Inventory =
 		Interactor->FindComponentByClass<UInventoryComponent>();
 
 	if (!IsValid(Inventory))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("PZ07 DEBUG: Inventory FAILED"));
 		OnCardRejected();
 		return;
 	}
 
-	// 필요한 카드가 있는지 검사
 	if (!Inventory->HasItem(RequiredKeyItemId))
 	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("PZ07 DEBUG: Key FAILED - RequiredKeyItemId = %s"),
+			*RequiredKeyItemId.ToString());
+
 		OnCardRejected();
 		return;
 	}
 
-	// 연결된 문이 없으면 실패
 	if (!IsValid(ConnectedDoor))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("PZ07 DEBUG: ConnectedDoor FAILED"));
 		OnCardRejected();
 		return;
 	}
 
-	// 카드리더가 확인한 Key ID를 Door에 전달
-	if (!ConnectedDoor->UnlockAndOpenFromKeyReader(
-		RequiredKeyItemId))
+	UE_LOG(LogTemp, Warning,
+		TEXT("PZ07 DEBUG: Calling Door - Key = %s, Door = %s"),
+		*RequiredKeyItemId.ToString(),
+		*ConnectedDoor->GetName());
+
+	if (!ConnectedDoor->UnlockAndOpenFromKeyReader(RequiredKeyItemId))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("PZ07 DEBUG: Door REJECTED"));
 		OnCardRejected();
 		return;
 	}
 
-	// 성공
+	UE_LOG(LogTemp, Warning, TEXT("PZ07 DEBUG: SUCCESS"));
 	OnCardAccepted();
 }
 

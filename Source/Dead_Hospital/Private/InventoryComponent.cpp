@@ -542,7 +542,7 @@ bool UInventoryComponent::UseItem(FName ItemID){
 	}
 
 	// 사망, 은신, 은신 전환 중에는 아이템 사용 불가
-	if (!Player->CanPerformAction()){
+	if (!Player->CanUseItem()){
 
 		UE_LOG(LogTemp, Warning, TEXT("Cannot use item: Player cannot perform action"));
 
