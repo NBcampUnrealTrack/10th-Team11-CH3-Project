@@ -114,12 +114,10 @@ void APlayerCharacter::Tick(float DeltaTime)
 	if (!bIsDead)
 	{
 		UpdateStamina(DeltaTime);
-		UpdateMovementNoise(DeltaTime);
 	}
 
 	UpdateInteractionPrompt();
 }
-
 
 void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -523,7 +521,15 @@ float APlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damag
 
 	if (CurrentHP <= 0.0f)
 	{
-		Die();
+		Die(); // 체력이 0 이하면 사망 처리 함수 호출
+	}
+	else
+	{
+		// 체력이 남아있을 때(생존 시)만 피격 신음소리 재생
+		if (PainSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, PainSound, GetActorLocation());
+		}
 	}
 
 	return ActualDamage;
@@ -544,6 +550,12 @@ void APlayerCharacter::Die()
 	bIsDead = true;
 
 	UE_LOG(LogTemp, Warning, TEXT("PlayerCharacter::Die() called"));
+
+	// 사망 신음소리 재생
+	if (DeathSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, DeathSound, GetActorLocation());
+	}
 
 	// 이동/입력 정지
 	if (GetCharacterMovement())
@@ -1259,4 +1271,39 @@ void APlayerCharacter::EquipWeapon(int32 WeaponIndex)
 
 	USkeletalMesh* NewMesh = (WeaponIndex == 0) ? Weapon1Mesh : Weapon2Mesh;
 	WeaponMesh->SetSkeletalMesh(NewMesh);
+}
+
+void APlayerCharacter::PlayFootstepSound()
+{
+	// 사망, 은신, 앉은 상태이거나 공중에 떠있으면 발소리를 내지 않음
+	if (bIsDead || bIsHiding || bIsSitting || !GetCharacterMovement() || !GetCharacterMovement()->IsMovingOnGround())
+	{
+		return;
+	}
+
+	// 실제 이동 속도가 거의 없으면 제자리걸음이므로 소리 생략
+	if (GetVelocity().Size2D() < 10.0f)
+	{
+		return;
+	}
+
+	// 뛰기/걷기 상태에 따라 소리 크기와 에셋 결정
+	const float Loudness = bIsSprinting ? SprintNoiseLoudness : WalkNoiseLoudness;
+	USoundBase* FootstepSound = bIsSprinting ? SprintFootstepSound : WalkFootstepSound;
+
+	// 1. 발소리 재생
+	if (FootstepSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FootstepSound, GetActorLocation(), FootstepVolume);
+	}
+
+	// 2. 좀비 AI에게 청각 감지용 소음 이벤트 전달
+	UAISense_Hearing::ReportNoiseEvent(
+		GetWorld(),
+		GetActorLocation(),
+		Loudness,
+		this,
+		0.0f,
+		NAME_None
+	);
 }

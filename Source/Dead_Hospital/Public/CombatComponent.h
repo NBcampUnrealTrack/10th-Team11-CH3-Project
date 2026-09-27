@@ -141,6 +141,10 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
     class USoundBase* FireSound; // 사격 소리
 
+    // 총소리 볼륨 조절용 변수 (기본값은 절반인 0.5로 설정)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
+    float FireSoundVolume = 0.5f;
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|Effects")
     class USoundBase* EmptySound; // 빈 총 찰칵 소리
 
