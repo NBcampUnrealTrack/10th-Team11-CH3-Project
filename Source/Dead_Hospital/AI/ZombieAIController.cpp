@@ -359,6 +359,11 @@ void AZombieAIController::SetZombieState(EZombieState NewState)
 
 	BlackboardComp->SetValueAsEnum(BBKey_State, static_cast<uint8>(NewState));
 	Zombie->SetCurrentState(NewState);
+
+	if (NewState == EZombieState::MoveToLastKnown && Zombie->bStationarySearch && Zombie->bIsGuardingAtPost)
+	{
+		BlackboardComp->SetValueAsVector(BBKey_LastKnownLocation, Zombie->GetSpawnLocation());
+	}
 }
 
 

@@ -56,6 +56,8 @@ AZombieCharacter::AZombieCharacter()
 
 	//스폰되자마자 즉시 어그로(Chase 진입)를 걸지 여부
 	bAggroOnSpawn = false;
+	bSearchOnSpawn = false;
+	bStationarySearch = false;
 	//P2P 순찰 로직에서 "지금 몇 번째 순찰 지점을 향하고 있는지"를 가리키는 인덱스
 	CurrentPatrolIndex = 0;
 	//Search(두리번거림) 상태에 진입한 시점의 기준 Yaw 값.
@@ -97,12 +99,14 @@ void AZombieCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	SpawnLocation = GetActorLocation();
+
 	//좀비 실제 이동속도를 PatrolSpeed로 변경해준다.
 	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 	//좀비가 이동방향으로 몸을 돌릴때 회전을 부드럽게 해주기 위해 사용
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 180.0f, 0.0f);
 	GetCharacterMovement()->MaxAcceleration = 20000;
-	
+
 	//메시(스켈레탈 메시)의 "기본 상대 회전/위치"를 지금 시점 값으로 저장
 	//나중에 Root Motion 등으로 메시 위치/회전이 흐트러졌을 때 "원래 자리로 되돌리는"
 	//기준값으로 쓰기 위한 캐싱. BeginPlay에서 저장해야 실제 에디터에서 세팅한
@@ -121,6 +125,10 @@ void AZombieCharacter::BeginPlay()
 	else if (bAggroOnSpawn)
 	{
 		AggroOnSpawn();
+	}
+	else if (bSearchOnSpawn)
+	{
+		SearchOnSpawn();
 	}
 }
 
@@ -562,6 +570,11 @@ void AZombieCharacter::SetCurrentState(EZombieState NewState)
 		SearchTurnCount = 0;
 	}
 
+	if (NewState == EZombieState::Chase)
+	{
+		bIsGuardingAtPost = false;
+	}
+
 	//Search에서 다른 상태로 벗어나면 타이머/몽타주 정리(방치 시 잘못 재생될 수 있음)
 	if (OldState == EZombieState::Search && NewState != EZombieState::Search)
 	{
@@ -696,9 +709,25 @@ void AZombieCharacter::OnSearchTurnMontageEnded(UAnimMontage* Montage, bool bInt
 
 		if (SearchTurnCount >= MaxSearchTurnCount)
 		{
+			if (bStationarySearch && bIsGuardingAtPost)
+			{
+				SearchTurnCount = 0;
+				PlaySearchTurnMontage();
+				return;
+			}
+
 			if (AZombieAIController* AIController = Cast<AZombieAIController>(GetController()))
 			{
-				AIController->SetZombieState(EZombieState::Patrol);
+				if (bStationarySearch)
+				{
+					//진짜 마지막 목격 위치까지 다 뒤졌는데 못 찾음 - 이제 포기하고 원래 자리로 복귀 시작
+					bIsGuardingAtPost = true;
+					AIController->SetZombieState(EZombieState::MoveToLastKnown);
+				}
+				else
+				{
+					AIController->SetZombieState(EZombieState::Patrol);
+				}
 			}
 			return;
 		}
@@ -786,6 +815,20 @@ void AZombieCharacter::AggroOnSpawn()
 	ZombieController->SetZombieState(EZombieState::Chase);
 
 	RefreshAttackRange();
+}
+
+void AZombieCharacter::SearchOnSpawn()
+{
+	AZombieAIController* ZombieController = Cast<AZombieAIController>(GetController());
+	UBlackboardComponent* BlackboardComp = ZombieController ? ZombieController->GetBlackboardComponent() : nullptr;
+
+	if (!BlackboardComp)
+	{
+		return;
+	}
+
+	BlackboardComp->SetValueAsVector(AZombieAIController::BBKey_LastKnownLocation, SpawnLocation);
+	ZombieController->StartSearchTurn();
 }
 
 //SearchTurn 몽타주 재생 중인지 조회
