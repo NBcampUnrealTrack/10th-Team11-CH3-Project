@@ -14,6 +14,7 @@ ABlackoutScareTrigger::ABlackoutScareTrigger()
     TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
     RootComponent = TriggerBox;
     TriggerBox->SetCollisionProfileName(TEXT("Trigger"));
+    TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ABlackoutScareTrigger::OnOverlapBegin);
 
     FarPoint = CreateDefaultSubobject<USceneComponent>(TEXT("FarPoint"));
     FarPoint->SetupAttachment(RootComponent);
@@ -27,6 +28,16 @@ ABlackoutScareTrigger::ABlackoutScareTrigger()
     TensionAudioComp = CreateDefaultSubobject<UAudioComponent>(TEXT("TensionAudioComp"));
     TensionAudioComp->SetupAttachment(RootComponent);
     TensionAudioComp->bAutoActivate = false; // 트리거 밟기 전에는 소리 끄기
+}
+
+void ABlackoutScareTrigger::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+    APlayerCharacter* Player = Cast<APlayerCharacter>(OtherActor);
+    if (Player != nullptr)
+    {
+        // 기존 겹침 이벤트도 StartScare 함수를 재사용합니다.
+        StartScare(Player);
+    }
 }
 
 void ABlackoutScareTrigger::StartScare(ACharacter* Player)

@@ -40,6 +40,10 @@ class DEAD_HOSPITAL_API ADeadHospitalTeleportTrigger : public AActor
 public:
 	ADeadHospitalTeleportTrigger();
 
+	/** BP에서 Overlap 없이 수동으로 텔레포트를 시작할 때 호출합니다. (JS06 연출용) */
+	UFUNCTION(BlueprintCallable, Category = "Teleport")
+	void StartTeleportForPlayer(APawn* PlayerPawn);
+
 	/** 진행 연출이 끝나 Teleport를 사용할 수 있게 만들 때 호출합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Teleport")
 	void ActivateTeleporter();

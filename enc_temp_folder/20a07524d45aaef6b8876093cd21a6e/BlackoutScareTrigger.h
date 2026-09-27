@@ -81,6 +81,9 @@ protected:
     class UAudioComponent* TensionAudioComp;
 
 private:
+    UFUNCTION()
+    void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
     // 연출 단계를 진행하는 핵심 함수
     void AdvanceScareSequence();
 

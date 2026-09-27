@@ -112,8 +112,6 @@ void ADeadHospitalTeleportTrigger::HandleTriggerBeginOverlap(
 	bool FromSweep,
 	const FHitResult& SweepResult)
 {
-	// Overlap 이벤트는 다른 Actor가 Box에 들어왔다는 뜻입니다.
-	// 먼저 통로/단계/목적지가 준비됐는지, 그다음 Player Pawn인지 확인합니다.
 	if (!CanBeginTeleport())
 	{
 		return;
@@ -125,63 +123,8 @@ void ADeadHospitalTeleportTrigger::HandleTriggerBeginOverlap(
 		return;
 	}
 
-	ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
-	if (!IsValid(GameMode))
-	{
-		return;
-	}
-
-	// 한 번만 쓰는 Teleport는 이동 전에 EventId를 "실행 중"으로 예약합니다.
-	// 같은 프레임에 Overlap이 여러 번 들어와도 두 번째 요청은 예약 검사에서 막힙니다.
-	if (OneUseOnly && !GameMode->TryStartOneTimeEvent(TeleportEventId))
-	{
-		return;
-	}
-
-	TeleportInProgress = true;
-	// 출발 Player와 원래 위치를 기억해 중간 단계에서 실패하면 복구할 수 있게 합니다.
-	PendingPlayerPawn = PlayerPawn;
-	PendingSourceTransform = PlayerPawn->GetActorTransform();
-
-	APlayerController* PlayerController = Cast<APlayerController>(PlayerPawn->GetController());
-	if (IsValid(PlayerController))
-	{
-		// 암전 중 이동과 시점 입력을 막고, 도착 위치가 준비된 뒤 다시 허용합니다.
-		PlayerController->SetIgnoreMoveInput(true);
-		PlayerController->SetIgnoreLookInput(true);
-		PlayerPawn->DisableInput(PlayerController);
-		PlayerInputWasLocked = true;
-
-		if (IsValid(PlayerController->PlayerCameraManager) && FadeDurationSeconds > 0.0f)
-		{
-			PlayerController->PlayerCameraManager->StartCameraFade(
-				0.0f,
-				1.0f,
-				FadeDurationSeconds,
-				FLinearColor::Black,
-				false,
-				true
-			);
-		}
-	}
-
-	// Blueprint는 이 알림에서 엘리베이터 문/효과음을 시작할 수 있습니다.
-	OnTeleportStarted(PlayerPawn);
-
-	if (FadeDurationSeconds <= 0.0f)
-	{
-		PerformTeleport();
-	}
-	else
-	{
-		GetWorldTimerManager().SetTimer(
-			TeleportTimerHandle,
-			this,
-			&ADeadHospitalTeleportTrigger::PerformTeleport,
-			FadeDurationSeconds,
-			false
-		);
-	}
+	// 겹침(Overlap)으로 시작된 경우에도 동일한 수동 텔레포트 함수를 호출합니다.
+	StartTeleportForPlayer(PlayerPawn);
 }
 
 void ADeadHospitalTeleportTrigger::PerformTeleport()
@@ -519,4 +462,69 @@ void ADeadHospitalTeleportTrigger::HandleCheckpointRestored(FName CheckpointId)
 		&& GameMode->IsOneTimeEventCompleted(TeleportEventId);
 	IsActivated = StartsActivated && (!OneUseOnly || !HasBeenUsed);
 	OnTeleportStateRestored(HasBeenUsed);
+}
+
+void ADeadHospitalTeleportTrigger::StartTeleportForPlayer(APawn* PlayerPawn)
+{
+	// 외부 호출을 대비해 유효성 및 조건을 한 번 더 검사합니다.
+	if (!CanBeginTeleport() || !IsValid(PlayerPawn) || !PlayerPawn->IsPlayerControlled())
+	{
+		return;
+	}
+
+	ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
+	if (!IsValid(GameMode))
+	{
+		return;
+	}
+
+	// 한 번만 쓰는 Teleport는 이동 전에 EventId를 "실행 중"으로 예약합니다.
+	if (OneUseOnly && !GameMode->TryStartOneTimeEvent(TeleportEventId))
+	{
+		return;
+	}
+
+	TeleportInProgress = true;
+	PendingPlayerPawn = PlayerPawn;
+	PendingSourceTransform = PlayerPawn->GetActorTransform();
+
+	APlayerController* PlayerController = Cast<APlayerController>(PlayerPawn->GetController());
+	if (IsValid(PlayerController))
+	{
+		// 암전 중 이동과 시점 입력을 막고, 도착 위치가 준비된 뒤 다시 허용합니다.
+		PlayerController->SetIgnoreMoveInput(true);
+		PlayerController->SetIgnoreLookInput(true);
+		PlayerPawn->DisableInput(PlayerController);
+		PlayerInputWasLocked = true;
+
+		if (IsValid(PlayerController->PlayerCameraManager) && FadeDurationSeconds > 0.0f)
+		{
+			PlayerController->PlayerCameraManager->StartCameraFade(
+				0.0f,
+				1.0f,
+				FadeDurationSeconds,
+				FLinearColor::Black,
+				false,
+				true
+			);
+		}
+	}
+
+	// Blueprint는 이 알림에서 엘리베이터 문/효과음을 시작할 수 있습니다.
+	OnTeleportStarted(PlayerPawn);
+
+	if (FadeDurationSeconds <= 0.0f)
+	{
+		PerformTeleport();
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimer(
+			TeleportTimerHandle,
+			this,
+			&ADeadHospitalTeleportTrigger::PerformTeleport,
+			FadeDurationSeconds,
+			false
+		);
+	}
 }
