@@ -128,6 +128,15 @@ public:
 			&& !bIsUIOpen;
 	}
 
+	UFUNCTION(BlueprintCallable, Category = "Action")
+	bool CanUseItem() const
+	{
+		return !bIsDead
+			&& !bIsHiding
+			&& !bIsHideTransitioning
+			&& !bIsInputLocked;
+	}
+
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	float GetEyeHeight() const { return EyeHeight; }
 

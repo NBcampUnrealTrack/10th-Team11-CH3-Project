@@ -1111,13 +1111,6 @@ AActor* APlayerCharacter::FindInteractableTarget() const
 		return nullptr;
 	}
 
-	UE_LOG(
-		LogTemp,
-		Warning,
-		TEXT("INTERACT DEBUG - Hit Actor: %s"),
-		*HitActor->GetName()
-	);
-
 	const bool bImplementsPlayerInterface = HitActor->GetClass()->ImplementsInterface(UPlayerInterface::StaticClass());
 	const bool bImplementsInteractable = HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass());
 
