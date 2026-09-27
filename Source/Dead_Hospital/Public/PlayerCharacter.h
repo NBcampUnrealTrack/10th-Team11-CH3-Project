@@ -26,6 +26,13 @@ public:
 
 	APlayerCharacter();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* PainSound = nullptr;
+
+	// 사망 시 재생할 신음소리
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	USoundBase* DeathSound = nullptr;
+
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	float GetCurrentHP() const { return CurrentHP; }
 
@@ -470,8 +477,12 @@ protected:
 	//  매 프레임 스테미너 소모/ 회복 처리
 	void UpdateStamina(float DeltaTime);
 
-	// 매 프레임 이동 상태(앉기/걷기/뛰기)에 따른 소음 처리 (AI 청각 감지용)
+	// 매 프레임 이동 상태(앉기/걷기/뛰기)에 따른 소음 처리 (AI 청각 감지용) - (기존 타이머 방식)
 	void UpdateMovementNoise(float DeltaTime);
+
+	// 애니메이션 노티파이에서 발이 땅에 닿을 때 직접 호출할 함수
+	UFUNCTION(BlueprintCallable, Category = "Sound")
+	void PlayFootstepSound();
 
 	// 사망 처리 (HP 0 이하일 때 1회 호출)
 	void Die();
