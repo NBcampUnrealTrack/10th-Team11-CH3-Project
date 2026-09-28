@@ -238,17 +238,25 @@ void UCombatComponent::PrimaryAttack()
         // --- 여기서부터 이펙트 분리 로직 ---
         AZombieCharacter* HitZombie = Cast<AZombieCharacter>(HitActor);
 
-        if (HitZombie)
+        // 1. 우는 천사(태그가 "Stone")인지 가장 먼저 확인 (벽 타격 이펙트 재생)
+        if (HitActor != nullptr && HitActor->ActorHasTag(FName("Stone")))
         {
-            // 1. 맞은 대상이 좀비일 경우 (피 튀김 이펙트)
+            if (WallHitEffect)
+            {
+                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), WallHitEffect, HitResult.ImpactPoint);
+            }
+        }
+        // 2. 그 외의 일반 좀비일 경우 (피 타격 이펙트 재생)
+        else if (HitZombie)
+        {
             if (HitEffect)
             {
                 UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitEffect, HitResult.ImpactPoint);
             }
         }
+        // 3. 좀비도 아니고 우는 천사도 아닐 경우 (일반 벽, 바닥 등 - 벽 타격 이펙트 재생)
         else
         {
-            // 2. 좀비가 아닐 경우 (벽, 바닥, 오브젝트 등 - 벽 전용 이펙트)
             if (WallHitEffect)
             {
                 UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), WallHitEffect, HitResult.ImpactPoint);
