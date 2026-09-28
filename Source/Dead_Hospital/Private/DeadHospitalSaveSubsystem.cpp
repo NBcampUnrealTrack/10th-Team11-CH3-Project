@@ -138,3 +138,48 @@ bool UDeadHospitalSaveSubsystem::GetSlotInfo(int32 SlotIndex, bool& bOutHasSave,
 	}
 	return ReadSlotInfo(MakeManualSlotName(SlotIndex), bOutHasSave, OutAreaId, OutSavedAt, OutPlayTimeSeconds);
 }
+
+bool UDeadHospitalSaveSubsystem::RequestLoadSlotFromMainMenu(int32 SlotIndex)
+{
+	if (!IsManualSlotIndexValid(SlotIndex))
+	{
+		return false;
+	}
+
+	const FString SlotName = MakeManualSlotName(SlotIndex);
+
+	if (!UGameplayStatics::DoesSaveGameExist(SlotName, 0))
+	{
+		return false;
+	}
+
+	PendingLoadSlotIndex = SlotIndex;
+
+	UGameplayStatics::OpenLevel(this, TEXT("L_MainLevel"));
+
+	return true;
+}
+
+bool UDeadHospitalSaveSubsystem::HasPendingLoad() const
+{
+	return PendingLoadSlotIndex != INDEX_NONE;
+}
+
+bool UDeadHospitalSaveSubsystem::LoadPendingSlot()
+{
+	if (!IsManualSlotIndexValid(PendingLoadSlotIndex))
+	{
+		return false;
+	}
+
+	const int32 SlotIndex = PendingLoadSlotIndex;
+
+	const bool bLoaded = LoadSlot(SlotIndex);
+
+	if (bLoaded)
+	{
+		PendingLoadSlotIndex = INDEX_NONE;
+	}
+
+	return bLoaded;
+}
