@@ -91,6 +91,7 @@ bool ADeadHospitalGameMode::StartGame()
 	RunningEventIds.Reset();
 	ActivatedCheckpointIds.Reset();
 	CountedEnemies.Reset();
+	CollectedItemPickupIds.Reset();
 	LastCheckpoint = FDeadHospitalCheckpointData();
 	CurrentAreaId = NAME_None;
 	CurrentObjective = FDeadHospitalObjectiveState();
@@ -629,6 +630,43 @@ bool ADeadHospitalGameMode::IsProtectedKeyItem(FName ItemId) const
 	return !ItemId.IsNone() && ProtectedKeyItemIds.Contains(ItemId);
 }
 
+bool ADeadHospitalGameMode::RegisterCollectedItemPickup(FName PickupId)
+{
+	if (PickupId.IsNone())
+	{
+		return false;
+	}
+
+	if (CollectedItemPickupIds.Contains(PickupId))
+	{
+		return false;
+	}
+
+	CollectedItemPickupIds.Add(PickupId);
+
+	UE_LOG(
+		LogTemp,
+		Log,
+		TEXT("ItemPickup collected: %s"),
+		*PickupId.ToString()
+	);
+
+	return true;
+}
+
+bool ADeadHospitalGameMode::IsItemPickupCollected(FName PickupId) const
+{
+	return !PickupId.IsNone()
+		&& CollectedItemPickupIds.Contains(PickupId);
+}
+
+bool ADeadHospitalGameMode::WasItemPickupCollectedAtCheckpoint(FName PickupId) const
+{
+	return LastCheckpoint.IsValid
+		&& !PickupId.IsNone()
+		&& LastCheckpoint.CollectedItemPickupIds.Contains(PickupId);
+}
+
 bool ADeadHospitalGameMode::SetCurrentAreaId(FName AreaId)
 {
 	// None은 "이름이 정해지지 않았다"는 뜻이므로 현재의 정상적인 구역 값을 지우지 않습니다.
@@ -705,6 +743,7 @@ bool ADeadHospitalGameMode::SaveCheckpoint(
 	NewCheckpoint.CompletedPuzzleIds = GetCompletedPuzzleIds();
 	NewCheckpoint.CompletedEventIds = GetCompletedOneTimeEventIds();
 	NewCheckpoint.ActivatedCheckpointIds = ActivatedCheckpointIds.Array();
+	NewCheckpoint.CollectedItemPickupIds = CollectedItemPickupIds.Array();
 	NewCheckpoint.ActivatedCheckpointIds.AddUnique(CheckpointId);
 
 	// APlayerCharacter로 Cast에 성공하면 Player 팀이 공개한 Getter로 체력과 손전등 보유 상태를 읽습니다.
@@ -1477,6 +1516,13 @@ void ADeadHospitalGameMode::RestoreInternalCheckpointState()
 	for (const FName EventId : LastCheckpoint.CompletedEventIds)
 	{
 		CompletedEventIds.Add(EventId);
+	}
+	// 체크포인트 저장 당시 획득한 일반 ItemPickup 목록 복구
+	CollectedItemPickupIds.Reset();
+
+	for (const FName PickupId : LastCheckpoint.CollectedItemPickupIds)
+	{
+		CollectedItemPickupIds.Add(PickupId);
 	}
 	// 끝나지 않은 연출 '예약'과 게임오버 직전 몬스터 중복 기록은 복구하지 않습니다.
 	// 체크포인트 활성화 목록은 저장 시점 목록으로 되돌립니다.
