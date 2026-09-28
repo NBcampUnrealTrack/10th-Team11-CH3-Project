@@ -383,12 +383,7 @@ void AZombieAIController::Tick(float DeltaTime)
 	//[디버그] 캡슐 Yaw와 ControlRotation Yaw를 비교 출력(시야 튐 버그 확인용, 회귀 확인용으로 유지)
 	if (AZombieCharacter* DebugZombie = Cast<AZombieCharacter>(GetPawn()))
 	{
-#if WITH_EDITOR
-		GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Cyan,
-			FString::Printf(TEXT("ActorYaw: %.1f"), DebugZombie->GetActorRotation().Yaw));
-		GEngine->AddOnScreenDebugMessage(101, 0.0f, FColor::Green,
-			FString::Printf(TEXT("ControlYaw: %.1f"), GetControlRotation().Yaw));
-#endif
+
 	}
 
 	AZombieCharacter* Zombie = Cast<AZombieCharacter>(GetPawn());
