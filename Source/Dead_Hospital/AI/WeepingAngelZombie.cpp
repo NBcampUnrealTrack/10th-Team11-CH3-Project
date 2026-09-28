@@ -3,6 +3,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "PlayerCharacter.h"
 #include "Components/AudioComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 AWeepingAngelZombie::AWeepingAngelZombie()
 {
@@ -61,6 +62,22 @@ void AWeepingAngelZombie::Tick(float DeltaTime)
         }
 
         bWasSeenLastFrame = bIsSeenNow;
+    }
+    // 시야에서 벗어나 있을 때(땡 상태) 항상 플레이어 방향으로 회전
+    if (!bIsSeenNow)
+    {
+        APlayerCharacter* Player = Cast<APlayerCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+        if (Player != nullptr)
+        {
+            FVector AngelLocation = GetActorLocation();
+            FVector PlayerLocation = Player->GetActorLocation();
+
+            // 플레이어를 향하는 타겟 회전값 계산
+            FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(AngelLocation, PlayerLocation);
+
+            // 천사가 위아래로 눕지 않도록 좌우(Yaw) 회전값만 적용
+            SetActorRotation(FRotator(0.f, LookAtRotation.Yaw, 0.f));
+        }
     }
 }
 
