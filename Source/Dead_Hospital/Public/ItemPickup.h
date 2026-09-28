@@ -38,7 +38,14 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	UFUNCTION()
+	void HandleCheckpointRestored(FName CheckpointId);
+
+	void RefreshPickupState();
+	void SetPickupActive(bool bActive);
+
 	// 월드에서 보이는 아이템 모델
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Item")
 	UStaticMeshComponent* ItemMesh;
@@ -54,6 +61,11 @@ protected:
 	// 이 pickup이 어떤 아이템인지 저장
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item")
 	FItemData ItemData;
+
+	// 맵에 배치된 각각의 Pickup을 구분하기 위한 고유 ID
+	// 체크포인트 복구 시 이 Pickup이 저장 전에 획득되었는지 판단할 때 사용
+	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Category = "Item|Checkpoint")
+	FName PickupId = NAME_None;
 
 	// DataTable의 Row Name을 이용해 ItemData를 설정
 	bool LoadItemDataFromTable();

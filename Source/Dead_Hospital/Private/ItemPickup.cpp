@@ -3,6 +3,7 @@
 #include "InventoryComponent.h"
 #include "Engine/DataTable.h"
 #include "PlayerCharacter.h"
+#include "DeadHospitalGameMode.h"
 
 AItemPickup::AItemPickup(){
 
@@ -69,11 +70,69 @@ void AItemPickup::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// DataTable과 Row Name이 설정되어 있다면 ItemData를 불러옴
 	if (ItemDataTable && !ItemRowName.IsNone())
 	{
 		LoadItemDataFromTable();
 	}
+
+	if (ADeadHospitalGameMode* GameMode =
+		GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>())
+	{
+		GameMode->OnCheckpointRestored.AddDynamic(
+			this,
+			&AItemPickup::HandleCheckpointRestored
+		);
+	}
+
+	RefreshPickupState();
+}
+
+void AItemPickup::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (ADeadHospitalGameMode* GameMode =
+		GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>())
+	{
+		GameMode->OnCheckpointRestored.RemoveDynamic(
+			this,
+			&AItemPickup::HandleCheckpointRestored
+		);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void AItemPickup::HandleCheckpointRestored(FName CheckpointId)
+{
+	RefreshPickupState();
+}
+
+void AItemPickup::RefreshPickupState()
+{
+	if (PickupId.IsNone())
+	{
+		SetPickupActive(true);
+		return;
+	}
+
+	ADeadHospitalGameMode* GameMode =
+		GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>();
+
+	if (!GameMode)
+	{
+		SetPickupActive(true);
+		return;
+	}
+
+	const bool bCollected =
+		GameMode->IsItemPickupCollected(PickupId);
+
+	SetPickupActive(!bCollected);
+}
+
+void AItemPickup::SetPickupActive(bool bActive)
+{
+	SetActorHiddenInGame(!bActive);
+	SetActorEnableCollision(bActive);
 }
 
 void AItemPickup::Interact_Implementation(AActor* PlayerActor){
@@ -120,8 +179,11 @@ void AItemPickup::Interact_Implementation(AActor* PlayerActor){
 		// Destroy 전에 프롬프트 정리
 		Player->ClearInteractionTarget();
 
-		// 획득 완료 후 월드의 손전등 제거
-		Destroy();
+		if (ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>()){
+			GameMode->RegisterCollectedItemPickup(PickupId);
+		}
+
+		SetPickupActive(false);
 
 		return;
 	}
@@ -150,8 +212,11 @@ void AItemPickup::Interact_Implementation(AActor* PlayerActor){
 			Player->ClearInteractionTarget();
 		}
 
-		// 획득이 완료되었으므로 월드의 아이템 제거
-		Destroy();
+		if (ADeadHospitalGameMode* GameMode = GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>()){
+			GameMode->RegisterCollectedItemPickup(PickupId);
+		}
+
+		SetPickupActive(false);
 	}
 }
 

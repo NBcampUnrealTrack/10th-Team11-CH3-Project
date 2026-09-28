@@ -202,6 +202,10 @@ struct FDeadHospitalCheckpointData
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
 	TArray<FItemData> InventoryItems;
 
+	// 체크포인트 저장 당시 이미 획득된 일반 ItemPickup들의 고유 ID
+	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
+	TArray<FName> CollectedItemPickupIds;
+
 	// 체크포인트 저장 시 플레이어가 보유한 Coin 수량
 	// Coin은 InventorySlots에 들어가지 않으므로 별도로 저장
 	UPROPERTY(BlueprintReadOnly, Category = "Checkpoint")
@@ -609,6 +613,15 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Game Events")
 	FOnCheckpointRestoredSignature OnCheckpointRestored;
 
+	UFUNCTION(BlueprintCallable, Category = "Checkpoint|Pickup")
+	bool RegisterCollectedItemPickup(FName PickupId);
+
+	UFUNCTION(BlueprintPure, Category = "Checkpoint|Pickup")
+	bool IsItemPickupCollected(FName PickupId) const;
+
+	UFUNCTION(BlueprintPure, Category = "Checkpoint|Pickup")
+	bool WasItemPickupCollectedAtCheckpoint(FName PickupId) const;
+
 	/**
 	 * 체크포인트 재시작으로 새 Player Pawn이 만들어지고 Inventory 복구까지 끝난 뒤 발생합니다.
 	 * Player, Combat, Inventory, UI 담당자는 자기 코드를 GameMode에 직접 결합하지 않고
@@ -718,7 +731,8 @@ private:
 	void RestartGameTimer();
 	/** LastCheckpoint에 저장해 둔 시간·목표·퍼즐·Event 등을 GameMode에 되돌립니다. */
 	void RestoreInternalCheckpointState();
-
+	// 현재 플레이에서 획득한 일반 ItemPickup들의 고유 ID
+	TSet<FName> CollectedItemPickupIds;
 	// TimerHandle은 '나중에 다시 실행될 함수'의 예약 표입니다. 이 표를 보관해야
 	// 엔딩/사망/맵 종료 때 ClearTimer로 이전 예약을 안전하게 취소할 수 있습니다.
 	FTimerHandle GameTimerHandle;
