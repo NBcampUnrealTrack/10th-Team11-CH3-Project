@@ -24,6 +24,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Save Game")
 	bool GetSlotInfo(int32 SlotIndex, bool& bOutHasSave, FName& OutAreaId, FString& OutSavedAt, int32& OutPlayTimeSeconds) const;
 
+	UFUNCTION(BlueprintCallable)
+	bool RequestLoadSlotFromMainMenu(int32 SlotIndex);
+
+	UFUNCTION(BlueprintCallable)
+	bool LoadPendingSlot();
+
+	UFUNCTION(BlueprintPure)
+	bool HasPendingLoad() const;
+
 private:
 	int32 NextAutoSaveSlotIndex = 0;
+
+	int32 PendingLoadSlotIndex = INDEX_NONE;
 };
