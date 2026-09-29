@@ -1,196 +1,1329 @@
-#include "InventoryComponent.h"
+﻿#include "InventoryComponent.h"
+#include "PlayerCharacter.h"
+#include "Engine/DataTable.h"
+#include "CombatComponent.h"
 
 // Sets default values for this component's properties
 UInventoryComponent::UInventoryComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
-	//ó������ ������ ���Ⱑ ����
+	//처음에는 장착된 무기가 없음
 	EquippedWeaponID = NAME_None;
+
+	// 퀵슬롯 3칸 생성
+	QuickSlots.SetNum(3);
 }
 
 // Called when the game starts
 void UInventoryComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Grid Inventory 슬롯 초기화
+	InventorySlots.Empty();
+
+	for (int32 i = 0; i < MaxInventorySlots; i++){
+		FInventorySlot NewSlot;
+
+		// 슬롯 번호 설정
+		NewSlot.SlotIndex = i;
+
+		// 처음에는 모든 슬롯이 비어있음
+		NewSlot.bIsEmpty = true;
+
+		// 슬롯 배열에 추가
+		InventorySlots.Add(NewSlot);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Inventory Slots Initialized: %d"), InventorySlots.Num());
 }
 
-// ������ �߰�
-bool UInventoryComponent::AddItem(const FItemData& NewItem)
-{
-	// �߸��� ������ ������ ����
-	if (NewItem.Quantity <= 0 || NewItem.MaxStack <= 0) {
+// 아이템 추가
+bool UInventoryComponent::AddItem(const FItemData& NewItem){
+
+	// 잘못된 아이템 데이터 방지
+	if (NewItem.Quantity <= 0 || NewItem.MaxStack <= 0){
+
 		UE_LOG(LogTemp, Warning, TEXT("Invalid item data: %s"), *NewItem.ItemID.ToString());
 
 		return false;
 	}
 
-	// ���� �߰��ؾ� �� ���� ����
+	// Coin은 일반 인벤토리 슬롯을 사용하지 않고
+	// 별도의 CoinQuantity에 바로 누적
+	if (NewItem.ItemID == FName(TEXT("Coin"))) {
+
+		CoinQuantity += NewItem.Quantity;
+
+		UE_LOG(LogTemp, Warning, TEXT("Coin added / Amount: %d / Total: %d"), NewItem.Quantity, CoinQuantity);
+
+		// Coin UI 갱신을 위해 인벤토리 변경 이벤트 발생
+		OnInventoryChanged.Broadcast();
+
+		return true;
+	}
+
+	// 아이템 전체를 넣을 공간이 있는지 먼저 확인
+	// 공간이 부족하면 아무것도 추가하지 않음
+	if (!CanAddItem(NewItem)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Inventory is full: %s"), *NewItem.ItemID.ToString());
+
+		return false;
+	}
+
+	// 아직 추가해야 하는 수량
 	int32 RemainingQuantity = NewItem.Quantity;
 
-	// ������ �ִ� ���� ������ ���ú��� ä��
-	for (FItemData& Item : Items)
-	{
-		if (Item.ItemID == NewItem.ItemID)
-		{
-			//�̹� �� �� �����̸� �ǳʶ�
-			if (Item.Quantity >= Item.MaxStack) {
+	// 1. 기존에 있는 같은 아이템 스택부터 채움
+	for (FInventorySlot& Slot : InventorySlots){
+
+		// 빈 슬롯이면 기존 스택이 아니므로 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 같은 아이템인지 확인
+		if (Slot.ItemData.ItemID == NewItem.ItemID){
+
+			// 이미 최대 수량이면 건너뜀
+			if (Slot.ItemData.Quantity >= Slot.ItemData.MaxStack){
 				continue;
 			}
 
-			// ���� ���ÿ� �󸶳� �� �� �� �ִ��� ���
-			int32 AvailableSpace = Item.MaxStack - Item.Quantity;
+			// 현재 슬롯에 남아있는 공간
+			int32 AvailableSpace = Slot.ItemData.MaxStack - Slot.ItemData.Quantity;
 
-			// ������ �̹� ���ÿ� ���� ����
+			// 실제로 이번 슬롯에 넣을 수량
 			int32 AddQuantity = FMath::Min(AvailableSpace, RemainingQuantity);
 
-			// ���� �߰�
-			Item.Quantity += AddQuantity;
+			// 슬롯 수량 증가
+			Slot.ItemData.Quantity += AddQuantity;
 
-			// �߰��� ��ŭ ���� ���� ����
+			// 추가한 만큼 남은 수량 감소
 			RemainingQuantity -= AddQuantity;
 
-			// ���� �߰������� ����
-			if (RemainingQuantity <= 0) {
+			// 전부 추가했으면 성공
+			if (RemainingQuantity <= 0){
+
+				UE_LOG(LogTemp, Warning, TEXT("Item added: %s / Amount: %d"), *NewItem.ItemID.ToString(), NewItem.Quantity);
+
+
+				// 인벤토리가 변경되었음을 알림
+				OnInventoryChanged.Broadcast();
+
 				return true;
 			}
 		}
 	}
 
-	// ���� ���ÿ� �� �� �־��ٸ�
-	// ���� �������� �� ���� ����
-	while (RemainingQuantity > 0) {
-		FItemData ItemToAdd = NewItem;
+	// 2. 기존 스택에 다 못 넣었다면 빈 슬롯 사용
+	while (RemainingQuantity > 0){
 
-		// �� ���ÿ� ���� ����
-		ItemToAdd.Quantity = FMath::Min(RemainingQuantity, NewItem.MaxStack);
+		// 비어있는 첫 번째 슬롯 찾기
+		int32 EmptySlotIndex = FindEmptySlotIndex();
 
-		Items.Add(ItemToAdd);
+		// CanAddItem에서 이미 확인했기 때문에
+		// 정상이라면 여기서 -1이 나오면 안 됨
+		if (EmptySlotIndex == -1){
 
-		// ���� ���� ��ŭ ����
-		RemainingQuantity -= ItemToAdd.Quantity;
+			UE_LOG(LogTemp, Error, TEXT("Failed to find empty inventory slot"));
+
+			return false;
+		}
+
+		// 빈 슬롯 가져오기
+		FInventorySlot& EmptySlot = InventorySlots[EmptySlotIndex];
+
+		// 새로운 아이템 데이터를 복사
+		EmptySlot.ItemData = NewItem;
+
+		// 한 슬롯에는 MaxStack까지만 넣음
+		EmptySlot.ItemData.Quantity = FMath::Min(RemainingQuantity, NewItem.MaxStack);
+
+		// 이제 빈 슬롯이 아님
+		EmptySlot.bIsEmpty = false;
+
+		// 넣은 수량만큼 감소
+		RemainingQuantity -= EmptySlot.ItemData.Quantity;
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Item added: %s / Amount: %d"), *NewItem.ItemID.ToString(), NewItem.Quantity);
+
+	// 인벤토리가 변경되었음을 알림
+	OnInventoryChanged.Broadcast();
 
 	return true;
 }
 
-// ������ ����
+// ItemID를 이용해 DT_ItemData에서 아이템 정보를 찾아 인벤토리에 추가
+// 퍼즐, 이벤트 등 다른 Blueprint에서 아이템을 지급할 때 사용
+bool UInventoryComponent::AddItemByID(FName ItemID, int32 Quantity){
+
+	// 잘못된 ItemID 또는 수량 방지
+	if (ItemID.IsNone() || Quantity <= 0){
+
+		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: Invalid ItemID or Quantity"));
+
+		return false;
+	}
+
+	// DT_ItemData가 연결되어 있는지 확인
+	if (!ItemDataTable){
+
+		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: ItemDataTable is not set"));
+
+		return false;
+	}
+
+	// ItemID와 같은 Row Name을 DT_ItemData에서 찾음
+	const FItemData* FoundItemData = ItemDataTable->FindRow<FItemData>(ItemID, TEXT("AddItemByID"));
+
+	// 해당 Row를 찾지 못한 경우
+	if (!FoundItemData){
+
+		UE_LOG(LogTemp, Warning, TEXT("AddItemByID failed: Item not found. ItemID = %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// DataTable의 원본 데이터를 직접 수정하지 않도록 복사
+	FItemData ItemToAdd = *FoundItemData;
+
+	// 퍼즐에서 지급하려는 수량 적용
+	ItemToAdd.Quantity = Quantity;
+
+	// 기존 인벤토리 추가 기능 사용
+	return AddItem(ItemToAdd);
+}
+
+// 아이템 제거
 bool UInventoryComponent::RemoveItem(FName ItemID, int32 RemoveQuantity){
-	// �߸��� ���� ��û
+
+	// 잘못된 수량 요청
 	if (RemoveQuantity <= 0){
 		return false;
 	}
 
-	// ���� ��ü ���� Ȯ��
-	int32 TotalQuantity = GetItemQuantity(ItemID);
+	// Key, Painting 같은 진행 아이템은 일반 제거 불가
+	if (IsProtectedItem(ItemID)){
 
-	// ������ �ִ� �������� ���� �����Ϸ��� �ϸ� ����
-	if (TotalQuantity < RemoveQuantity){
-		UE_LOG(LogTemp, Warning, TEXT("Not enough item quantity: %s"),*ItemID.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("Protected item cannot be removed: %s"), *ItemID.ToString());
 
 		return false;
 	}
 
-	// ������ ���� �� ���� ����
+	// 가지고 있는 전체 수량 확인
+	int32 TotalQuantity = GetItemQuantity(ItemID);
+
+	// 가지고 있는 수량보다 많이 제거하려고 하면 실패
+	if (TotalQuantity < RemoveQuantity){
+
+		UE_LOG(LogTemp, Warning, TEXT("Not enough item quantity: %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// 실제로 제거해야 하는 남은 수량
 	int32 RemainingQuantity = RemoveQuantity;
 
-	// �ڿ������� Ȯ���ϸ� RemoveAt() ����ϱ� ����
-	for (int32 i = Items.Num() - 1; i >= 0; i--){
-		if (Items[i].ItemID == ItemID){
-			// ���� ���� ������ ���� �� �������� �۰ų� ������
-			// ���� ������ ��°�� ����
-			if (Items[i].Quantity <= RemainingQuantity){
+	// 뒤쪽 슬롯부터 확인
+	for (int32 i = InventorySlots.Num() - 1; i >= 0; i--) {
+		FInventorySlot& Slot = InventorySlots[i];
 
-				RemainingQuantity -= Items[i].Quantity;
-
-				Items.RemoveAt(i);
-			}
-			else{
-				// ���� ���ÿ��� �Ϻθ� ����
-				Items[i].Quantity -= RemainingQuantity;
-
-				RemainingQuantity = 0;
-			}
-
-			// �ʿ��� ��ŭ ���� ���������� ����
-			if (RemainingQuantity <= 0){
-
-				//���� ���� ���⸦ ���� �����ߴٸ� ���� ����
-				if (EquippedWeaponID == ItemID && GetItemQuantity(ItemID) <= 0) {
-					UnequipWeapon();
-				}
-
-				UE_LOG(LogTemp, Warning, TEXT("Item removed: %s / Amount: %d"),*ItemID.ToString(),RemoveQuantity);
-
-				return true;
-			}
+		// 빈 슬롯은 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
 		}
-	}
 
-	return false;
-}
-// ���� ��Ʈ�� Ammo ������ Ȯ���Ҽ� �ִ� �Լ�
-int32 UInventoryComponent::GetItemQuantity(FName ItemID) const{
-
-	//���� ItemID�� ��ü ������ ����
-	int32 TotalQuantity = 0;
-	
-	//�κ��丮 ��ü Ȯ��
-	for (const FItemData& Item : Items){
-		if (Item.ItemID == ItemID){
-			//���� �������̸� ������ ��� ����
-			TotalQuantity += Item.Quantity;
+		// 제거하려는 아이템이 아니면 건너뜀
+		if (Slot.ItemData.ItemID != ItemID){
+			continue;
 		}
-	}
 
-	// �κ��丮�� �ش� �������� ������ 0
-	return TotalQuantity;
-}
+		// 현재 슬롯의 아이템을 전부 제거해야 하는 경우
+		if (Slot.ItemData.Quantity <= RemainingQuantity){
 
-// ���� ���� �Լ�
-bool UInventoryComponent::EquipWeapon(FName ItemID) {
+			RemainingQuantity -= Slot.ItemData.Quantity;
 
-	//�κ��丮���� �ش� ������ ã��
-	for (const FItemData& Item : Items) {
-		if (Item.ItemID == ItemID) {
-			//���� Ÿ������ Ȯ��
-			if (Item.ItemType != EItemType::Weapon) {
-				UE_LOG(LogTemp, Warning, TEXT("Item is not a weapon: %s"), *ItemID.ToString());
+			// 슬롯 자체를 삭제하지 않고 빈 슬롯으로 변경
+			Slot.ItemData = FItemData();
+			Slot.bIsEmpty = true;
+		}
+		else{
+			// 현재 슬롯에서 일부만 제거
+			Slot.ItemData.Quantity -= RemainingQuantity;
 
-				return false;
+			RemainingQuantity = 0;
+		}
+
+		// 필요한 만큼 전부 제거했다면 종료
+		if (RemainingQuantity <= 0){
+
+			// 장착 중인 무기를 전부 제거했다면 장착 상태도 해제
+			if (EquippedWeaponID == ItemID && GetItemQuantity(ItemID) <= 0){
+				UnequipWeapon();
 			}
 
-			// ���� ���� ����� ����
-			EquippedWeaponID = ItemID;
+			UE_LOG(LogTemp, Warning, TEXT("Item removed: %s / Amount: %d"), *ItemID.ToString(), RemoveQuantity);
 
-			UE_LOG(LogTemp, Warning, TEXT("Weapon equipped: %s"), *ItemID.ToString());
+			// 인벤토리가 변경되었음을 알림
+			OnInventoryChanged.Broadcast();
 
 			return true;
 		}
 	}
 
-	// �κ��丮�� �ش� ���Ⱑ ����
+	return false;
+}
+
+// 퍼즐에서 KeyItem을 정상 사용했을 때 제거
+bool UInventoryComponent::ConsumeKeyItem(FName ItemID, int32 Quantity){
+
+	// 잘못된 수량 요청
+	if (Quantity <= 0){
+		return false;
+	}
+
+	// 해당 KeyItem을 필요한 수량만큼 가지고 있는지 확인
+	if (GetItemQuantity(ItemID) < Quantity){
+
+		UE_LOG(LogTemp, Warning, TEXT("Not enough KeyItem quantity: %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// 실제 Grid Inventory에서 해당 아이템 찾기
+	bool bIsKeyItem = false;
+
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		// 빈 슬롯은 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 해당 아이템 찾기
+		if (Slot.ItemData.ItemID == ItemID){
+
+			// KeyItem 타입인지 확인
+			if (Slot.ItemData.ItemType != EItemType::KeyItem){
+
+				UE_LOG(LogTemp, Warning, TEXT("Item is not KeyItem: %s"), *ItemID.ToString());
+
+				return false;
+			}
+
+			bIsKeyItem = true;
+			break;
+		}
+	}
+
+	// 혹시 KeyItem을 찾지 못한 경우
+	if (!bIsKeyItem){
+		return false;
+	}
+
+	// 실제로 제거해야 하는 남은 수량
+	int32 RemainingQuantity = Quantity;
+
+	// 뒤쪽 슬롯부터 확인
+	for (int32 i = InventorySlots.Num() - 1; i >= 0; i--){
+
+		FInventorySlot& Slot = InventorySlots[i];
+
+		// 빈 슬롯은 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 사용할 KeyItem이 아니면 건너뜀
+		if (Slot.ItemData.ItemID != ItemID){
+			continue;
+		}
+
+		// 현재 슬롯을 전부 사용해야 하는 경우
+		if (Slot.ItemData.Quantity <= RemainingQuantity){
+
+			RemainingQuantity -= Slot.ItemData.Quantity;
+
+			// 슬롯 자체는 삭제하지 않고 빈 슬롯으로 변경
+			Slot.ItemData = FItemData();
+			Slot.bIsEmpty = true;
+		}
+		else{
+
+			// 현재 슬롯에서 필요한 수량만 감소
+			Slot.ItemData.Quantity -= RemainingQuantity;
+
+			RemainingQuantity = 0;
+		}
+
+		// 필요한 수량을 전부 사용했다면 성공
+		if (RemainingQuantity <= 0){
+
+			UE_LOG(LogTemp, Warning, TEXT("KeyItem consumed: %s / Amount: %d"), *ItemID.ToString(), Quantity);
+
+			// 인벤토리가 변경되었음을 알림
+			OnInventoryChanged.Broadcast();
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// 해당 ItemID의 전체 수량 확인
+int32 UInventoryComponent::GetItemQuantity(FName ItemID) const{
+
+	// 같은 ItemID의 전체 수량을 저장
+	int32 TotalQuantity = 0;
+
+	// Grid Inventory의 모든 슬롯 확인
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		// 빈 슬롯은 확인할 필요가 없음
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 찾고 있는 아이템인지 확인
+		if (Slot.ItemData.ItemID == ItemID){
+
+			// 같은 아이템이면 수량을 계속 더함
+			TotalQuantity += Slot.ItemData.Quantity;
+		}
+	}
+
+	// 해당 아이템이 없으면 0 반환
+	return TotalQuantity;
+}
+
+// 현재 보유 중인 Coin 수량 확인
+int32 UInventoryComponent::GetCoinQuantity() const
+{
+	// Coin도 일반 아이템처럼 InventorySlots에 저장되므로
+	// 기존 GetItemQuantity()를 이용해서 전체 Coin 수량을 반환
+	return CoinQuantity;
+}
+
+// Coin 수량을 직접 설정
+// 체크포인트에서 Coin 수량을 복구할 때 사용
+void UInventoryComponent::SetCoinQuantity(int32 NewQuantity){
+
+	// Coin 수량이 음수가 되지 않도록 0 이상으로 설정
+	CoinQuantity = FMath::Max(0, NewQuantity);
+
+	UE_LOG(LogTemp, Warning, TEXT("Coin quantity set / Total: %d"), CoinQuantity);
+
+	// Coin 수량이 변경되었으므로 UI 갱신
+	OnInventoryChanged.Broadcast();
+}
+
+// Coin을 필요한 수량만큼 사용
+bool UInventoryComponent::SpendCoin(int32 Amount){
+
+	// 0개 또는 음수 Coin 사용 요청은 잘못된 요청
+	if (Amount <= 0){
+
+		UE_LOG(LogTemp, Warning, TEXT("Invalid Coin spend amount: %d"), Amount);
+
+		return false;
+	}
+
+	// 현재 보유 중인 Coin보다 많이 사용하려고 하면 실패
+	if (CoinQuantity < Amount){
+
+		UE_LOG(LogTemp, Warning, TEXT("Not enough Coin / Current: %d / Required: %d"), CoinQuantity, Amount);
+
+		return false;
+	}
+
+	// 필요한 만큼 Coin 차감
+	CoinQuantity -= Amount;
+
+	UE_LOG(LogTemp, Warning, TEXT("Coin spent / Amount: %d / Remaining: %d"), Amount, CoinQuantity);
+
+	// Coin UI가 현재 보유량을 다시 갱신할 수 있도록 알림
+	OnInventoryChanged.Broadcast();
+
+	return true;
+}
+
+// 해당 아이템을 가지고 있는지 확인
+bool UInventoryComponent::HasItem(FName ItemID) const
+{
+	return GetItemQuantity(ItemID) > 0;
+}
+
+// 진행에 필요한 보호 아이템인지 확인
+bool UInventoryComponent::IsProtectedItem(FName ItemID) const
+{
+	return ItemID == FName(TEXT("CardKeyA")) ||
+		ItemID == FName(TEXT("CardKeyB")) ||
+		ItemID == FName(TEXT("MasterCardKey")) ||
+		ItemID == FName(TEXT("Painting")) ||
+		ItemID == FName(TEXT("PaintingWoman")) ||
+		ItemID == FName(TEXT("PaintingPottery")) ||
+		ItemID == FName(TEXT("AngelHead")) ||
+		ItemID == FName(TEXT("DemonHead"));
+}
+
+// 해당 아이템을 인벤토리에서 버릴 수 있는지 확인
+bool UInventoryComponent::CanDiscardItem(FName ItemID) const{
+
+	// 인벤토리에 없는 아이템은 버릴 수 없음
+	if (!HasItem(ItemID)){
+		return false;
+	}
+
+	// Key, Painting 같은 보호 아이템은 버릴 수 없음
+	if (IsProtectedItem(ItemID)){
+		return false;
+	}
+
+	// 그 외 아이템은 버릴 수 있음
+	return true;
+}
+
+// 해당 아이템을 현재 일반 사용 가능한지 확인
+bool UInventoryComponent::CanUseItem(FName ItemID) const{
+
+	// 인벤토리 슬롯을 하나씩 확인
+	for (const FInventorySlot& Slot : InventorySlots){
+		// 빈 슬롯은 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 찾고 있는 아이템이 아니면 건너뜀
+		if (Slot.ItemData.ItemID != ItemID){
+			continue;
+		}
+
+		// 소비 아이템만 일반 사용 가능
+		if (Slot.ItemData.ItemType != EItemType::Consumable){
+			return false;
+		}
+
+		// 현재 실제 사용 기능이 구현된 아이템은 Bandage
+		if (Slot.ItemData.ItemID == FName(TEXT("Bandage"))){
+			return true;
+		}
+
+		return false;
+	}
+
+	// 인벤토리에 해당 아이템이 없음
+	return false;
+}
+
+// 소비 아이템 사용
+bool UInventoryComponent::UseItem(FName ItemID){
+
+	// 해당 아이템을 가지고 있는지 확인
+	if (!HasItem(ItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Item not found: %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// InventoryComponent를 가지고 있는 Player 가져오기
+	APlayerCharacter* Player = Cast<APlayerCharacter>(GetOwner());
+
+	if (!Player){
+
+		UE_LOG(LogTemp, Warning, TEXT("Inventory owner is not PlayerCharacter"));
+
+		return false;
+	}
+
+	// 사망, 은신, 은신 전환 중에는 아이템 사용 불가
+	if (!Player->CanUseItem()){
+
+		UE_LOG(LogTemp, Warning, TEXT("Cannot use item: Player cannot perform action"));
+
+		return false;
+	}
+
+	// Grid Inventory에서 사용할 아이템 찾기
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		// 빈 슬롯은 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 사용하려는 아이템이 아니면 건너뜀
+		if (Slot.ItemData.ItemID != ItemID){
+			continue;
+		}
+
+		// 소비 아이템만 사용 가능
+		if (Slot.ItemData.ItemType != EItemType::Consumable){
+
+			UE_LOG(LogTemp, Warning, TEXT("Item is not consumable: %s"), *ItemID.ToString());
+
+			return false;
+		}
+
+		// 현재는 Bandage만 소비 아이템으로 처리
+		if (Slot.ItemData.ItemID == FName(TEXT("Bandage"))){
+
+			// HP가 이미 최대라면 사용하지 않음
+			if (Player->GetCurrentHP() >= Player->GetMaxHP()){
+
+				UE_LOG(LogTemp, Warning, TEXT("Cannot use Bandage: HP is full"));
+
+				return false;
+			}
+
+			// 효과량이 잘못 설정된 경우 사용하지 않음
+			if (Slot.ItemData.EffectAmount <= 0.0f){
+
+				UE_LOG(LogTemp, Warning, TEXT("Invalid Bandage EffectAmount"));
+
+				return false;
+			}
+
+			// RemoveItem()을 호출하기 전에 회복량 저장
+			float HealAmount = Slot.ItemData.EffectAmount;
+
+			// Bandage 1개 제거
+			if (!RemoveItem(ItemID, 1)){
+
+				return false;
+			}
+
+			// HP 회복
+			Player->Heal(HealAmount);
+
+			UE_LOG(LogTemp, Warning,
+				TEXT("Bandage used / Heal: %.1f / HP: %.1f / %.1f"),
+				HealAmount,
+				Player->GetCurrentHP(),
+				Player->GetMaxHP());
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// 해당 아이템을 장착할 수 있는지 확인
+bool UInventoryComponent::CanEquipItem(FName ItemID) const{
+
+	// 인벤토리 슬롯을 하나씩 확인
+	for (const FInventorySlot& Slot : InventorySlots){
+		// 빈 슬롯은 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 찾고 있는 아이템이 아니면 건너뜀
+		if (Slot.ItemData.ItemID != ItemID){
+			continue;
+		}
+
+		// Weapon 타입만 장착 가능
+		if (Slot.ItemData.ItemType != EItemType::Weapon){
+			return false;
+		}
+
+		return true;
+	}
+
+	// 인벤토리에 해당 아이템이 없음
+	return false;
+}
+
+// 무기 장착 함수
+bool UInventoryComponent::EquipWeapon(FName ItemID){
+
+	// Grid Inventory에서 해당 아이템 찾기
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		// 빈 슬롯은 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 장착하려는 아이템이 아니면 건너뜀
+		if (Slot.ItemData.ItemID != ItemID){
+			continue;
+		}
+
+		// 무기 타입인지 확인
+		if (Slot.ItemData.ItemType != EItemType::Weapon){
+
+			UE_LOG(LogTemp, Warning, TEXT("Item is not a weapon: %s"), *ItemID.ToString());
+
+			return false;
+		}
+
+		// 현재 장착 무기로 설정
+		EquippedWeaponID = ItemID;
+
+		UE_LOG(LogTemp, Warning, TEXT("Weapon equipped: %s"), *ItemID.ToString());
+
+		// 장착 무기가 변경되었음을 알림
+		OnInventoryChanged.Broadcast();
+
+		// CombatComponent에 무기 변경을 알려 UI 갱신
+		if (UCombatComponent* CombatComp = GetOwner()->FindComponentByClass<UCombatComponent>()){
+
+			CombatComp->NotifyWeaponChanged();
+		}
+
+		return true;
+	}
+
+	// 인벤토리에 해당 무기가 없음
 	UE_LOG(LogTemp, Warning, TEXT("Weapon not found in inventory: %s"), *ItemID.ToString());
 
 	return false;
 }
 
-// ���� ���� �Լ�
-void UInventoryComponent::UnequipWeapon() {
-	if (EquippedWeaponID.IsNone()) {
+// 무기 해제 함수
+void UInventoryComponent::UnequipWeapon(){
+
+	if (EquippedWeaponID.IsNone()){
+
 		return;
 	}
+
 	UE_LOG(LogTemp, Warning, TEXT("Weapon unequipped: %s"), *EquippedWeaponID.ToString());
 
 	EquippedWeaponID = NAME_None;
+
+	// 장착 무기가 변경되었음을 알림
+	OnInventoryChanged.Broadcast();
+
+	// CombatComponent에 무기 해제를 알려 UI 갱신
+	if (UCombatComponent* CombatComp = GetOwner()->FindComponentByClass<UCombatComponent>()){
+
+		CombatComp->NotifyWeaponChanged();
+	}
 }
 
-//���� ���� ���� Ȯ��
+// 해당 아이템이 현재 장착 중인지 확인
+bool UInventoryComponent::IsItemEquipped(FName ItemID) const{
+
+	// ItemID가 비어있으면 장착 상태가 아님
+	if (ItemID.IsNone()){
+		return false;
+	}
+
+	// 현재 장착 중인 무기 ID와 같은지 확인
+	return EquippedWeaponID == ItemID;
+}
+
+//현재 장착 무기 확인
 FName UInventoryComponent::GetEquippedWeaponID() const {
 	return EquippedWeaponID;
 }
 
-// ���� ���� Ȯ��
+// 장착 여부 확인
 bool UInventoryComponent::HasEquippedWeapon() const {
 	return !EquippedWeaponID.IsNone();
+}
+
+// 비어있는 첫 번째 슬롯 번호 찾기
+int32 UInventoryComponent::FindEmptySlotIndex() const{
+	for (int32 i = 0; i < InventorySlots.Num(); i++){
+		// 비어있는 슬롯 발견
+		if (InventorySlots[i].bIsEmpty){
+			return i;
+		}
+	}
+
+	// 빈 슬롯이 없으면 -1 반환
+	return -1;
+}
+
+// 아이템을 전부 추가할 공간이 있는지 확인
+bool UInventoryComponent::CanAddItem(const FItemData& NewItem) const{
+
+	// 잘못된 아이템 데이터면 추가 불가
+	if (NewItem.Quantity <= 0 || NewItem.MaxStack <= 0){
+		return false;
+	}
+
+	// 추가해야 하는 남은 수량
+	int32 RemainingQuantity = NewItem.Quantity;
+
+	// 1. 기존에 있는 같은 아이템 슬롯의 남은 공간 확인
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		// 빈 슬롯은 일단 건너뜀
+		if (Slot.bIsEmpty){
+			continue;
+		}
+
+		// 같은 아이템인지 확인
+		if (Slot.ItemData.ItemID == NewItem.ItemID){
+
+			// 이 슬롯에 추가로 들어갈 수 있는 수량
+			int32 AvailableSpace =
+				Slot.ItemData.MaxStack - Slot.ItemData.Quantity;
+
+			// 실제로 넣을 수 있는 수량만큼 계산
+			int32 AddQuantity =
+				FMath::Min(AvailableSpace, RemainingQuantity);
+
+			RemainingQuantity -= AddQuantity;
+
+			// 기존 스택들만으로 전부 들어간다면 추가 가능
+			if (RemainingQuantity <= 0){
+				return true;
+			}
+		}
+	}
+
+	// 2. 빈 슬롯에 들어갈 수 있는 공간 확인
+
+	for (const FInventorySlot& Slot : InventorySlots){
+		if (Slot.bIsEmpty){
+
+			// 빈 슬롯 하나에는 최대 MaxStack만큼 들어갈 수 있음
+			RemainingQuantity -= NewItem.MaxStack;
+
+			// 필요한 수량을 전부 넣을 수 있음
+			if (RemainingQuantity <= 0){
+				return true;
+			}
+		}
+	}
+
+	// 기존 스택 + 빈 슬롯을 모두 사용해도 공간 부족
+	return false;
+}
+
+// 제작 재료를 소비한 뒤 결과 아이템을 넣을 공간이 생기는지 확인
+bool UInventoryComponent::CanAddCraftResultAfterConsumingMaterials(FName ResultItemID, const FItemData& ResultItemData) const
+{
+	// 현재 상태에서도 결과 아이템이 들어갈 수 있다면 바로 제작 가능
+	if (CanAddItem(ResultItemData)){
+		return true;
+	}
+
+	// 현재는 공간이 부족한 경우
+	// 제작 재료를 사용하면서 슬롯 하나가 완전히 비워지는지 확인한다.
+
+	// HandGunAmmo 제작
+	// Gunpowder 2개를 사용했을 때 Gunpowder 슬롯 하나가 비워질 수 있는지 확인
+	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
+
+		for (const FInventorySlot& Slot : InventorySlots){
+
+			if (!Slot.bIsEmpty && Slot.ItemData.ItemID == FName(TEXT("Gunpowder")) && Slot.ItemData.Quantity <= 2){
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// MasterCardKey 제작
+	// CardKeyA 또는 CardKeyB를 1개 사용해서 슬롯이 비워지는지 확인
+	if (ResultItemID == FName(TEXT("MasterCardKey"))){
+
+		for (const FInventorySlot& Slot : InventorySlots){
+
+			if (Slot.bIsEmpty){
+
+				continue;
+			}
+
+			if ((Slot.ItemData.ItemID == FName(TEXT("CardKeyA")) || Slot.ItemData.ItemID == FName(TEXT("CardKeyB"))) && Slot.ItemData.Quantity <= 1)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	return false;
+}
+
+// Grid Inventory에서 아이템 위치 이동
+bool UInventoryComponent::MoveItem(int32 FromIndex, int32 ToIndex){
+
+	// 출발 슬롯 번호가 올바른지 확인
+	if (!InventorySlots.IsValidIndex(FromIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Invalid FromIndex: %d"), FromIndex);
+
+		return false;
+	}
+
+	// 도착 슬롯 번호가 올바른지 확인
+	if (!InventorySlots.IsValidIndex(ToIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Invalid ToIndex: %d"), ToIndex);
+
+		return false;
+	}
+
+	// 같은 슬롯으로 이동하려는 경우
+	if (FromIndex == ToIndex){
+		return false;
+	}
+
+	// 출발 슬롯이 비어있으면 이동할 아이템이 없음
+	if (InventorySlots[FromIndex].bIsEmpty){
+		UE_LOG(LogTemp, Warning, TEXT("From slot is empty: %d"), FromIndex);
+
+		return false;
+	}
+
+	// 도착 슬롯에 이미 아이템이 있는 경우
+	if (!InventorySlots[ToIndex].bIsEmpty){
+
+		// 두 슬롯의 아이템이 서로 다른 아이템인지 확인
+		if (InventorySlots[FromIndex].ItemData.ItemID != InventorySlots[ToIndex].ItemData.ItemID){
+
+			// 출발 슬롯의 아이템을 임시로 저장
+			FItemData TempItem = InventorySlots[FromIndex].ItemData;
+
+			// 도착 슬롯 아이템을 출발 슬롯로 이동
+			InventorySlots[FromIndex].ItemData = InventorySlots[ToIndex].ItemData;
+
+			// 임시 저장했던 출발 아이템을 도착 슬롯으로 이동
+			InventorySlots[ToIndex].ItemData = TempItem;
+
+			UE_LOG(LogTemp, Warning, TEXT("Items swapped: Slot %d <-> Slot %d"), FromIndex, ToIndex);
+
+			// 인벤토리가 변경되었음을 알림
+			OnInventoryChanged.Broadcast();
+
+			return true;
+		}
+
+		// 같은 아이템이면 Stack 합치기
+		int32 AvailableSpace = InventorySlots[ToIndex].ItemData.MaxStack - InventorySlots[ToIndex].ItemData.Quantity;
+
+		// 도착 슬롯이 이미 MaxStack까지 가득 찬 경우
+		if (AvailableSpace <= 0){
+
+			UE_LOG(LogTemp, Warning, TEXT("Target stack is already full"));
+
+			return false;
+		}
+
+		// 실제로 옮길 수량 계산
+		int32 MoveQuantity = FMath::Min(InventorySlots[FromIndex].ItemData.Quantity, AvailableSpace);
+
+		// 도착 슬롯에 수량 추가
+		InventorySlots[ToIndex].ItemData.Quantity += MoveQuantity;
+
+		// 출발 슬롯에서 옮긴 만큼 수량 감소
+		InventorySlots[FromIndex].ItemData.Quantity -= MoveQuantity;
+
+		// 출발 슬롯의 수량이 0이 되었다면 빈 슬롯으로 변경
+		if (InventorySlots[FromIndex].ItemData.Quantity <= 0){
+			InventorySlots[FromIndex].ItemData = FItemData();
+			InventorySlots[FromIndex].bIsEmpty = true;
+		}
+
+		UE_LOG(LogTemp, Warning,
+			TEXT("Items stacked: Slot %d -> Slot %d / Amount: %d"),
+			FromIndex,
+			ToIndex,
+			MoveQuantity);
+
+		// 인벤토리 슬롯 위치가 변경되었음을 알림
+		OnInventoryChanged.Broadcast();
+
+		return true;
+	}
+
+	// 출발 슬롯의 아이템 데이터를 도착 슬롯으로 복사
+	InventorySlots[ToIndex].ItemData = InventorySlots[FromIndex].ItemData;
+
+	// 도착 슬롯을 사용 중인 상태로 변경
+	InventorySlots[ToIndex].bIsEmpty = false;
+
+	// 출발 슬롯의 아이템 데이터 제거
+	InventorySlots[FromIndex].ItemData = FItemData();
+
+	// 출발 슬롯을 빈 슬롯으로 변경
+	InventorySlots[FromIndex].bIsEmpty = true;
+
+	UE_LOG(LogTemp, Warning, TEXT("Item moved: Slot %d -> Slot %d"), FromIndex, ToIndex);
+
+	// 인벤토리 슬롯 위치가 변경되었음을 알림
+	OnInventoryChanged.Broadcast();
+
+	return true;
+}
+
+// 현재 Grid Inventory의 전체 슬롯 데이터 반환
+const TArray<FInventorySlot>& UInventoryComponent::GetInventorySlots() const
+{
+	return InventorySlots;
+}
+
+// 해당 아이템을 제작할 수 있는지 확인
+bool UInventoryComponent::CanCraftItem(FName ResultItemID) const
+{
+	// HandGunAmmo 제작
+	// 화약이 2개 이상 있으면 제작 가능
+	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
+
+		return GetItemQuantity(FName(TEXT("Gunpowder"))) >= 2;
+	}
+
+	// MasterCardKey 제작
+	// CardKeyA와 CardKeyB를 각각 1개 이상 가지고 있어야 제작 가능
+	if (ResultItemID == FName(TEXT("MasterCardKey"))){
+
+		return GetItemQuantity(FName(TEXT("CardKeyA"))) >= 1 && GetItemQuantity(FName(TEXT("CardKeyB"))) >= 1;
+	}
+
+	// 등록되지 않은 제작 아이템
+	return false;
+}
+
+// 재료를 소비하고 아이템을 실제로 제작
+bool UInventoryComponent::CraftItem(FName ResultItemID){
+
+	// 제작 가능한 재료를 가지고 있는지 확인
+	if (!CanCraftItem(ResultItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Not enough materials. ResultItemID = %s"), *ResultItemID.ToString());
+
+		return false;
+	}
+
+	// ItemDataTable이 연결되어 있는지 확인
+	if (!ItemDataTable){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: ItemDataTable is not set"));
+
+		return false;
+	}
+
+	// DT_ItemData에서 제작 결과 아이템 정보 가져오기
+	const FItemData* ResultItemData = ItemDataTable->FindRow<FItemData>(ResultItemID, TEXT("CraftItem"));
+
+	// DataTable에 해당 아이템이 없는 경우
+	if (!ResultItemData){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Item data not found. ResultItemID = %s"), *ResultItemID.ToString());
+
+		return false;
+	}
+
+	// 제작 재료를 소비한 뒤에도
+	// 결과 아이템을 넣을 공간이 있는지 확인
+	if (!CanAddCraftResultAfterConsumingMaterials(ResultItemID, *ResultItemData)){
+
+		UE_LOG(LogTemp, Warning, TEXT("Craft failed: Not enough inventory space. ResultItemID = %s"), *ResultItemID.ToString());
+
+		return false;
+	}
+
+	// HandGunAmmo 제작
+	if (ResultItemID == FName(TEXT("HandGunAmmo"))){
+
+		// 화약 2개 소비
+		if (!RemoveItem(FName(TEXT("Gunpowder")), 2)){
+
+			return false;
+		}
+
+		// 제작된 탄약 추가
+		if (!AddItem(*ResultItemData)){
+
+			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add HandGunAmmo"));
+
+			// 결과 아이템 추가에 실패했으므로
+			// 이미 사용한 Gunpowder 2개를 다시 복구
+			const FItemData* GunpowderData = ItemDataTable->FindRow<FItemData>(FName(TEXT("Gunpowder")), TEXT("CraftRollback"));
+
+			if (GunpowderData){
+
+				// DataTable의 원본 데이터를 복사한 뒤
+				// 복구해야 하는 수량을 2개로 설정
+				FItemData RestoreGunpowder = *GunpowderData;
+				RestoreGunpowder.Quantity = 2;
+
+				AddItem(RestoreGunpowder);
+			}
+
+			return false;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("Craft success: HandGunAmmo"));
+
+		return true;
+	}
+
+	// MasterCardKey 제작
+	if (ResultItemID == FName(TEXT("MasterCardKey"))){
+
+		// CardKeyA 1개 소비
+		if (!ConsumeKeyItem(FName(TEXT("CardKeyA")), 1)){
+
+			return false;
+		}
+
+		// CardKeyB 1개 소비
+		if (!ConsumeKeyItem(FName(TEXT("CardKeyB")), 1)){
+
+			// CardKeyA는 이미 소비된 상태이므로
+			// CardKeyB 소비에 실패하면 CardKeyA를 다시 복구
+			const FItemData* CardKeyAData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyA")), TEXT("CraftRollback"));
+
+			if (CardKeyAData){
+
+				FItemData RestoreCardKeyA = *CardKeyAData;
+				RestoreCardKeyA.Quantity = 1;
+
+				AddItem(RestoreCardKeyA);
+			}
+
+			return false;
+		}
+
+		// 제작된 MasterCardKey 추가
+		if (!AddItem(*ResultItemData)){
+
+			UE_LOG(LogTemp, Warning, TEXT("Craft failed: Could not add MasterCardKey"));
+
+			// 결과 아이템 추가에 실패했으므로
+			// 이미 사용한 CardKeyA와 CardKeyB를 다시 복구
+
+			const FItemData* CardKeyAData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyA")), TEXT("CraftRollback"));
+
+			const FItemData* CardKeyBData = ItemDataTable->FindRow<FItemData>(FName(TEXT("CardKeyB")), TEXT("CraftRollback"));
+
+			// CardKeyA 복구
+			if (CardKeyAData){
+
+				FItemData RestoreCardKeyA = *CardKeyAData;
+				RestoreCardKeyA.Quantity = 1;
+
+				AddItem(RestoreCardKeyA);
+			}
+
+			// CardKeyB 복구
+			if (CardKeyBData){
+
+				FItemData RestoreCardKeyB = *CardKeyBData;
+				RestoreCardKeyB.Quantity = 1;
+
+				AddItem(RestoreCardKeyB);
+			}
+
+			return false;
+		}
+
+		UE_LOG(LogTemp, Log, TEXT("Craft success: MasterCardKey"));
+
+		return true;
+	}
+
+	return false;
+}
+
+// 아이템을 지정한 퀵슬롯에 등록
+bool UInventoryComponent::SetQuickSlot(int32 QuickSlotIndex, FName ItemID){
+
+	// 퀵슬롯 번호가 0~2 범위를 벗어나면 실패
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Invalid quick slot index"));
+		return false;
+	}
+
+	//ItemID가 None이면 퀵슬롯 해제
+	if (ItemID.IsNone())
+	{
+		QuickSlots[QuickSlotIndex] = NAME_None;
+		// 퀵슬롯이 비워졌다고 UI에 알림
+		OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+
+		UE_LOG(LogTemp, Log, TEXT("QuickSlot %d cleared"), QuickSlotIndex + 1);
+
+		return true;
+	}
+
+	// 실제 인벤토리에 없는 아이템이면 등록 불가
+	if (!HasItem(ItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Item not found. ItemID = %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// 인벤토리에서 해당 아이템의 정보를 찾음
+	const FInventorySlot* FoundSlot = nullptr;
+
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		if (!Slot.bIsEmpty && Slot.ItemData.ItemID == ItemID){
+
+			FoundSlot = &Slot;
+			break;
+		}
+	}
+
+	if (!FoundSlot){
+
+		return false;
+	}
+
+	// 무기 또는 소비 아이템만 퀵슬롯 등록 가능
+	if (FoundSlot->ItemData.ItemType != EItemType::Weapon && FoundSlot->ItemData.ItemType != EItemType::Consumable){
+
+		UE_LOG(LogTemp, Warning, TEXT("SetQuickSlot failed: Item cannot be registered. ItemID = %s"), *ItemID.ToString());
+
+		return false;
+	}
+
+	// 퀵슬롯에 ItemID 저장
+	QuickSlots[QuickSlotIndex] = ItemID;
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("BROADCAST QuickSlotIndex = %d, ItemID = %s"),
+		QuickSlotIndex,
+		*ItemID.ToString());
+
+	// 퀵슬롯이 변경되었다고 UI에 알림
+	OnQuickSlotChanged.Broadcast(QuickSlotIndex, ItemID);
+
+	UE_LOG(LogTemp, Log,
+		TEXT("QuickSlot %d = %s"),
+		QuickSlotIndex + 1,
+		*ItemID.ToString());
+
+	return true;
+}
+
+// 지정한 퀵슬롯에 등록된 아이템 ID 반환
+FName UInventoryComponent::GetQuickSlotItem(int32 QuickSlotIndex) const{
+
+	// 잘못된 퀵슬롯 번호면 None 반환
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		return NAME_None;
+	}
+
+	// 해당 퀵슬롯에 저장된 아이템 ID 반환
+	return QuickSlots[QuickSlotIndex];
+}
+
+// 지정한 퀵슬롯에 등록된 아이템 사용
+bool UInventoryComponent::UseQuickSlot(int32 QuickSlotIndex){
+
+	// 잘못된 퀵슬롯 번호인지 확인
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: Invalid quick slot index"));
+
+		return false;
+	}
+
+	// 퀵슬롯에 등록된 아이템 ID 가져오기
+	const FName ItemID = QuickSlots[QuickSlotIndex];
+
+	// 퀵슬롯이 비어있으면 사용 불가
+	if (ItemID.IsNone()){
+
+		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: QuickSlot %d is empty"), QuickSlotIndex + 1);
+
+		return false;
+	}
+
+	// 등록된 아이템을 현재 가지고 있는지 확인
+	if (!HasItem(ItemID)){
+
+		UE_LOG(LogTemp, Warning, TEXT("UseQuickSlot failed: Item not found. ItemID = %s"), *ItemID.ToString());
+
+		// 더 이상 가지고 있지 않으면 퀵슬롯도 비워줌
+		QuickSlots[QuickSlotIndex] = NAME_None;
+
+		// 자동으로 비워졌다고 UI에 알림
+		OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+
+		return false;
+	}
+
+	// 인벤토리에서 아이템 정보 찾기
+	for (const FInventorySlot& Slot : InventorySlots){
+
+		if (!Slot.bIsEmpty && Slot.ItemData.ItemID == ItemID){
+
+			// 소비 아이템이면 기존 UseItem 사용
+			if (Slot.ItemData.ItemType == EItemType::Consumable){
+
+				// 기존 아이템 사용 함수 호출
+				const bool bUsed = UseItem(ItemID);
+
+				// 아이템 사용에 실패했다면 종료
+				if (!bUsed){
+
+					return false;
+				}
+
+				// 사용 후 해당 아이템을 더 이상 가지고 있지 않으면
+				// 퀵슬롯에서도 자동으로 제거
+				if (!HasItem(ItemID)){
+
+					QuickSlots[QuickSlotIndex] = NAME_None;
+
+					// 퀵슬롯이 비워졌다고 UI에 알림
+					OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+				}
+
+				return true;
+			}
+
+			// 무기면 기존 EquipWeapon 사용
+			if (Slot.ItemData.ItemType == EItemType::Weapon){
+
+				return EquipWeapon(ItemID);
+			}
+
+			return false;
+		}
+	}
+
+	return false;
+}
+
+// 지정한 퀵슬롯의 등록 아이템 해제
+bool UInventoryComponent::ClearQuickSlot(int32 QuickSlotIndex){
+
+	// 잘못된 퀵슬롯 번호인지 확인
+	if (!QuickSlots.IsValidIndex(QuickSlotIndex)){
+
+		UE_LOG(LogTemp, Warning, TEXT("ClearQuickSlot failed: Invalid quick slot index"));
+
+		return false;
+	}
+
+	// 이미 비어있는 퀵슬롯이면 해제할 필요 없음
+	if (QuickSlots[QuickSlotIndex].IsNone()){
+
+		return false;
+	}
+
+	// 퀵슬롯 비우기
+	QuickSlots[QuickSlotIndex] = NAME_None;
+
+	// 퀵슬롯이 비워졌다고 UI에 알림
+	OnQuickSlotChanged.Broadcast(QuickSlotIndex, NAME_None);
+
+	UE_LOG(LogTemp, Log, TEXT("QuickSlot %d cleared"), QuickSlotIndex + 1);
+
+	return true;
 }

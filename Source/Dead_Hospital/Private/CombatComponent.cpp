@@ -8,6 +8,12 @@
 #include "Particles/ParticleSystem.h"
 #include "Animation/AnimMontage.h"
 #include "GameFramework/Character.h"
+#include "../AI/ZombieCharacter.h"
+#include "PlayerCharacter.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Animation/AnimInstance.h"
+#include "Perception/AISense_Hearing.h"
+
 
 UCombatComponent::UCombatComponent()
 {
@@ -22,52 +28,134 @@ void UCombatComponent::BeginPlay()
     bIsReloading = false;
 }
 
+
 // Getter 함수 구현
 
-int32 UCombatComponent::GetCurrentAmmo() const
-{
-    return CurrentWeapon.CurrentAmmo;
+int32 UCombatComponent::GetCurrentAmmo() const {
+
+    // 인벤토리에서 장착된 무기가 있는지 확인
+    UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
+
+    if (Inventory != nullptr && Inventory->HasEquippedWeapon()) {
+
+        // 인벤토리에서 현재 무기 ID를 가져와서 맵에서 검색
+        if (const FWeaponData* Data = WeaponDataMap.Find(Inventory->GetEquippedWeaponID())) {
+            return Data->CurrentAmmo;
+        }
+    }
+    return 0;
 }
 
-float UCombatComponent::GetWeaponDamage() const
+int32 UCombatComponent::GetWeaponCurrentAmmo(FName WeaponID) const
 {
-    return CurrentWeapon.BaseDamage;
+    // WeaponDataMap에서 해당 무기 데이터를 찾습니다.
+    const FWeaponData* WeaponData = WeaponDataMap.Find(WeaponID);
+
+    // 존재하지 않는 무기라면 0을 반환합니다.
+    if (WeaponData == nullptr)
+    {
+        return 0;
+    }
+
+    return WeaponData->CurrentAmmo;
+}
+
+bool UCombatComponent::SetWeaponCurrentAmmo(FName WeaponID, int32 NewAmmo)
+{
+    // WeaponDataMap에서 해당 무기 데이터를 찾습니다.
+    FWeaponData* WeaponData = WeaponDataMap.Find(WeaponID);
+
+    // 존재하지 않는 무기라면 복원할 수 없습니다.
+    if (WeaponData == nullptr)
+    {
+        return false;
+    }
+
+    // 탄창 수가 0보다 작거나 최대 탄창 수보다 커지지 않도록 제한합니다.
+    WeaponData->CurrentAmmo = FMath::Clamp(
+        NewAmmo,
+        0,
+        WeaponData->MagazineCapacity
+    );
+
+    return true;
+}
+
+float UCombatComponent::GetEquippedWeaponDamage() const
+{
+    UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
+    if (Inventory != nullptr && Inventory->HasEquippedWeapon())
+    {
+        if (const FWeaponData* Data = WeaponDataMap.Find(Inventory->GetEquippedWeaponID()))
+        {
+            return Data->BaseDamage;
+        }
+    }
+    return 0.0f;
 }
 
 void UCombatComponent::PrimaryAttack()
 {
-    // 발사 조건 검사 (쿨타임 대기 중이거나, 장전 중이거나, 총알이 0개면 발사 불가)
+    // 플레이어 캐릭터로 캐스팅
+    APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
+
+    // 플레이어가 없거나, 현재 행동 불가 상태(사망, 은신 등)라면 즉시 차단
+    if (PlayerCharacter == nullptr || !PlayerCharacter->CanPerformAction())
+    {
+        return;
+    }
+
+    // 전투 컴포넌트 내부 상태 검사 (쿨타임, 장전 중)
     if (bCanPrimaryAttack == false || bIsReloading == true)
     {
         return;
     }
 
-    if (CurrentWeapon.CurrentAmmo <= 0)
+    // 인벤토리에서 장착 상태 실시간 확인
+    UInventoryComponent* InventoryComponent = GetOwner()->FindComponentByClass<UInventoryComponent>();
+    if (InventoryComponent == nullptr || !InventoryComponent->HasEquippedWeapon())
     {
-        // 총알이 없을 때의 처리 (빈 총 소리 등)
-        UE_LOG(LogTemp, Warning, TEXT("(탄약이 없습니다)"));
-        
-        // 빈 총 사운드 재생
-        if (EmptySound)
-        {
-            UGameplayStatics::PlaySoundAtLocation(this, EmptySound, GetOwner()->GetActorLocation());
-        }
+        return; // 장착된 무기가 없으면 사격 불가
+    }
 
-        // 탄약이 0일 때 자동 재장전 실행
+    // 인벤토리에서 현재 무기 ID를 가져옴
+    FName CurrentWeaponID = InventoryComponent->GetEquippedWeaponID();
+
+    // 유효한 무기인지 검사
+    if (CurrentWeaponID != FName("HandGun") && CurrentWeaponID != FName("Magnum"))
+    {
+        return;
+    }
+
+    // 가져온 무기 ID로 맵에서 데이터를 찾음
+    FWeaponData* CurrentWeaponData = WeaponDataMap.Find(CurrentWeaponID);
+    if (CurrentWeaponData == nullptr) return;
+
+    if (CurrentWeaponData->CurrentAmmo <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("(탄약이 없습니다)"));
+        if (EmptySound) UGameplayStatics::PlaySoundAtLocation(this, EmptySound, GetOwner()->GetActorLocation());
+        OnAmmoEmptyWarning();
+
         ReloadWeapon();
         return;
     }
 
     // 조건 충족 시: 상태 변경 및 탄약 차감
     bCanPrimaryAttack = false;
-    CurrentWeapon.CurrentAmmo -= 1;
+    CurrentWeaponData->CurrentAmmo -= 1; // 탄약 차감
+
+    UpdateAmmoUI();
+
+    // 탄약 차감이 확정된 실제 발사 시점에 크로스헤어 연출용 이벤트 발생
+    OnWeaponFired.Broadcast(CurrentWeaponID);
 
     // 쿨타임 타이머 시작 (공격 속도 시간만큼 대기 후 ResetPrimaryAttack 실행)
     GetWorld()->GetTimerManager().SetTimer(
         TimerHandle_PrimaryCooldown,
         this,
         &UCombatComponent::ResetPrimaryAttack,
-        CurrentWeapon.AttackSpeed,
+        CurrentWeaponData->AttackSpeed,
         false
     );
 
@@ -82,13 +170,28 @@ void UCombatComponent::PrimaryAttack()
     // 총기 사운드 및 애니메이션 재생
     if (FireSound)
     {
-        UGameplayStatics::PlaySoundAtLocation(this, FireSound, EyeLocation);
+        UGameplayStatics::PlaySoundAtLocation(this, FireSound, EyeLocation, FireSoundVolume);
     }
 
-    ACharacter* OwnerCharacter = Cast<ACharacter>(Owner);
-    if (OwnerCharacter && FireAnimation)
+    // 총소리 -> 좀비 청각 감지 (발소리보다 훨씬 크게: Loudness 최대치)
+    UAISense_Hearing::ReportNoiseEvent(
+        GetWorld(),
+        Owner->GetActorLocation(),
+        1.0f,
+        Owner,
+        0.0f,      // MaxRange 0 = 좀비의 AISenseConfig_Hearing HearingRange 그대로 사용
+        NAME_None
+    );
+
+    if (FireAnimation)
     {
-        OwnerCharacter->PlayAnimMontage(FireAnimation);
+        if (USkeletalMeshComponent* Arms = PlayerCharacter->GetArmsMesh())
+        {
+            if (UAnimInstance* AnimInst = Arms->GetAnimInstance())
+            {
+                AnimInst->Montage_Play(FireAnimation);
+            }
+        }
     }
 
     // 무한한 사거리 (시선 방향 벡터 * 999999.0f)
@@ -108,42 +211,97 @@ void UCombatComponent::PrimaryAttack()
         QueryParams
     );
 
-    // 테스트용 빨간색 궤적 그리기 (에디터에서 눈으로 확인하기 위함, 2초간 유지)
-    DrawDebugLine(GetWorld(), EyeLocation, TraceEnd, FColor::Red, false, 2.0f, 0, 2.0f);
-
     if (bSuccess)
     {
-        // 맞은 지점에 초록색 점 표시
-        DrawDebugPoint(GetWorld(), HitResult.ImpactPoint, 20.0f, FColor::Green, false, 2.0f);
-
         // 어떤 액터를 맞췄는지, 데미지는 얼마를 줘야 하는지 계산해서 ProcessHit로 넘김
         AActor* HitActor = HitResult.GetActor();
-        float DamageToApply = GetWeaponDamage(); 
-        ProcessHit(HitActor, DamageToApply);
+        float DamageToApply = GetEquippedWeaponDamage();
 
-        // 타격 위치에 피 튀김/스파크 이펙트 생성
-        if (HitEffect)
+        FName HitBoneName = HitResult.BoneName;
+
+        bool bIsHeadshot = false;
+
+        // 뼈 이름이 "head", "Head", "neck" 등일 경우 데미지 2배 (권총/매그넘 공통)
+        if (HitBoneName == FName("head") || HitBoneName == FName("Head") || HitBoneName == FName("neck"))
         {
-            UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitEffect, HitResult.ImpactPoint);
+            DamageToApply *= HeadshotMultiplier; // 2.0f 대신 헤더에서 선언한 변수 사용
+
+            // 헤드샷으로 판정
+            bIsHeadshot = true;
+
+            UE_LOG(LogTemp, Warning, TEXT("헤드샷. 배수(%f) 적용됨 (적중 부위: %s)"), HeadshotMultiplier, *HitBoneName.ToString());
+        }
+
+        // 계산된 최종 데미지를 전달
+        ProcessHit(HitActor, DamageToApply, bIsHeadshot);
+
+        // --- 여기서부터 이펙트 분리 로직 ---
+        AZombieCharacter* HitZombie = Cast<AZombieCharacter>(HitActor);
+
+        // 1. 우는 천사(태그가 "Stone")인지 가장 먼저 확인 (벽 타격 이펙트 재생)
+        if (HitActor != nullptr && HitActor->ActorHasTag(FName("Stone")))
+        {
+            if (WallHitEffect)
+            {
+                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), WallHitEffect, HitResult.ImpactPoint);
+            }
+        }
+        // 2. 그 외의 일반 좀비일 경우 (피 타격 이펙트 재생)
+        else if (HitZombie)
+        {
+            if (HitEffect)
+            {
+                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitEffect, HitResult.ImpactPoint);
+            }
+        }
+        // 3. 좀비도 아니고 우는 천사도 아닐 경우 (일반 벽, 바닥 등 - 벽 타격 이펙트 재생)
+        else
+        {
+            if (WallHitEffect)
+            {
+                UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), WallHitEffect, HitResult.ImpactPoint);
+            }
         }
     }
 }
 
-void UCombatComponent::ProcessHit(AActor* HitTarget, float AppliedDamage)
+void UCombatComponent::ProcessHit(AActor* HitTarget, float AppliedDamage, bool bIsHeadshot)
 {
-    if (HitTarget)
+    // 타격 대상이 유효한지 검사
+    if (HitTarget == nullptr) return;
+
+    // 시체 타격 방지 (중복 킬 방지)
+    // 맞은 대상이 좀비 캐릭터인지 확인
+    AZombieCharacter* HitZombie = Cast<AZombieCharacter>(HitTarget);
+
+    if (HitZombie)
     {
-        // 데미지 전달 함수 호출
-        UGameplayStatics::ApplyDamage(
-            HitTarget,               // 맞는 대상
-            AppliedDamage,           // 데미지 수치
-            GetOwner()->GetInstigatorController(), // 공격한 사람의 컨트롤러
-            GetOwner(),              // 공격한 사람(무기 또는 플레이어)
+        // 체력이 0 이하라면(죽었다면) 타격 무시
+        if (HitZombie->GetHealth() <= 0.0f)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("이미 죽은 적입니다. 타격 무시."));
+            return;
+        }
+
+        // 데미지 전달 (벽에는 적용되지 않음)
+        float ActualDamage = UGameplayStatics::ApplyDamage(
+            HitTarget,
+            AppliedDamage,
+            GetOwner()->GetInstigatorController(),
+            GetOwner(),
             UDamageType::StaticClass()
         );
 
-        // 출력 로그 창에 맞은 대상의 이름과 들어간 데미지를 글자로 띄움 (확인용)
-        UE_LOG(LogTemp, Warning, TEXT("타격 성공! 맞은 대상: %s, 데미지: %f"), *HitTarget->GetName(), AppliedDamage);
+        // 명중 신호 및 실제 적용된 데미지 UI로 발송 (벽을 맞추면 신호 안 감)
+        OnEnemyHit.Broadcast(ActualDamage, bIsHeadshot);
+
+        // 타격 후 체력을 검사하여 이번 공격으로 죽었는지 확인
+        if (HitZombie->GetHealth() <= 0.0f)
+        {
+            OnEnemyKilled.Broadcast();
+        }
+
+        UE_LOG(LogTemp, Warning, TEXT("타격 성공. 맞은 대상: %s, 최종 데미지: %f"), *HitTarget->GetName(), ActualDamage);
     }
 }
 
@@ -155,32 +313,62 @@ void UCombatComponent::ResetPrimaryAttack()
 
 void UCombatComponent::ReloadWeapon()
 {
-    // 이미 탄창이 꽉 찼거나 장전 중이면 무시
-    if (CurrentWeapon.CurrentAmmo >= CurrentWeapon.MagazineCapacity || bIsReloading == true)
+    // 상태 및 장전 중복 검사
+    // 플레이어 캐릭터로 캐스팅
+    APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
+
+    // 플레이어가 없거나, 현재 행동 불가 상태(사망, 은신 등)라면 즉시 차단
+    if (PlayerCharacter == nullptr || !PlayerCharacter->CanPerformAction())
     {
         return;
     }
 
-    // 플레이어 액터에서 인벤토리 컴포넌트 찾아오기
+    // 전투 컴포넌트 내부 상태 검사 (쿨타임, 장전 중)
+    if (bCanPrimaryAttack == false || bIsReloading == true)
+    {
+        return;
+    }
+
+    // 인벤토리에서 장착 상태 실시간 확인
     UInventoryComponent* InventoryComponent = GetOwner()->FindComponentByClass<UInventoryComponent>();
-    if (InventoryComponent == nullptr) return;
+    if (InventoryComponent == nullptr || !InventoryComponent->HasEquippedWeapon())
+    {
+        return;
+    }
+
+    // 인벤토리에서 현재 무기 ID를 가져옴
+    FName CurrentWeaponID = InventoryComponent->GetEquippedWeaponID();
+
+    if (CurrentWeaponID != FName("HandGun") && CurrentWeaponID != FName("Magnum")) return;
+
+    // 가져온 무기 ID로 맵에서 데이터를 찾음
+    FWeaponData* CurrentWeaponData = WeaponDataMap.Find(CurrentWeaponID);
+    if (CurrentWeaponData == nullptr) return;
+
+    // 이미 탄창이 꽉 찼으면 무시
+    if (CurrentWeaponData->CurrentAmmo >= CurrentWeaponData->MagazineCapacity) return;
+
+    // CurrentWeaponID 사용
+    FName AmmoItemName = (CurrentWeaponID == FName("HandGun")) ? FName("HandGunAmmo") : FName("MagnumAmmo");
 
     // 가방에 예비 총알이 있는지 검사
-    int32 AmmoCount = InventoryComponent->GetItemQuantity("Ammo");
+    int32 AmmoCount = InventoryComponent->GetItemQuantity(AmmoItemName);
     if (AmmoCount <= 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("장전 실패: 가방에 총알이 없습니다"));
+        UE_LOG(LogTemp, Warning, TEXT("장전 실패: 가방에 %s가 없습니다"), *AmmoItemName.ToString());
 
         // 장전 실패 시에도 찰칵 소리 재생
-        if (EmptySound)
-        {
-            UGameplayStatics::PlaySoundAtLocation(this, EmptySound, GetOwner()->GetActorLocation());
-        }
+        if (EmptySound) UGameplayStatics::PlaySoundAtLocation(this, EmptySound, GetOwner()->GetActorLocation());
         return;
     }
 
     // 장전 상태 진입 (사격 불가)
     bIsReloading = true;
+
+    // 재장전을 시작한 무기의 ID를 저장
+    ReloadingWeaponID = CurrentWeaponID;
+
+
     UE_LOG(LogTemp, Warning, TEXT("재장전 중..."));
 
     // 재장전 사운드 및 애니메이션 재생
@@ -189,10 +377,15 @@ void UCombatComponent::ReloadWeapon()
         UGameplayStatics::PlaySoundAtLocation(this, ReloadSound, GetOwner()->GetActorLocation());
     }
 
-    ACharacter* OwnerCharacter = Cast<ACharacter>(GetOwner());
-    if (OwnerCharacter && ReloadAnimation)
+    if (ReloadAnimation)
     {
-        OwnerCharacter->PlayAnimMontage(ReloadAnimation);
+        if (USkeletalMeshComponent* Arms = PlayerCharacter->GetArmsMesh())
+        {
+            if (UAnimInstance* AnimInst = Arms->GetAnimInstance())
+            {
+                AnimInst->Montage_Play(ReloadAnimation);
+            }
+        }
     }
 
     // 장전 대기 시간(2초) 타이머 시작
@@ -207,28 +400,139 @@ void UCombatComponent::ReloadWeapon()
 
 void UCombatComponent::FinishReload()
 {
-    UInventoryComponent* InventoryComponent = GetOwner()->FindComponentByClass<UInventoryComponent>();
-    if (InventoryComponent == nullptr)
+    // 장전 도중에 인벤토리를 열었거나, 캐비닛에 숨었거나, 죽었다면 장전 취소
+    APlayerCharacter* PlayerCharacter = Cast<APlayerCharacter>(GetOwner());
+    if (PlayerCharacter == nullptr || !PlayerCharacter->CanPerformAction())
     {
         bIsReloading = false;
+        ReloadingWeaponID = NAME_None;
+
+        UE_LOG(LogTemp, Warning, TEXT("장전 도중 행동 불가 상태가 되어 장전이 취소되었습니다."));
         return;
     }
 
+    // 인벤토리 컴포넌트와 무기 장착 여부 확인
+    UInventoryComponent* InventoryComponent = GetOwner()->FindComponentByClass<UInventoryComponent>();
+    if (InventoryComponent == nullptr || !InventoryComponent->HasEquippedWeapon())
+    {
+        bIsReloading = false;
+        ReloadingWeaponID = NAME_None;
+        return;
+    }
+
+    // 재장전을 시작했던 무기의 데이터를 가져옵니다.
+    // 재장전 도중 장착 무기가 변경되어도
+    // 처음 재장전을 시작한 무기를 기준으로 처리합니다.
+    FWeaponData* CurrentWeaponData = WeaponDataMap.Find(ReloadingWeaponID);
+
+    if (CurrentWeaponData == nullptr) {
+        bIsReloading = false;
+        ReloadingWeaponID = NAME_None;
+        return;
+    }
+
+    // 재장전을 시작했던 무기에 맞는 예비 탄약을 선택합니다.
+    FName AmmoItemName = (ReloadingWeaponID == FName(TEXT("HandGun"))) ? FName(TEXT("HandGunAmmo")) : FName(TEXT("MagnumAmmo"));
+
     // 탄창에 채워야 할 빈 공간 계산
-    int32 NeededAmmo = CurrentWeapon.MagazineCapacity - CurrentWeapon.CurrentAmmo;
+    int32 NeededAmmo = CurrentWeaponData->MagazineCapacity - CurrentWeaponData->CurrentAmmo;
 
     // 가방에 남아있는 총알 갯수 확인
-    int32 AmmoCount = InventoryComponent->GetItemQuantity("Ammo");
+    int32 AmmoCount = InventoryComponent->GetItemQuantity(AmmoItemName);
 
     // 실제 장전할 수량(ReloadAmount) 결정
     // 빈 공간(NeededAmmo)과 가방 속 총알(AmmoCount) 중 더 작은 값을 선택
     int32 ReloadAmount = FMath::Min(NeededAmmo, AmmoCount);
 
-    if (InventoryComponent->RemoveItem("Ammo", ReloadAmount)) {
-        CurrentWeapon.CurrentAmmo += ReloadAmount;
+    if (InventoryComponent->RemoveItem(AmmoItemName, ReloadAmount))
+    {
+        CurrentWeaponData->CurrentAmmo += ReloadAmount;
     }
 
     // 장전 상태 해제
     bIsReloading = false;
-    UE_LOG(LogTemp, Warning, TEXT("장전 완료. 현재 탄창: %d발"), CurrentWeapon.CurrentAmmo);
+    ReloadingWeaponID = NAME_None;
+
+    UE_LOG(LogTemp, Warning, TEXT("장전 완료. 현재 탄창: %d발"), CurrentWeaponData->CurrentAmmo);
+
+    UpdateAmmoUI();
+}
+
+// 사망 시 상태 강제 정리
+void UCombatComponent::HandlePlayerDeath()
+{
+    bIsReloading = false;
+    ReloadingWeaponID = NAME_None;
+    bCanPrimaryAttack = false;
+
+    // 장전 중이거나 쿨타임 대기 중 사망 시, 돌고 있던 언리얼 타이머를 없애서 추가 동작 방지
+    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_Reload);
+    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_PrimaryCooldown);
+
+    // UI 블루프린트에 전투 UI를 비활성화하라는 신호 전달
+    OnCombatStateCleared();
+
+    UE_LOG(LogTemp, Warning, TEXT("플레이어 사망: 전투 타이머 없애고 상태 초기화 완료"));
+}
+
+void UCombatComponent::UpdateAmmoUI()
+{
+    UInventoryComponent* InventoryComponent = GetOwner()->FindComponentByClass<UInventoryComponent>();
+    if (InventoryComponent == nullptr || !InventoryComponent->HasEquippedWeapon()) return;
+
+    FName CurrentWeaponID = InventoryComponent->GetEquippedWeaponID();
+    FWeaponData* CurrentWeaponData = WeaponDataMap.Find(CurrentWeaponID);
+    if (CurrentWeaponData == nullptr) return;
+
+    //// 인벤토리에서 예비 탄약(ReserveAmmo) 수량 확인
+    //FName AmmoItemName = (CurrentWeaponID == FName("HandGun")) ? FName("HandGunAmmo") : FName("MagnumAmmo");
+    //int32 ReserveAmmo = InventoryComponent->GetItemQuantity(AmmoItemName);
+
+    // UI 블루프린트로 현재 탄창(CurrentAmmo)과 최대 탄창 용량(MaxAmmo) 전달
+    OnAmmoChanged.Broadcast(CurrentWeaponData->CurrentAmmo, CurrentWeaponData->MagazineCapacity);
+}
+
+int32 UCombatComponent::GetMagazineCapacity() const
+{
+    UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
+    if (Inventory != nullptr && Inventory->HasEquippedWeapon())
+    {
+        if (const FWeaponData* Data = WeaponDataMap.Find(Inventory->GetEquippedWeaponID()))
+        {
+            return Data->MagazineCapacity;
+        }
+    }
+    return 0;
+}
+
+void UCombatComponent::CancelReload()
+{
+    // 장전 중이 아니면 무시
+    if (!bIsReloading) return;
+
+    // 돌고 있던 장전 타이머를 없애서 FinishReload가 실행되지 않게 막음
+    GetWorld()->GetTimerManager().ClearTimer(TimerHandle_Reload);
+    bIsReloading = false;
+    ReloadingWeaponID = NAME_None;
+
+    UE_LOG(LogTemp, Warning, TEXT("장전이 취소되었습니다."));
+}
+
+void UCombatComponent::NotifyWeaponChanged()
+{
+    UInventoryComponent* Inventory = GetOwner()->FindComponentByClass<UInventoryComponent>();
+    if (Inventory != nullptr && Inventory->HasEquippedWeapon())
+    {
+        FName WeaponID = Inventory->GetEquippedWeaponID();
+
+        if (FWeaponData* Data = WeaponDataMap.Find(WeaponID))
+        {
+            OnWeaponChanged.Broadcast(WeaponID, Data->BaseDamage, Data->CurrentAmmo, Data->MagazineCapacity);
+        }
+    }
+    else
+    {
+        // 무기를 해제한 상태일 때 크로스헤어 숨김 처리용
+        OnWeaponChanged.Broadcast(NAME_None, 0.0f, 0, 0);
+    }
 }
