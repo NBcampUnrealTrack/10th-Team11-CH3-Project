@@ -30,6 +30,14 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	UFUNCTION()
+	void HandleCheckpointRestored(FName CheckpointId);
+
+	void RefreshDocumentState();
+
+	void SetDocumentActive(bool bActive);
 
 	// 월드에서 보이는 문서 모델
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Document")

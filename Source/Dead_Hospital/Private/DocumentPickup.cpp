@@ -2,6 +2,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "DocumentComponent.h"
 #include "Engine/DataTable.h"
+#include "DeadHospitalGameMode.h"
 
 ADocumentPickup::ADocumentPickup(){
 	// 매 프레임 Tick이 필요하지 않으므로 비활성화
@@ -28,9 +29,77 @@ void ADocumentPickup::BeginPlay()
 	Super::BeginPlay();
 
 	// DataTable과 Row Name이 설정되어 있다면 문서 데이터를 불러옴
-	if (DocumentDataTable && !DocumentRowName.IsNone()){
+	if (DocumentDataTable && !DocumentRowName.IsNone())
+	{
 		LoadDocumentDataFromTable();
 	}
+
+	// 체크포인트 복구 이벤트 연결
+	if (ADeadHospitalGameMode* GameMode =
+		GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>())
+	{
+		GameMode->OnCheckpointRestored.AddDynamic(
+			this,
+			&ADocumentPickup::HandleCheckpointRestored
+		);
+	}
+}
+
+void ADocumentPickup::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (ADeadHospitalGameMode* GameMode =
+		GetWorld()->GetAuthGameMode<ADeadHospitalGameMode>())
+	{
+		GameMode->OnCheckpointRestored.RemoveDynamic(
+			this,
+			&ADocumentPickup::HandleCheckpointRestored
+		);
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+void ADocumentPickup::HandleCheckpointRestored(FName CheckpointId)
+{
+	RefreshDocumentState();
+}
+
+void ADocumentPickup::RefreshDocumentState()
+{
+	APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+
+	if (!IsValid(PlayerController))
+	{
+		return;
+	}
+
+	APawn* PlayerPawn = PlayerController->GetPawn();
+
+	if (!IsValid(PlayerPawn))
+	{
+		return;
+	}
+
+	UDocumentComponent* DocumentComponent =
+		PlayerPawn->FindComponentByClass<UDocumentComponent>();
+
+	if (!IsValid(DocumentComponent))
+	{
+		return;
+	}
+
+	// 체크포인트 복구 후 플레이어가 이 문서를 가지고 있으면 숨기고,
+	// 가지고 있지 않으면 월드에 다시 표시
+	const bool bHasDocument =
+		DocumentComponent->HasDocument(DocumentData.DocumentID);
+
+	SetDocumentActive(!bHasDocument);
+}
+
+void ADocumentPickup::SetDocumentActive(bool bActive)
+{
+	SetActorHiddenInGame(!bActive);
+	SetActorEnableCollision(bActive);
 }
 
 // 플레이어가 문서와 상호작용
@@ -60,12 +129,13 @@ void ADocumentPickup::Interact_Implementation(AActor* PlayerActor){
 	}
 
 	// 문서 획득 시도
-	if (DocumentComponent->AddDocument(DocumentData)){
-
+	if (DocumentComponent->AddDocument(DocumentData))
+	{
 		UE_LOG(LogTemp, Warning, TEXT("Document acquired: %s"), *DocumentData.DocumentID.ToString());
 
-		// 획득 성공 후 월드의 문서 제거
-		Destroy();
+		// Actor를 삭제하지 않고 숨김 + 충돌 비활성화
+		// 체크포인트 복구 시 다시 나타날 수 있도록 유지
+		SetDocumentActive(false);
 	}
 }
 
