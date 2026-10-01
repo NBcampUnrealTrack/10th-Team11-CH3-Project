@@ -33,12 +33,14 @@ ADeadHospitalGameMode::ADeadHospitalGameMode()
 		TEXT("Painting")
 	};
 
-	// 최신 GDD에서 특수중환자격리실은 7개 퍼즐을 모두 해결한 후에만 진입할 수 있습니다.
+	// 특수중환자격리실에 들어가기 전에 반드시 해결해야 하는 '메인 진행 퍼즐' 목록입니다.
+	// PZ02는 매그넘이라는 선택 보상을 주는 금고 퍼즐이므로, 플레이어가 금고를 풀지 않아도
+	// 메인 스토리를 끝까지 진행할 수 있도록 최종 목표의 필수 조건에서는 제외합니다.
 	// 이 목록을 생성자에서 채워 두면 C++ GameMode를 그대로 사용해도 필수 조건이 비어 있는 사고를 막을 수 있습니다.
-	// Blueprint 자식에서 배열을 직접 바꾸면 그 Blueprint 값이 우선하므로, 배치 전에 PZ01~PZ07이 모두 들어 있는지 확인해야 합니다.
+	// Blueprint 자식에서 이 배열을 직접 수정했다면 Blueprint에 저장된 값이 우선하므로,
+	// BP_DeadHospitalGameMode에도 PZ02가 남아 있지 않은지 한 번 확인해야 합니다.
 	RequiredPuzzleIdsForFinalObjective = {
 		TEXT("PZ01"),
-		TEXT("PZ02"),
 		TEXT("PZ03"),
 		TEXT("PZ04"),
 		TEXT("PZ05"),

@@ -665,7 +665,8 @@ protected:
 
 	/**
 	 * 특수중환자격리실에서 마지막 목표를 시작하기 전에 반드시 해결해야 하는 퍼즐 ID 목록입니다.
-	 * 최신 기획의 표준 ID는 PZ01~PZ07이며 생성자에서 기본 목록을 넣습니다.
+	 * 메인 진행에 필요한 PZ01, PZ03~PZ07을 생성자에서 기본 목록으로 넣습니다.
+	 * 선택 보상인 매그넘을 주는 PZ02는 해결하지 않아도 엔딩 진행이 가능하도록 제외합니다.
 	 * Blueprint 기본값에서 배열을 비우면 조건 검사가 사라지므로 실제 맵 연결 때 주의해야 합니다.
 	 */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Game Flow|Final Objective")
